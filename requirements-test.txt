@@ -1,0 +1,14 @@
+# Testing Dependencies for Max Min Integration
+#
+# This file contains Python packages required for development, testing, and CI/CD.
+# These dependencies are NOT needed for production runtime.
+#
+# For detailed information about each dependency, see TESTING-DEPENDENCIES.md
+#
+# Installation: pip install -r requirements-test.txt
+
+pytest>=7.0.0
+pytest-asyncio>=0.21.0
+pytest-cov>=4.0.0
+pytest-homeassistant-custom-component>=0.13.0
+freezegun>=1.2.0

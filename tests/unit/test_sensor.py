@@ -1,0 +1,144 @@
+"""Test sensor platform."""
+
+from unittest.mock import Mock
+
+import pytest
+
+from custom_components.max_min.const import CONF_SENSOR_ENTITY
+from custom_components.max_min.coordinator import MaxMinDataUpdateCoordinator
+from custom_components.max_min.sensor import MaxSensor, MinSensor
+
+
+@pytest.fixture
+def coordinator():
+    """Mock coordinator."""
+    coord = Mock(spec=MaxMinDataUpdateCoordinator)
+    coord.max_value = 15.0
+    coord.min_value = 5.0
+    coord.hass = None  # Initially no hass
+    return coord
+
+
+@pytest.fixture
+def config_entry():
+    """Mock config entry."""
+    entry = Mock()
+    entry.entry_id = "test_entry"
+    entry.data = {CONF_SENSOR_ENTITY: "sensor.test"}
+    return entry
+
+
+@pytest.fixture
+def hass():
+    """Mock hass."""
+    hass = Mock()
+    # Mock source sensor with unit
+    source_state = Mock()
+    source_state.attributes = {"unit_of_measurement": "°C"}
+    hass.states.get.return_value = source_state
+    return hass
+
+
+def test_max_sensor(coordinator, config_entry, hass):
+    """Test max sensor."""
+    # Set hass on coordinator
+    coordinator.hass = hass
+    
+    sensor = MaxSensor(coordinator, config_entry, "Max Test Diari")
+    assert sensor.native_value == 15.0
+    assert sensor.available is True
+    assert sensor.name == "Max Test Diari"
+    assert sensor.unique_id == "test_entry_max"
+    assert sensor._attr_unit_of_measurement == "°C"
+
+
+def test_min_sensor(coordinator, config_entry, hass):
+    """Test min sensor."""
+    coordinator.hass = hass
+    
+    sensor = MinSensor(coordinator, config_entry, "Min Test Diari")
+    assert sensor.native_value == 5.0
+    assert sensor.available is True
+    assert sensor.name == "Min Test Diari"
+    assert sensor.unique_id == "test_entry_min"
+    assert sensor._attr_unit_of_measurement == "°C"
+
+
+def test_sensor_unavailable(coordinator, config_entry, hass):
+    """Test sensor unavailable."""
+    coordinator.hass = hass
+    coordinator.max_value = None
+    coordinator.min_value = None
+
+    max_sensor = MaxSensor(coordinator, config_entry, "Max Test")
+    min_sensor = MinSensor(coordinator, config_entry, "Min Test")
+
+    assert max_sensor.available is False
+    assert min_sensor.available is False
+
+
+def test_sensor_no_unit(coordinator, config_entry, hass):
+    """Test sensor without unit."""
+    # Mock source sensor without unit
+    source_state = Mock()
+    source_state.attributes = {}
+    hass.states.get.return_value = source_state
+    coordinator.hass = hass
+    
+    sensor = MaxSensor(coordinator, config_entry, "Max Test")
+    assert sensor.unit_of_measurement is None
+
+
+def test_max_sensor_no_hass(coordinator, config_entry):
+    """Test max sensor without hass."""
+    # coordinator.hass is already None
+    sensor = MaxSensor(coordinator, config_entry, "Max Test")
+    assert sensor.unit_of_measurement is None
+
+
+def test_min_sensor_no_hass(coordinator, config_entry):
+    """Test min sensor without hass."""
+    # coordinator.hass is already None
+    sensor = MinSensor(coordinator, config_entry, "Min Test")
+    assert sensor.unit_of_measurement is None
+
+
+def test_sensor_source_unavailable(coordinator, config_entry, hass):
+    """Test sensor when source sensor is unavailable."""
+    hass.states.get.return_value = None
+    coordinator.hass = hass
+    
+    sensor = MaxSensor(coordinator, config_entry, "Max Test")
+    assert sensor.unit_of_measurement is None
+
+
+def test_max_sensor_device_class(coordinator, config_entry, hass):
+    """Test max sensor device class."""
+    coordinator.hass = hass
+    sensor = MaxSensor(coordinator, config_entry, "Max Test")
+    assert sensor.device_class == "measurement"
+
+
+def test_min_sensor_device_class(coordinator, config_entry, hass):
+    """Test min sensor device class."""
+    coordinator.hass = hass
+    sensor = MinSensor(coordinator, config_entry, "Min Test")
+    assert sensor.device_class == "measurement"
+
+
+def test_sensor_attributes(coordinator, config_entry, hass):
+    """Test sensor attributes."""
+    coordinator.hass = hass
+    max_sensor = MaxSensor(coordinator, config_entry, "Max Test")
+    min_sensor = MinSensor(coordinator, config_entry, "Min Test")
+
+    # Check that sensors have proper attributes
+    assert hasattr(max_sensor, "_attr_name")
+    assert hasattr(max_sensor, "_attr_unique_id")
+    assert hasattr(max_sensor, "_attr_device_class")
+    assert hasattr(max_sensor, "_attr_unit_of_measurement")
+
+    assert hasattr(min_sensor, "_attr_name")
+    assert hasattr(min_sensor, "_attr_unique_id")
+    assert hasattr(min_sensor, "_attr_device_class")
+    assert hasattr(min_sensor, "_attr_unit_of_measurement")

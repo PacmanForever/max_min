@@ -1,0 +1,13 @@
+# Runtime Dependencies for Max Min Integration
+#
+# This file lists Python packages required for the integration to run in production.
+# Currently empty because this integration only uses Home Assistant core libraries.
+#
+# Home Assistant automatically installs dependencies listed here when the integration loads.
+# Format: package_name>=version (one per line)
+#
+# For detailed dependency information, see DEPENDENCIES.md
+#
+# Future additions should follow this format:
+# requests>=2.25.0
+# aiohttp>=3.8.0
