@@ -1,107 +1,107 @@
 # Max Min
 
-[![Unit Tests](https://github.com/username/max-min/actions/workflows/tests_unit.yml/badge.svg)](https://github.com/username/max-min/actions/workflows/tests_unit.yml)
-[![Component Tests](https://github.com/username/max-min/actions/workflows/tests_component.yml/badge.svg)](https://github.com/username/max-min/actions/workflows/tests_component.yml)
-[![Validate HACS](https://github.com/username/max-min/actions/workflows/validate_hacs.yml/badge.svg)](https://github.com/username/max-min/actions/workflows/validate_hacs.yml)
-[![Validate Hassfest](https://github.com/username/max-min/actions/workflows/validate_hassfest.yml/badge.svg)](https://github.com/username/max-min/actions/workflows/validate_hassfest.yml)
+[![Unit Tests](https://github.com/PacmanForever/max-min/actions/workflows/tests_unit.yml/badge.svg)](https://github.com/PacmanForever/max-min/actions/workflows/tests_unit.yml)
+[![Component Tests](https://github.com/PacmanForever/max-min/actions/workflows/tests_component.yml/badge.svg)](https://github.com/PacmanForever/max-min/actions/workflows/tests_component.yml)
+[![Validate HACS](https://github.com/PacmanForever/max-min/actions/workflows/validate_hacs.yml/badge.svg)](https://github.com/PacmanForever/max-min/actions/workflows/validate_hacs.yml)
+[![Validate Hassfest](https://github.com/PacmanForever/max-min/actions/workflows/validate_hassfest.yml/badge.svg)](https://github.com/PacmanForever/max-min/actions/workflows/validate_hassfest.yml)
 
-Una integració custom de Home Assistant que crea sensors de màxim i mínim basats en un sensor numèric seleccionat, amb suport per diferents períodes de temps.
+A custom Home Assistant integration that creates max and min sensors based on a selected numeric sensor, with support for different time periods.
 
-## Característiques
+## Features
 
-- **Sensors de màxim/mínim**: Crea sensors que mantenen el valor màxim o mínim d'un sensor origen durant un període determinat
-- **Períodes configurables**: Diari, setmanal, mensual o anual
-- **Flexibilitat**: Crea sensors individuals (només màxim o només mínim) o en parella
-- **Reset automàtic**: Al final de cada període, els sensors es resetejen al valor actual del sensor origen
-- **Actualització en temps real**: Els sensors s'actualitzen immediatament quan canvia el valor del sensor origen
+- **Max/Min Sensors**: Creates sensors that maintain the maximum or minimum value of a source sensor during a specified period
+- **Configurable Periods**: Daily, weekly, monthly or yearly
+- **Flexibility**: Create individual sensors (only max or only min) or in pairs
+- **Automatic Reset**: At the end of each period, sensors reset to the current value of the source sensor
+- **Real-time Updates**: Sensors update immediately when the source sensor value changes
 
-## Instal·lació
+## Installation
 
-### HACS (recomanat)
+### HACS (recommended)
 
-1. Obre HACS a la teva instància de Home Assistant.
-2. Ves a "Integracions" > "Repositoris personalitzats".
-3. Afegeix `https://github.com/username/max-min` com a repositori personalitzat amb categoria "Integration".
-4. Cerca "Max Min" i instal·la'l.
-5. Reinicia Home Assistant.
-6. Afegeix la integració a través de la UI.
+1. Open HACS in your Home Assistant instance.
+2. Go to "Integrations" > "Custom repositories".
+3. Add `https://github.com/PacmanForever/max-min` as a custom repository with category "Integration".
+4. Search for "Max Min" and install it.
+5. Restart Home Assistant.
+6. Add the integration through the UI.
 
 ### Manual
 
-1. Descarrega la carpeta `max_min` de l'última release.
-2. Copia-la a `custom_components/max_min` al directori de configuració de Home Assistant.
-3. Reinicia Home Assistant.
-4. Afegeix la integració a través de la UI.
+1. Download the `max_min` folder from the latest release.
+2. Copy it to `custom_components/max_min` in the Home Assistant configuration directory.
+3. Restart Home Assistant.
+4. Add the integration through the UI.
 
-## Configuració
+## Configuration
 
-Després de la instal·lació, afegeix la integració via la UI de Home Assistant:
+After installation, add the integration via the Home Assistant UI:
 
-1. Ves a Configuració > Dispositius i serveis > Afegeix integració.
-2. Cerca "Max Min".
-3. Selecciona el sensor origen (un sensor numèric existent).
-4. Tria el període: Diari, Setmanal, Mensual o Anual.
-5. Selecciona els tipus de sensors: Màxim, Mínim, o ambdós.
+1. Go to Settings > Devices and services > Add integration.
+2. Search for "Max Min".
+3. Select the source sensor (an existing numeric sensor).
+4. Choose the period: Daily, Weekly, Monthly or Yearly.
+5. Select sensor types: Max, Min, or both.
 
-### Exemples de sensors creats
+### Examples of created sensors
 
-- **Max Temperature Diari**: Mostra el valor màxim de temperatura des de les 00:00 fins les 23:59 del dia actual
-- **Min Humidity Setmanal**: Mostra el valor mínim d'humitat des del dilluns 00:00 fins el diumenge 23:59
-- **Max Pressure Mensual**: Mostra el valor màxim de pressió des del dia 1 00:00 fins l'últim dia del mes 23:59
-- **Min Voltage Anual**: Mostra el valor mínim de voltatge des de l'1 de gener 00:00 fins el 31 de desembre 23:59
+- **Max Daily Temperature**: Shows the maximum temperature value from 00:00 to 23:59 of the current day
+- **Min Weekly Humidity**: Shows the minimum humidity value from Monday 00:00 to Sunday 23:59
+- **Max Monthly Pressure**: Shows the maximum pressure value from day 1 00:00 to the last day of the month 23:59
+- **Min Annual Voltage**: Shows the minimum voltage value from January 1 00:00 to December 31 23:59
 
-## Com funciona
+## How it works
 
-1. **Selecció del sensor**: L'usuari tria un sensor numèric existent a Home Assistant.
-2. **Configuració del període**: Es defineix el cicle de temps (diari, setmanal, etc.).
-3. **Creació dels sensors**: Es creen sensors de màxim i/o mínim amb noms descriptius.
-4. **Acumulació de valors**: Durant el període, els sensors mantenen el màxim/mínim observat.
-5. **Reset automàtic**: Al final del període, els sensors es resetejen al valor actual del sensor origen i comença un nou cicle.
+1. **Sensor Selection**: The user chooses an existing numeric sensor in Home Assistant.
+2. **Period Configuration**: The time cycle is defined (daily, weekly, etc.).
+3. **Sensor Creation**: Max and/or min sensors are created with descriptive names.
+4. **Value Accumulation**: During the period, sensors maintain the observed max/min.
+5. **Automatic Reset**: At the end of the period, sensors reset to the current value of the source sensor and a new cycle begins.
 
-### Períodes detallats
+### Detailed Periods
 
-- **Diari**: De les 00:00 a les 23:59 del mateix dia. Reset a les 00:00 del dia següent.
-- **Setmanal**: De dilluns 00:00 a diumenge 23:59. Reset a dilluns 00:00 de la setmana següent.
-- **Mensual**: Del dia 1 00:00 a l'últim dia del mes 23:59. Reset al dia 1 00:00 del mes següent.
-- **Anual**: De l'1 de gener 00:00 al 31 de desembre 23:59. Reset a l'1 de gener 00:00 de l'any següent.
+- **Daily**: From 00:00 to 23:59 of the same day. Reset at 00:00 of the next day.
+- **Weekly**: From Monday 00:00 to Sunday 23:59. Reset at Monday 00:00 of the next week.
+- **Monthly**: From day 1 00:00 to the last day of the month 23:59. Reset at day 1 00:00 of the next month.
+- **Yearly**: From January 1 00:00 to December 31 23:59. Reset at January 1 00:00 of the next year.
 
-## Automatitzacions
+## Automations
 
-Pots utilitzar aquests sensors en automatitzacions, per exemple:
+You can use these sensors in automations, for example:
 
-- Notificacions quan el màxim diari supera un llindar
-- Registres històrics dels mínims setmanals
-- Alertes per valors extrems mensuals
+- Notifications when the daily max exceeds a threshold
+- Historical records of weekly mins
+- Alerts for extreme monthly values
 
-## Comportament amb reinicis de Home Assistant
+## Behavior with Home Assistant restarts
 
-Quan Home Assistant es reinicia, l'integració Max Min es comporta de la següent manera:
+When Home Assistant restarts, the Max Min integration behaves as follows:
 
-- **Valors acumulats es perden**: Els valors màxim i mínim acumulats durant el període actual es perden completament
-- **Valor actual es preserva**: Només es manté el valor actual del sensor origen en el moment del reinici
-- **Reset es reprograma**: El temporitzador de reset es recalcula basant-se en l'hora actual
-- **Sensors no disponibles**: Si el sensor origen no està disponible durant el reinici, els sensors mostraran "No disponible"
+- **Accumulated values are lost**: The max and min values accumulated during the current period are completely lost
+- **Current value is preserved**: Only the current value of the source sensor at restart time is maintained
+- **Reset is reprogrammed**: The reset timer is recalculated based on the current time
+- **Sensors unavailable**: If the source sensor is not available during restart, sensors will show "Unavailable"
 
-**Nota important**: Aquesta integració no guarda els valors històrics en disc, per disseny. Si necessites persistència de dades, considera utilitzar la funcionalitat d'historial nativa de Home Assistant o bases de dades externes.
+**Important note**: This integration does not save historical values to disk, by design. If you need data persistence, consider using Home Assistant's native history functionality or external databases.
 
-## Resolució de problemes
+## Troubleshooting
 
-### El sensor no s'actualitza
-- Verifica que el sensor origen existeix i té valors numèrics vàlids
-- Comprova els logs de Home Assistant per errors
+### The sensor doesn't update
+- Verify that the source sensor exists and has valid numeric values
+- Check Home Assistant logs for errors
 
-### El sensor mostra "No disponible"
-- El sensor origen no està disponible o no té un valor numèric vàlid
-- Espera que el sensor origen es torni a connectar
+### The sensor shows "Unavailable"
+- The source sensor is not available or does not have a valid numeric value
+- Wait for the source sensor to reconnect
 
-### Errors de configuració
-- Assegura't que has seleccionat un sensor numèric existent
-- Verifica que el període està correctament configurat
+### Configuration errors
+- Make sure you have selected an existing numeric sensor
+- Verify that the period is correctly configured
 
-## Contribucions
+## Contributions
 
-Les contribucions són benvingudes! Si us plau, consulta [CONTRIBUTING.md](CONTRIBUTING.md) per detalls.
+Contributions are welcome! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for details.
 
-## Llicència
+## License
 
-Aquest projecte està llicenciat sota la Llicència GPL-3.0 - consulta el fitxer [LICENSE](LICENSE) per detalls.
+This project is licensed under the GPL-3.0 License - see the [LICENSE](LICENSE) file for details.

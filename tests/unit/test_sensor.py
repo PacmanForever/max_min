@@ -44,10 +44,10 @@ def test_max_sensor(coordinator, config_entry, hass):
     # Set hass on coordinator
     coordinator.hass = hass
     
-    sensor = MaxSensor(coordinator, config_entry, "Max Test Diari")
+    sensor = MaxSensor(coordinator, config_entry, "Max Test Daily")
     assert sensor.native_value == 15.0
     assert sensor.available is True
-    assert sensor.name == "Max Test Diari"
+    assert sensor.name == "Max Test Daily"
     assert sensor.unique_id == "test_entry_max"
     assert sensor._attr_unit_of_measurement == "°C"
 
@@ -56,10 +56,10 @@ def test_min_sensor(coordinator, config_entry, hass):
     """Test min sensor."""
     coordinator.hass = hass
     
-    sensor = MinSensor(coordinator, config_entry, "Min Test Diari")
+    sensor = MinSensor(coordinator, config_entry, "Min Test Daily")
     assert sensor.native_value == 5.0
     assert sensor.available is True
-    assert sensor.name == "Min Test Diari"
+    assert sensor.name == "Min Test Daily"
     assert sensor.unique_id == "test_entry_min"
     assert sensor._attr_unit_of_measurement == "°C"
 

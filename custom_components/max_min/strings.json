@@ -3,25 +3,25 @@
     "step": {
       "user": {
         "data": {
-          "sensor_entity": "Sensor origen",
-          "period": "Període",
-          "types": "Tipus de sensors"
+          "sensor_entity": "Source sensor",
+          "period": "Period",
+          "types": "Sensor types"
         }
       }
     },
     "error": {
-      "sensor_not_found": "El sensor seleccionat no existeix"
+      "sensor_not_found": "The selected sensor does not exist"
     },
     "abort": {
-      "already_configured": "Aquesta configuració ja existeix"
+      "already_configured": "This configuration already exists"
     }
   },
   "options": {
     "step": {
       "init": {
         "data": {
-          "period": "Període",
-          "types": "Tipus de sensors"
+          "period": "Period",
+          "types": "Sensor types"
         }
       }
     }

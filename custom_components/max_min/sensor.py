@@ -35,10 +35,10 @@ async def async_setup_entry(
     sensor_name = sensor_state.attributes.get("friendly_name", config_entry.data[CONF_SENSOR_ENTITY]) if sensor_state else config_entry.data[CONF_SENSOR_ENTITY]
 
     period_labels = {
-        PERIOD_DAILY: "Diari",
-        PERIOD_WEEKLY: "Setmanal",
-        PERIOD_MONTHLY: "Mensual",
-        PERIOD_YEARLY: "Anual",
+        PERIOD_DAILY: "Daily",
+        PERIOD_WEEKLY: "Weekly",
+        PERIOD_MONTHLY: "Monthly",
+        PERIOD_YEARLY: "Yearly",
     }
     period_label = period_labels.get(period, period)
 

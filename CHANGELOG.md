@@ -16,7 +16,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Real-time updates when source sensor changes
 - HACS compatibility
 - Comprehensive test suite with >95% coverage
-- Catalan and English documentation
+- English documentation
 
 ### Changed
 

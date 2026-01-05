@@ -38,18 +38,18 @@ class MaxMinConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 vol.Required(CONF_PERIOD, default=PERIOD_DAILY): selector.SelectSelector(
                     selector.SelectSelectorConfig(
                         options=[
-                            {"value": PERIOD_DAILY, "label": "Diari"},
-                            {"value": PERIOD_WEEKLY, "label": "Setmanal"},
-                            {"value": PERIOD_MONTHLY, "label": "Mensual"},
-                            {"value": PERIOD_YEARLY, "label": "Anual"},
+                            {"value": PERIOD_DAILY, "label": "Daily"},
+                            {"value": PERIOD_WEEKLY, "label": "Weekly"},
+                            {"value": PERIOD_MONTHLY, "label": "Monthly"},
+                            {"value": PERIOD_YEARLY, "label": "Yearly"},
                         ]
                     )
                 ),
                 vol.Required(CONF_TYPES, default=[TYPE_MAX, TYPE_MIN]): selector.SelectSelector(
                     selector.SelectSelectorConfig(
                         options=[
-                            {"value": TYPE_MAX, "label": "Màxim"},
-                            {"value": TYPE_MIN, "label": "Mínim"},
+                            {"value": TYPE_MAX, "label": "Maximum"},
+                            {"value": TYPE_MIN, "label": "Minimum"},
                         ],
                         multiple=True,
                     )
@@ -85,10 +85,10 @@ class MaxMinOptionsFlow(config_entries.OptionsFlow):
                 ): selector.SelectSelector(
                     selector.SelectSelectorConfig(
                         options=[
-                            {"value": PERIOD_DAILY, "label": "Diari"},
-                            {"value": PERIOD_WEEKLY, "label": "Setmanal"},
-                            {"value": PERIOD_MONTHLY, "label": "Mensual"},
-                            {"value": PERIOD_YEARLY, "label": "Anual"},
+                            {"value": PERIOD_DAILY, "label": "Daily"},
+                            {"value": PERIOD_WEEKLY, "label": "Weekly"},
+                            {"value": PERIOD_MONTHLY, "label": "Monthly"},
+                            {"value": PERIOD_YEARLY, "label": "Yearly"},
                         ]
                     )
                 ),
@@ -98,8 +98,8 @@ class MaxMinOptionsFlow(config_entries.OptionsFlow):
                 ): selector.SelectSelector(
                     selector.SelectSelectorConfig(
                         options=[
-                            {"value": TYPE_MAX, "label": "Màxim"},
-                            {"value": TYPE_MIN, "label": "Mínim"},
+                            {"value": TYPE_MAX, "label": "Maximum"},
+                            {"value": TYPE_MIN, "label": "Minimum"},
                         ],
                         multiple=True,
                     )

@@ -167,7 +167,7 @@ This document outlines the specific requirements for the Max Min Home Assistant 
 - **Security Updates**: Monitor HA vulnerabilities
 
 ### Internationalization
-- **Supported Languages**: Catalan (config), English (code)
+- **Supported Languages**: English (config and code)
 - **Translation Files**: strings.json
 - **Translation Coverage**: All UI strings
 - **RTL Support**: Not required
@@ -229,7 +229,7 @@ This document outlines the specific requirements for the Max Min Home Assistant 
 25. **Errors**: Appropriate logging (WARNING/ERROR).
 26. **Updates**: Compatibility with new HA versions.
 27. **Support**: GitHub Issues, quick response for critical bugs.
-28. **Internationalization**: Support for Catalan and English.
+28. **Internationalization**: Support for English.
 
 ---
 
