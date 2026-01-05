@@ -3,7 +3,7 @@
 [![HACS](https://img.shields.io/badge/HACS-Custom-orange.svg)](https://github.com/hacs/integration)
 [![Version](https://img.shields.io/github/v/release/PacmanForever/max_min)](https://github.com/PacmanForever/max_min/releases)
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
-[![Coverage](https://img.shields.io/badge/coverage-95%25-brightgreen)](https://codecov.io/gh/PacmanForever/max_min)
+[![Coverage](https://img.shields.io/codecov/c/github/PacmanForever/max_min)](https://codecov.io/gh/PacmanForever/max_min)
 [![Unit Tests](https://github.com/PacmanForever/max-min/actions/workflows/tests_unit.yml/badge.svg)](https://github.com/PacmanForever/max-min/actions/workflows/tests_unit.yml)
 [![Component Tests](https://github.com/PacmanForever/max-min/actions/workflows/tests_component.yml/badge.svg)](https://github.com/PacmanForever/max-min/actions/workflows/tests_component.yml)
 [![Validate HACS](https://github.com/PacmanForever/max-min/actions/workflows/validate_hacs.yml/badge.svg)](https://github.com/PacmanForever/max-min/actions/workflows/validate_hacs.yml)
