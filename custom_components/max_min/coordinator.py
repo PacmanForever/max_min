@@ -40,7 +40,6 @@ class MaxMinDataUpdateCoordinator(DataUpdateCoordinator):
         super().__init__(
             hass,
             _LOGGER,
-            config_entry=config_entry,
             name=f"{config_entry.title} Coordinator",
             update_interval=None,  # Manual updates
         )

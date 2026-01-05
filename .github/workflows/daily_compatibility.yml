@@ -1,18 +1,15 @@
-name: Component Tests
+name: HA Daily Compatibility Check
 on:
   workflow_dispatch:
-  push:
-    branches: [master]
-  pull_request:
-    branches: [master]
   schedule:
-    - cron: '0 2 * * *'  # Daily at 2 AM UTC
+    - cron: '0 6 * * *'  # Daily at 6 AM UTC
 
 jobs:
-  test:
+  compatibility:
     runs-on: ubuntu-latest
     strategy:
       matrix:
+        ha-version: ["stable", "beta"]
         python-version: ["3.11", "3.12"]
     steps:
       - uses: actions/checkout@v4
@@ -21,9 +18,13 @@ jobs:
           python-version: ${{ matrix.python-version }}
       - run: |
           python -m pip install --upgrade pip
-          pip install homeassistant
+          if [ "${{ matrix.ha-version }}" == "beta" ]; then
+            pip install --pre homeassistant
+          else
+            pip install homeassistant
+          fi
           pip install -r requirements-test.txt
-      - run: python -m pytest tests/ --cov=custom_components.max_min --cov-report=term-missing --cov-report=xml --cov-fail-under=95 -v
+      - run: python -m pytest tests/unit --cov=custom_components.max_min --cov-report=term-missing --cov-report=xml --cov-fail-under=95 -v
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v3
         with:

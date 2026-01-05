@@ -1,5 +1,12 @@
-name: HA Validation Tests
-on: [push, pull_request, workflow_dispatch]
+name: HA Daily Compatibility Check
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+  workflow_dispatch:
+  schedule:
+    - cron: '0 2 * * *'  # Daily at 2 AM UTC
 jobs:
   validate:
     runs-on: ubuntu-latest

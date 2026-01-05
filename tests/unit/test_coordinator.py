@@ -1,7 +1,7 @@
 """Test coordinator."""
 
 from datetime import datetime, timezone
-from unittest.mock import AsyncMock, Mock, patch
+from unittest.mock import AsyncMock, MagicMock, Mock, patch
 
 import pytest
 from freezegun import freeze_time
@@ -27,7 +27,7 @@ from custom_components.max_min.const import (
 @pytest.fixture
 def config_entry():
     """Mock config entry."""
-    entry = Mock()
+    entry = MagicMock()
     entry.data = {
         CONF_SENSOR_ENTITY: "sensor.test",
         CONF_PERIOD: PERIOD_DAILY,

@@ -1,6 +1,6 @@
 """Test config flow."""
 
-from unittest.mock import AsyncMock, Mock
+from unittest.mock import AsyncMock, MagicMock, Mock
 
 import pytest
 from homeassistant import config_entries
@@ -40,7 +40,7 @@ async def test_config_flow_user(hass):
     })
 
     assert result["type"] == FlowResultType.CREATE_ENTRY
-    assert result["title"] == "Max Min"
+    assert result["title"] == "Max Min - daily"
     assert result["data"] == {
         CONF_SENSOR_ENTITY: "sensor.test",
         CONF_PERIOD: PERIOD_DAILY,
@@ -53,9 +53,13 @@ async def test_config_flow_options(hass):
     """Test options flow."""
     config_entry = Mock()
     config_entry.options = {}
+    config_entry.data = {CONF_SENSOR_ENTITY: "sensor.test"}
+    config_entry.title = "Max Min"
     
     flow = MaxMinOptionsFlow(config_entry)
     flow.hass = Mock()  # Simple mock instead of async fixture
+    flow.hass.config_entries.async_entries = Mock(return_value=[])
+    flow.async_set_unique_id = AsyncMock()
 
     result = await flow.async_step_init({
         CONF_PERIOD: "weekly",
@@ -74,6 +78,10 @@ async def test_config_flow_invalid_sensor(hass):
     """Test config flow with invalid sensor."""
     flow = MaxMinConfigFlow()
     flow.hass = Mock()  # Simple mock instead of async fixture
+    flow.hass.config_entries.flow.async_progress_by_handler = AsyncMock(return_value=[])
+
+    # Mock async_set_unique_id to avoid issues
+    flow.async_set_unique_id = AsyncMock()
 
     # Mock validation - in real implementation, would check if sensor exists
     result = await flow.async_step_user({
@@ -174,14 +182,17 @@ async def test_config_flow_only_min(hass):
 @pytest.mark.asyncio
 async def test_options_flow_update(hass):
     """Test options flow update."""
-    config_entry = Mock()
+    config_entry = MagicMock()
     config_entry.options = {
         CONF_PERIOD: PERIOD_DAILY,
         CONF_TYPES: [TYPE_MAX, TYPE_MIN],
     }
+    config_entry.data = {CONF_SENSOR_ENTITY: "sensor.test"}
     
     flow = MaxMinOptionsFlow(config_entry)
     flow.hass = Mock()  # Simple mock instead of async fixture
+    flow.hass.config_entries.async_entries = Mock(return_value=[])
+    flow.async_set_unique_id = AsyncMock()
 
     result = await flow.async_step_init({
         CONF_PERIOD: "weekly",

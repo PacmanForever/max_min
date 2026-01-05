@@ -48,7 +48,7 @@ async def test_sensor_setup(hass, config_entry):
     hass.data = {DOMAIN: {config_entry.entry_id: coordinator}}
     hass.states.get.return_value = Mock(attributes={"friendly_name": "Test Sensor"})
 
-    async_add_entities = AsyncMock()
+    async_add_entities = Mock()
 
     await async_setup_entry(hass, config_entry, async_add_entities)
 
