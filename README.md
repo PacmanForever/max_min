@@ -1,9 +1,17 @@
 # Max Min
 
+[![HACS](https://img.shields.io/badge/HACS-Custom-orange.svg)](https://github.com/hacs/integration)
+[![Version](https://img.shields.io/github/v/release/PacmanForever/max_min)](https://github.com/PacmanForever/max_min/releases)
+[![License](https://img.shields.io/github/license/PacmanForever/max_min)](https://github.com/PacmanForever/max_min/blob/master/LICENSE)
+[![Coverage](https://img.shields.io/codecov/c/github/PacmanForever/max_min)](https://codecov.io/gh/PacmanForever/max_min)
 [![Unit Tests](https://github.com/PacmanForever/max-min/actions/workflows/tests_unit.yml/badge.svg)](https://github.com/PacmanForever/max-min/actions/workflows/tests_unit.yml)
 [![Component Tests](https://github.com/PacmanForever/max-min/actions/workflows/tests_component.yml/badge.svg)](https://github.com/PacmanForever/max-min/actions/workflows/tests_component.yml)
 [![Validate HACS](https://github.com/PacmanForever/max-min/actions/workflows/validate_hacs.yml/badge.svg)](https://github.com/PacmanForever/max-min/actions/workflows/validate_hacs.yml)
 [![Validate Hassfest](https://github.com/PacmanForever/max-min/actions/workflows/validate_hassfest.yml/badge.svg)](https://github.com/PacmanForever/max-min/actions/workflows/validate_hassfest.yml)
+[![Home Assistant](https://img.shields.io/badge/home%20assistant-2024.1.0+-blue)](https://www.home-assistant.io)
+
+> **Important**  
+> Beta: This integration is in beta phase. Correct functioning is not guaranteed and may contain errors; use it at your own risk.
 
 A custom Home Assistant integration that creates max and min sensors based on a selected numeric sensor, with support for different time periods.
 
