@@ -2,9 +2,13 @@
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
+from voluptuous import cv
 
 from .const import DOMAIN
 from .coordinator import MaxMinDataUpdateCoordinator
+
+
+CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
 
 
 async def async_setup(hass: HomeAssistant, config: dict) -> bool:
