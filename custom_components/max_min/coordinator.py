@@ -41,7 +41,6 @@ class MaxMinDataUpdateCoordinator(DataUpdateCoordinator):
             hass,
             _LOGGER,
             name=f"{config_entry.title} Coordinator",
-            config_entry=config_entry,
             update_interval=None,  # Manual updates
         )
 

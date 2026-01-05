@@ -1,4 +1,4 @@
-name: HA Daily Compatibility Check
+name: HA Validation Tests
 on:
   push:
     branches: [master]

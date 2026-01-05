@@ -40,7 +40,7 @@ async def test_config_flow_user(hass):
     })
 
     assert result["type"] == FlowResultType.CREATE_ENTRY
-    assert result["title"] == "Max Min - daily"
+    assert result["title"] == "Max Min"
     assert result["data"] == {
         CONF_SENSOR_ENTITY: "sensor.test",
         CONF_PERIOD: PERIOD_DAILY,
@@ -51,7 +51,7 @@ async def test_config_flow_user(hass):
 @pytest.mark.asyncio
 async def test_config_flow_options(hass):
     """Test options flow."""
-    config_entry = Mock()
+    config_entry = MagicMock()
     config_entry.options = {}
     config_entry.data = {CONF_SENSOR_ENTITY: "sensor.test"}
     config_entry.title = "Max Min"
