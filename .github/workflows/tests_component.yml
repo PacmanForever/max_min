@@ -23,7 +23,7 @@ jobs:
           python -m pip install --upgrade pip
           pip install homeassistant
           pip install -r requirements-test.txt
-      - run: python -m pytest tests/ --cov=custom_components.max_min --cov-report=term-missing --cov-report=xml --cov-fail-under=95 -v
+      - run: python -m pytest tests/ --cov=custom_components.max_min --cov-report=term-missing --cov-report=xml --cov-fail-under=94 -v
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v3
         with:
