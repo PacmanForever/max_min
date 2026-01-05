@@ -27,7 +27,13 @@ class MaxMinConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     async def async_step_user(self, user_input=None):
         """Handle the initial step."""
         if user_input is not None:
-            return self.async_create_entry(title="Max Min", data=user_input)
+            # Set unique ID based on sensor and period to allow multiple periods per sensor
+            sensor_entity = user_input[CONF_SENSOR_ENTITY]
+            period = user_input[CONF_PERIOD]
+            await self.async_set_unique_id(f"{sensor_entity}_{period}")
+            self._abort_if_unique_id_configured()
+            
+            return self.async_create_entry(title=f"Max Min - {period}", data=user_input)
 
         return self.async_show_form(
             step_id="user",
@@ -74,6 +80,21 @@ class MaxMinOptionsFlow(config_entries.OptionsFlow):
     async def async_step_init(self, user_input=None):
         """Manage the options."""
         if user_input is not None:
+            # If period changed, check for conflicts and update unique_id
+            new_period = user_input.get(CONF_PERIOD)
+            current_period = self._config_entry.options.get(CONF_PERIOD, self._config_entry.data.get(CONF_PERIOD))
+            
+            if new_period and new_period != current_period:
+                sensor_entity = self._config_entry.data[CONF_SENSOR_ENTITY]
+                new_unique_id = f"{sensor_entity}_{new_period}"
+                
+                # Check if another entry has this combination
+                for entry in self.hass.config_entries.async_entries(DOMAIN):
+                    if entry.entry_id != self._config_entry.entry_id and entry.unique_id == new_unique_id:
+                        return self.async_abort(reason="already_configured")
+                
+                await self.async_set_unique_id(new_unique_id)
+            
             return self.async_create_entry(title="", data=user_input)
 
         return self.async_show_form(
