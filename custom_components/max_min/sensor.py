@@ -60,6 +60,7 @@ class MaxSensor(CoordinatorEntity, SensorEntity):
         self._attr_name = name
         self._attr_unique_id = f"{config_entry.entry_id}_max"
         self._attr_device_class = "measurement"
+        self._attr_state_class = "measurement"
         # Inherit unit from source sensor
         source_entity = config_entry.data[CONF_SENSOR_ENTITY]
         if coordinator.hass:
@@ -88,6 +89,7 @@ class MinSensor(CoordinatorEntity, SensorEntity):
         self._attr_name = name
         self._attr_unique_id = f"{config_entry.entry_id}_min"
         self._attr_device_class = "measurement"
+        self._attr_state_class = "measurement"
         # Inherit unit from source sensor
         source_entity = config_entry.data[CONF_SENSOR_ENTITY]
         if coordinator.hass:
