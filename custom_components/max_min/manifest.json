@@ -8,5 +8,6 @@
   "iot_class": "cloud_polling",
   "issue_tracker": "https://github.com/PacmanForever/max-min/issues",
   "requirements": [],
+  "supported_brands": [],
   "version": "0.1.0"
 }
