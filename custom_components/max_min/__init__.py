@@ -2,7 +2,7 @@
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
-from voluptuous import cv
+from homeassistant.helpers import config_validation as cv
 
 from .const import DOMAIN
 from .coordinator import MaxMinDataUpdateCoordinator
