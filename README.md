@@ -50,6 +50,7 @@ After installation, add the integration via the Home Assistant UI:
 3. Select the source sensor (an existing numeric sensor).
 4. Choose the period: Daily, Weekly, Monthly or Yearly.
 5. Select sensor types: Max, Min, or both.
+6. (Optional) Set initial values for max and/or min to start with existing values.
 
 **Note**: You can create multiple configurations for the same sensor with different periods. For example, you can have both daily and weekly max/min sensors for the same temperature sensor.
 
@@ -59,6 +60,15 @@ After installation, add the integration via the Home Assistant UI:
 - **Min Weekly Humidity**: Shows the minimum humidity value from Monday 00:00 to Sunday 23:59
 - **Max Monthly Pressure**: Shows the maximum pressure value from day 1 00:00 to the last day of the month 23:59
 - **Min Annual Voltage**: Shows the minimum voltage value from January 1 00:00 to December 31 23:59
+
+## Initial Values
+
+You can set initial values for the max and min sensors when configuring the integration. This is useful for migrating from other integrations or when you want to start with known baseline values.
+
+- **Initial Max**: Set a starting maximum value. The sensor will only update if the source sensor exceeds this value.
+- **Initial Min**: Set a starting minimum value. The sensor will only update if the source sensor goes below this value.
+
+If no initial values are set, the sensors will start with the first value received from the source sensor.
 
 ## How it works
 

@@ -9,6 +9,8 @@ from homeassistant.helpers.event import async_track_state_change_event, async_tr
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 
 from .const import (
+    CONF_INITIAL_MAX,
+    CONF_INITIAL_MIN,
     CONF_PERIOD,
     CONF_SENSOR_ENTITY,
     CONF_TYPES,
@@ -33,8 +35,8 @@ class MaxMinDataUpdateCoordinator(DataUpdateCoordinator):
         self.period = config_entry.options.get(CONF_PERIOD, config_entry.data.get(CONF_PERIOD, PERIOD_DAILY))
         self.types = config_entry.options.get(CONF_TYPES, config_entry.data.get(CONF_TYPES, [TYPE_MAX, TYPE_MIN]))
 
-        self.max_value = None
-        self.min_value = None
+        self.max_value = config_entry.options.get(CONF_INITIAL_MAX, config_entry.data.get(CONF_INITIAL_MAX))
+        self.min_value = config_entry.options.get(CONF_INITIAL_MIN, config_entry.data.get(CONF_INITIAL_MIN))
         self._reset_listener = None
 
         super().__init__(

@@ -6,6 +6,8 @@ from homeassistant.core import callback
 from homeassistant.helpers import selector
 
 from .const import (
+    CONF_INITIAL_MAX,
+    CONF_INITIAL_MIN,
     CONF_PERIOD,
     CONF_SENSOR_ENTITY,
     CONF_TYPES,
@@ -60,6 +62,8 @@ class MaxMinConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                         multiple=True,
                     )
                 ),
+                vol.Optional(CONF_INITIAL_MAX): vol.Coerce(float),
+                vol.Optional(CONF_INITIAL_MIN): vol.Coerce(float),
             }),
         )
 
@@ -125,5 +129,7 @@ class MaxMinOptionsFlow(config_entries.OptionsFlow):
                         multiple=True,
                     )
                 ),
+                vol.Optional(CONF_INITIAL_MAX, default=self._config_entry.options.get(CONF_INITIAL_MAX)): vol.Coerce(float),
+                vol.Optional(CONF_INITIAL_MIN, default=self._config_entry.options.get(CONF_INITIAL_MIN)): vol.Coerce(float),
             }),
         )
