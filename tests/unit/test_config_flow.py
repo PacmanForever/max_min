@@ -204,3 +204,22 @@ async def test_options_flow_update(hass):
         CONF_PERIOD: "weekly",
         CONF_TYPES: [TYPE_MAX],
     }
+
+
+@pytest.mark.asyncio
+async def test_options_flow_show_form(hass):
+    """Test options flow shows form."""
+    config_entry = MagicMock()
+    config_entry.options = {
+        CONF_PERIOD: PERIOD_DAILY,
+        CONF_TYPES: [TYPE_MAX, TYPE_MIN],
+    }
+    config_entry.data = {CONF_SENSOR_ENTITY: "sensor.test"}
+    
+    flow = MaxMinOptionsFlow(config_entry)
+    flow.hass = Mock()  # Simple mock instead of async fixture
+
+    result = await flow.async_step_init()
+
+    assert result["type"] == FlowResultType.FORM
+    assert result["step_id"] == "init"
