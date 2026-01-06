@@ -33,7 +33,12 @@ This document outlines the specific requirements for the Max Min Home Assistant 
   - Monthly (Day 1 00:00 - last day of month 23:59)
   - Yearly (January 1 00:00 - December 31 23:59)
 - **Types**: Max, min, or both (multiple selector)
-- **Options**: Ability to change period and types after initial configuration
+- **Initial Values** (optional):
+  - Initial Max: Starting value for maximum sensor
+  - Initial Min: Starting value for minimum sensor
+  - Useful for migrating existing values or setting baselines
+- **Multiple Configurations**: The same source sensor can have multiple configurations with different periods (e.g., daily and weekly max/min)
+- **Options**: Ability to change period, types, and initial values after initial configuration
 
 ### Data Collection
 - **Update**: Real-time when the source sensor state changes
@@ -62,6 +67,7 @@ This document outlines the specific requirements for the Max Min Home Assistant 
   - Sensor exists and is numeric
   - Period is valid
   - At least one type selected
+- **Multiple Configurations**: Multiple entries can be created for the same sensor with different periods (e.g., daily and weekly max/min for the same temperature sensor)
 - **Security**: None (no credentials stored)
 
 ### Entities and Platforms
@@ -197,7 +203,8 @@ This document outlines the specific requirements for the Max Min Home Assistant 
    - Monthly: From day 1 00:00 to last day of month 23:59, reset at day 1 00:00 of the next month.
    - Yearly: From January 1 00:00 to December 31 23:59, reset at January 1 00:00 of the next year.
 3. **Sensor Types**: Ability to create individual sensors (max only or min only) or pairs (max and min).
-4. **Behavior During Period**: Sensors maintain the accumulated max/min value during the period.
+4. **Multiple Configurations**: Support for multiple entries using the same sensor with different periods (e.g., daily and weekly tracking for the same source sensor).
+5. **Behavior During Period**: Sensors maintain the accumulated max/min value during the period.
 5. **Reset at Period End**: At the end of the period, sensors reset to the current source sensor value.
 6. **Real-time Updates**: When the source sensor changes, max/min sensors update if necessary.
 7. **Sensor Names**: "Max [Source Sensor Name] [Period]" and "Min [Source Sensor Name] [Period]".
