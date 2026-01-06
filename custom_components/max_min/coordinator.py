@@ -1,5 +1,6 @@
 """Data coordinator for Max Min integration."""
 
+import inspect
 from datetime import datetime, timedelta
 import logging
 
@@ -39,13 +40,18 @@ class MaxMinDataUpdateCoordinator(DataUpdateCoordinator):
         self.min_value = config_entry.options.get(CONF_INITIAL_MIN, config_entry.data.get(CONF_INITIAL_MIN))
         self._reset_listener = None
 
-        super().__init__(
-            hass,
-            _LOGGER,
-            name=f"{config_entry.title} Coordinator",
-            config_entry=config_entry,
-            update_interval=None,  # Manual updates
-        )
+        # Check if DataUpdateCoordinator accepts config_entry (HA 2024.2+)
+        sig = inspect.signature(DataUpdateCoordinator.__init__)
+        kwargs = {
+            'hass': hass,
+            'logger': _LOGGER,
+            'name': f"{config_entry.title} Coordinator",
+            'update_interval': None,  # Manual updates
+        }
+        if 'config_entry' in sig.parameters:
+            kwargs['config_entry'] = config_entry
+
+        super().__init__(**kwargs)
 
     async def async_config_entry_first_refresh(self) -> None:
         """Initialize values and listeners."""
