@@ -33,7 +33,9 @@ class MaxMinConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             sensor_entity = user_input[CONF_SENSOR_ENTITY]
             period = user_input[CONF_PERIOD]
             await self.async_set_unique_id(f"{sensor_entity}_{period}")
-            self._abort_if_unique_id_configured()
+            abort_result = self._abort_if_unique_id_configured()
+            if abort_result:
+                return abort_result
             
             return self.async_create_entry(title="Max Min", data=user_input)
 

@@ -628,3 +628,19 @@ async def test_multiple_ha_restarts_preserve_current_value(hass, config_entry):
         coordinator3 = MaxMinDataUpdateCoordinator(hass, config_entry)
         await coordinator3.async_config_entry_first_refresh()
         assert coordinator3.max_value == 8.0
+
+
+@pytest.mark.asyncio
+async def test_coordinator_unload(hass, config_entry):
+    """Test coordinator unload."""
+    coordinator = MaxMinDataUpdateCoordinator(hass, config_entry)
+    await coordinator.async_config_entry_first_refresh()
+    
+    # Mock the reset listener
+    mock_listener = Mock()
+    coordinator._reset_listener = mock_listener
+    
+    await coordinator.async_unload()
+    
+    # Should call the listener
+    mock_listener.assert_called_once()
