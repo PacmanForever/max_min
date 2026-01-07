@@ -61,9 +61,9 @@ async def test_async_setup_entry_forward_failure(hass):
         hass.config_entries.async_forward_entry_setups = AsyncMock(side_effect=Exception("Forward failed"))
         hass.data = {}
 
-        # Should still return True as per HA pattern
-        result = await async_setup_entry(hass, config_entry)
-        assert result is True
+        # Should raise Exception
+        with pytest.raises(Exception):
+            await async_setup_entry(hass, config_entry)
 
 
 @pytest.mark.asyncio
@@ -73,11 +73,14 @@ async def test_async_unload_entry_success(hass):
     config_entry.entry_id = "test_entry"
 
     hass.config_entries.async_forward_entry_unload = AsyncMock(return_value=True)
-    hass.data = {DOMAIN: {"test_entry": Mock()}}
+    mock_coordinator = Mock()
+    mock_coordinator.async_unload = AsyncMock()
+    hass.data = {DOMAIN: {"test_entry": mock_coordinator}}
 
     result = await async_unload_entry(hass, config_entry)
     assert result is True
     assert config_entry.entry_id not in hass.data[DOMAIN]
+    mock_coordinator.async_unload.assert_called_once()
 
 
 @pytest.mark.asyncio

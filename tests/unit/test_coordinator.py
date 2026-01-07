@@ -126,7 +126,7 @@ async def test_daily_reset(hass, config_entry):
     coordinator.min_value = 5.0
 
     # Simulate reset at midnight
-    with patch("custom_components.max_min.coordinator.async_track_time_change") as mock_track:
+    with patch("custom_components.max_min.coordinator.async_track_point_in_time") as mock_track:
         coordinator._schedule_reset()
         # Call the reset handler
         coordinator._handle_reset(datetime(2023, 1, 2, 0, 0, 0))
@@ -145,7 +145,7 @@ async def test_weekly_reset(hass, config_entry):
     coordinator.max_value = 20.0
     coordinator.min_value = 5.0
 
-    with patch("custom_components.max_min.coordinator.async_track_time_change") as mock_track:
+    with patch("custom_components.max_min.coordinator.async_track_point_in_time") as mock_track:
         coordinator._schedule_reset()
         # Reset should be next Monday
         coordinator._handle_reset(datetime(2023, 1, 2, 0, 0, 0))  # Monday
@@ -164,7 +164,7 @@ async def test_monthly_reset(hass, config_entry):
     coordinator.max_value = 20.0
     coordinator.min_value = 5.0
 
-    with patch("custom_components.max_min.coordinator.async_track_time_change") as mock_track:
+    with patch("custom_components.max_min.coordinator.async_track_point_in_time") as mock_track:
         coordinator._schedule_reset()
         # Reset should be Feb 1
         coordinator._handle_reset(datetime(2023, 2, 1, 0, 0, 0))
@@ -183,7 +183,7 @@ async def test_yearly_reset(hass, config_entry):
     coordinator.max_value = 20.0
     coordinator.min_value = 5.0
 
-    with patch("custom_components.max_min.coordinator.async_track_time_change") as mock_track:
+    with patch("custom_components.max_min.coordinator.async_track_point_in_time") as mock_track:
         coordinator._schedule_reset()
         # Reset should be Jan 1 next year
         coordinator._handle_reset(datetime(2024, 1, 1, 0, 0, 0))
@@ -277,7 +277,7 @@ async def test_reset_with_no_current_value(hass, config_entry):
     # Mock sensor unavailable during reset
     hass.states.get.return_value = Mock(state="unavailable")
 
-    with patch("custom_components.max_min.coordinator.async_track_time_change") as mock_track:
+    with patch("custom_components.max_min.coordinator.async_track_point_in_time") as mock_track:
         coordinator._handle_reset(datetime(2023, 1, 2, 0, 0, 0))
         assert coordinator.max_value is None
         assert coordinator.min_value is None
@@ -322,18 +322,16 @@ async def test_monthly_reset_all_months(hass, config_entry, month, expected_next
         coordinator.max_value = 20.0
         coordinator.min_value = 5.0
 
-        with patch("custom_components.max_min.coordinator.async_track_time_change") as mock_track:
+        with patch("custom_components.max_min.coordinator.async_track_point_in_time") as mock_track:
             coordinator._schedule_reset()
             
             # Verify the reset time is scheduled for the 1st of next month
             mock_track.assert_called_once()
             args = mock_track.call_args[0]
-            reset_hour = args[2]  # hour
-            reset_minute = args[3]  # minute  
-            reset_second = args[4]  # second
+            reset_time = args[2]
             
             # Reset should be at midnight (0, 0, 0)
-            assert (reset_hour, reset_minute, reset_second) == (0, 0, 0)
+            assert (reset_time.hour, reset_time.minute, reset_time.second) == (0, 0, 0)
 
 @pytest.mark.parametrize("year,is_leap", [
     (2023, False),  # Not leap year
@@ -353,18 +351,16 @@ async def test_february_reset_leap_years(hass, config_entry, year, is_leap):
         coordinator.max_value = 20.0
         coordinator.min_value = 5.0
 
-        with patch("custom_components.max_min.coordinator.async_track_time_change") as mock_track:
+        with patch("custom_components.max_min.coordinator.async_track_point_in_time") as mock_track:
             coordinator._schedule_reset()
             
             # Verify the reset time is scheduled for March 1st
             mock_track.assert_called_once()
             args = mock_track.call_args[0]
-            reset_hour = args[2]
-            reset_minute = args[3]
-            reset_second = args[4]
+            reset_time = args[2]
             
             # Reset should be at midnight (0, 0, 0)
-            assert (reset_hour, reset_minute, reset_second) == (0, 0, 0)
+            assert (reset_time.hour, reset_time.minute, reset_time.second) == (0, 0, 0)
             
             # Check that the reset handler works
             coordinator._handle_reset(datetime(year, 3, 1, 0, 0, 0))
@@ -399,18 +395,16 @@ async def test_monthly_reset_different_month_lengths(hass, config_entry, month, 
         coordinator.max_value = 20.0
         coordinator.min_value = 5.0
 
-        with patch("custom_components.max_min.coordinator.async_track_time_change") as mock_track:
+        with patch("custom_components.max_min.coordinator.async_track_point_in_time") as mock_track:
             coordinator._schedule_reset()
             
             # Verify the reset time is scheduled correctly
             mock_track.assert_called_once()
             args = mock_track.call_args[0]
-            reset_hour = args[2]
-            reset_minute = args[3]
-            reset_second = args[4]
+            reset_time = args[2]
             
             # Reset should be at midnight (0, 0, 0)
-            assert (reset_hour, reset_minute, reset_second) == (0, 0, 0)
+            assert (reset_time.hour, reset_time.minute, reset_time.second) == (0, 0, 0)
             
             # Calculate expected next month
             next_month = month + 1 if month < 12 else 1
@@ -435,18 +429,16 @@ async def test_february_29_leap_year_reset(hass, config_entry):
         coordinator.max_value = 20.0
         coordinator.min_value = 5.0
 
-        with patch("custom_components.max_min.coordinator.async_track_time_change") as mock_track:
+        with patch("custom_components.max_min.coordinator.async_track_point_in_time") as mock_track:
             coordinator._schedule_reset()
             
             # Verify the reset time is scheduled for March 1st
             mock_track.assert_called_once()
             args = mock_track.call_args[0]
-            reset_hour = args[2]
-            reset_minute = args[3]
-            reset_second = args[4]
+            reset_time = args[2]
             
             # Reset should be at midnight (0, 0, 0)
-            assert (reset_hour, reset_minute, reset_second) == (0, 0, 0)
+            assert (reset_time.hour, reset_time.minute, reset_time.second) == (0, 0, 0)
             
             # Check that the reset handler works
             coordinator._handle_reset(datetime(2024, 3, 1, 0, 0, 0))

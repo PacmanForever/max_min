@@ -6,7 +6,7 @@ import logging
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, callback
-from homeassistant.helpers.event import async_track_state_change_event, async_track_time_change
+from homeassistant.helpers.event import async_track_state_change_event, async_track_point_in_time
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 
 from .const import (
@@ -108,11 +108,13 @@ class MaxMinDataUpdateCoordinator(DataUpdateCoordinator):
         elif self.period == PERIOD_YEARLY:
             reset_time = now.replace(year=now.year + 1, month=1, day=1, hour=0, minute=0, second=0, microsecond=0)
 
-        # Convert to local time for async_track_time_change
-        local_reset = reset_time.astimezone(self.hass.config.time_zone)
+        # Cancel previous listener if exists
+        if self._reset_listener:
+            self._reset_listener()
+            self._reset_listener = None
 
-        self._reset_listener = async_track_time_change(
-            self.hass, self._handle_reset, local_reset.hour, local_reset.minute, local_reset.second
+        self._reset_listener = async_track_point_in_time(
+            self.hass, self._handle_reset, reset_time
         )
 
     @callback

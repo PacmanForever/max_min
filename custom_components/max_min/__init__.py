@@ -25,11 +25,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     hass.data[DOMAIN][entry.entry_id] = coordinator
 
     # Forward setup to platforms
-    try:
-        await hass.config_entries.async_forward_entry_setups(entry, ["sensor"])
-    except Exception:
-        # Log the error but don't fail setup
-        pass
+    await hass.config_entries.async_forward_entry_setups(entry, ["sensor"])
+
+    # Register update listener
+    entry.async_on_unload(entry.add_update_listener(async_reload_entry))
 
     return True
 
@@ -38,5 +37,14 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Unload a config entry."""
     unload_ok = await hass.config_entries.async_forward_entry_unload(entry, "sensor")
     if unload_ok:
-        hass.data[DOMAIN].pop(entry.entry_id)
+        if entry.entry_id in hass.data[DOMAIN]:
+            coordinator = hass.data[DOMAIN][entry.entry_id]
+            await coordinator.async_unload()
+            hass.data[DOMAIN].pop(entry.entry_id)
+            
     return unload_ok
+
+
+async def async_reload_entry(hass: HomeAssistant, entry: ConfigEntry) -> None:
+    """Reload config entry."""
+    await hass.config_entries.async_reload(entry.entry_id)
