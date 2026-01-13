@@ -54,6 +54,8 @@ class MaxMinDataUpdateCoordinator(DataUpdateCoordinator):
             kwargs['config_entry'] = config_entry
 
         super().__init__(**kwargs)
+        # Ensure config_entry is set (some HA versions might overwrite it with None if not in kwargs)
+        self.config_entry = config_entry
 
     async def async_config_entry_first_refresh(self) -> None:
         """Initialize values and listeners."""
