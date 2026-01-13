@@ -127,8 +127,10 @@ class MaxMinOptionsFlow(config_entries.OptionsFlow):
 
         # Defaults for schema
         default_types = self._config_entry.options.get(CONF_TYPES, [TYPE_MAX, TYPE_MIN])
-        default_min = self._config_entry.options.get(CONF_INITIAL_MIN)
-        default_max = self._config_entry.options.get(CONF_INITIAL_MAX)
+        # In options flow, we don't pre-fill initial values to allow user to keep existing logic
+        # or input new values only when needed
+        default_min = None
+        default_max = None
 
         if user_input:
              default_types = user_input.get(CONF_TYPES, default_types)

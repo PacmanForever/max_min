@@ -24,9 +24,10 @@
   "options": {
     "step": {
       "init": {
+        "title": "Sensor settings",
         "data": {
           "period": "Period",
-          "types": "New sensors",
+          "types": "Sensors",
           "initial_max": "Initial max value",
           "initial_min": "Initial min value"
         }

@@ -89,5 +89,6 @@ def test_string_translations():
     assert user_step["data"]["initial_max"] == "Initial max value"
     
     options_step = strings["options"]["step"]["init"]
+    assert options_step["title"] == "Sensor settings"
     assert options_step["data"]["period"] == "Period"
-    assert options_step["data"]["types"] == "New sensors"
+    assert options_step["data"]["types"] == "Sensors"

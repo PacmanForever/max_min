@@ -61,14 +61,18 @@ class MaxSensor(CoordinatorEntity, SensorEntity):
         self._config_entry = config_entry
         self._attr_name = name
         self._attr_unique_id = f"{config_entry.entry_id}_max"
-        self._attr_device_class = "measurement"
-        self._attr_state_class = "measurement"
-        # Inherit unit from source sensor
+        
+        # Inherit attributes from source sensor
         source_entity = config_entry.data[CONF_SENSOR_ENTITY]
         if coordinator.hass:
             source_state = coordinator.hass.states.get(source_entity)
-            if source_state and source_state.attributes.get("unit_of_measurement"):
-                self._attr_unit_of_measurement = source_state.attributes["unit_of_measurement"]
+            if source_state:
+                if source_state.attributes.get("unit_of_measurement"):
+                    self._attr_native_unit_of_measurement = source_state.attributes["unit_of_measurement"]
+                if source_state.attributes.get("device_class"):
+                    self._attr_device_class = source_state.attributes["device_class"]
+                if source_state.attributes.get("state_class"):
+                    self._attr_state_class = source_state.attributes["state_class"]
 
     @property
     def device_info(self):
@@ -104,14 +108,18 @@ class MinSensor(CoordinatorEntity, SensorEntity):
         self._config_entry = config_entry
         self._attr_name = name
         self._attr_unique_id = f"{config_entry.entry_id}_min"
-        self._attr_device_class = "measurement"
-        self._attr_state_class = "measurement"
-        # Inherit unit from source sensor
+        
+        # Inherit attributes from source sensor
         source_entity = config_entry.data[CONF_SENSOR_ENTITY]
         if coordinator.hass:
             source_state = coordinator.hass.states.get(source_entity)
-            if source_state and source_state.attributes.get("unit_of_measurement"):
-                self._attr_unit_of_measurement = source_state.attributes["unit_of_measurement"]
+            if source_state:
+                if source_state.attributes.get("unit_of_measurement"):
+                    self._attr_native_unit_of_measurement = source_state.attributes["unit_of_measurement"]
+                if source_state.attributes.get("device_class"):
+                    self._attr_device_class = source_state.attributes["device_class"]
+                if source_state.attributes.get("state_class"):
+                    self._attr_state_class = source_state.attributes["state_class"]
 
     @property
     def device_info(self):
