@@ -284,6 +284,84 @@ async def test_reset_with_no_current_value(hass, config_entry):
 
 
 @pytest.mark.asyncio
+async def test_reset_with_invalid_value(hass, config_entry):
+    """Test reset when sensor has invalid value."""
+    coordinator = MaxMinDataUpdateCoordinator(hass, config_entry)
+    await coordinator.async_config_entry_first_refresh()
+
+    # Set values
+    coordinator.max_value = 20.0
+    coordinator.min_value = 5.0
+
+    # Mock sensor invalid during reset
+    hass.states.get.return_value = Mock(state="invalid")
+
+    with patch("custom_components.max_min.coordinator.async_track_point_in_time") as mock_track:
+        coordinator._handle_reset(datetime(2023, 1, 2, 0, 0, 0))
+        assert coordinator.max_value is None
+        assert coordinator.min_value is None
+
+@pytest.mark.asyncio
+async def test_reset_with_missing_sensor(hass, config_entry):
+    """Test reset when sensor is missing."""
+    coordinator = MaxMinDataUpdateCoordinator(hass, config_entry)
+    await coordinator.async_config_entry_first_refresh()
+
+    # Set values
+    coordinator.max_value = 20.0
+    coordinator.min_value = 5.0
+
+    # Mock sensor missing during reset
+    hass.states.get.return_value = None
+
+    with patch("custom_components.max_min.coordinator.async_track_point_in_time") as mock_track:
+        coordinator._handle_reset(datetime(2023, 1, 2, 0, 0, 0))
+        assert coordinator.max_value is None
+        assert coordinator.min_value is None
+
+
+@pytest.mark.asyncio
+async def test_weekly_reset_scheduling(hass, config_entry):
+    """Test weekly reset scheduling."""
+    config_entry.data[CONF_PERIOD] = PERIOD_WEEKLY
+
+    # Test on a specific date: Monday 2023-01-02
+    with freeze_time("2023-01-02 12:00:00"):
+        coordinator = MaxMinDataUpdateCoordinator(hass, config_entry)
+        await coordinator.async_config_entry_first_refresh()
+
+        with patch("custom_components.max_min.coordinator.async_track_point_in_time") as mock_track:
+            coordinator._schedule_reset()
+
+            mock_track.assert_called_once()
+            args = mock_track.call_args[0]
+            reset_time = args[2]
+
+            # Expect reset next Monday: 2023-01-09 00:00:00
+            assert reset_time == datetime(2023, 1, 9, 0, 0, 0).replace(tzinfo=timezone.utc)
+
+
+@pytest.mark.asyncio
+async def test_weekly_reset_scheduling_sunday(hass, config_entry):
+    """Test weekly reset scheduling on Sunday."""
+    config_entry.data[CONF_PERIOD] = PERIOD_WEEKLY
+
+    # Test on a specific date: Sunday 2023-01-08
+    with freeze_time("2023-01-08 12:00:00"):
+        coordinator = MaxMinDataUpdateCoordinator(hass, config_entry)
+        await coordinator.async_config_entry_first_refresh()
+
+        with patch("custom_components.max_min.coordinator.async_track_point_in_time") as mock_track:
+            coordinator._schedule_reset()
+
+            mock_track.assert_called_once()
+            args = mock_track.call_args[0]
+            reset_time = args[2]
+
+            # Expect reset next Monday: 2023-01-09 00:00:00
+            assert reset_time == datetime(2023, 1, 9, 0, 0, 0).replace(tzinfo=timezone.utc)
+
+@pytest.mark.asyncio
 async def test_coordinator_with_options(hass, config_entry):
     """Test coordinator with options."""
     config_entry.options = {

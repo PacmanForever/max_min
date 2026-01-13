@@ -64,8 +64,8 @@ class MaxMinConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                         multiple=True,
                     )
                 ),
-                vol.Optional(CONF_INITIAL_MAX): vol.Coerce(float),
                 vol.Optional(CONF_INITIAL_MIN): vol.Coerce(float),
+                vol.Optional(CONF_INITIAL_MAX): vol.Coerce(float),
             }),
         )
 
@@ -86,39 +86,11 @@ class MaxMinOptionsFlow(config_entries.OptionsFlow):
     async def async_step_init(self, user_input=None):
         """Manage the options."""
         if user_input is not None:
-            # If period changed, check for conflicts and update unique_id
-            new_period = user_input.get(CONF_PERIOD)
-            current_period = self._config_entry.options.get(CONF_PERIOD, self._config_entry.data.get(CONF_PERIOD))
-            
-            if new_period and new_period != current_period:
-                sensor_entity = self._config_entry.data[CONF_SENSOR_ENTITY]
-                new_unique_id = f"{sensor_entity}_{new_period}"
-                
-                # Check if another entry has this combination
-                for entry in self.hass.config_entries.async_entries(DOMAIN):
-                    if entry.entry_id != self._config_entry.entry_id and entry.unique_id == new_unique_id:
-                        return self.async_abort(reason="already_configured")
-                
-                await self.async_set_unique_id(new_unique_id)
-            
             return self.async_create_entry(title="", data=user_input)
 
         return self.async_show_form(
             step_id="init",
             data_schema=vol.Schema({
-                vol.Optional(
-                    CONF_PERIOD,
-                    default=self._config_entry.options.get(CONF_PERIOD, PERIOD_DAILY),
-                ): selector.SelectSelector(
-                    selector.SelectSelectorConfig(
-                        options=[
-                            {"value": PERIOD_DAILY, "label": "Daily"},
-                            {"value": PERIOD_WEEKLY, "label": "Weekly"},
-                            {"value": PERIOD_MONTHLY, "label": "Monthly"},
-                            {"value": PERIOD_YEARLY, "label": "Yearly"},
-                        ]
-                    )
-                ),
                 vol.Optional(
                     CONF_TYPES,
                     default=self._config_entry.options.get(CONF_TYPES, [TYPE_MAX, TYPE_MIN]),
@@ -131,7 +103,7 @@ class MaxMinOptionsFlow(config_entries.OptionsFlow):
                         multiple=True,
                     )
                 ),
-                vol.Optional(CONF_INITIAL_MAX, default=self._config_entry.options.get(CONF_INITIAL_MAX)): vol.Coerce(float),
                 vol.Optional(CONF_INITIAL_MIN, default=self._config_entry.options.get(CONF_INITIAL_MIN)): vol.Coerce(float),
+                vol.Optional(CONF_INITIAL_MAX, default=self._config_entry.options.get(CONF_INITIAL_MAX)): vol.Coerce(float),
             }),
         )

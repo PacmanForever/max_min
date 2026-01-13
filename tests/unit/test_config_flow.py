@@ -36,16 +36,81 @@ async def test_config_flow_options(hass):
     flow = MaxMinOptionsFlow(config_entry)
     flow.hass = Mock()  # Simple mock instead of async fixture
     flow.hass.config_entries.async_entries = Mock(return_value=[])
-    flow.async_set_unique_id = AsyncMock()
 
+    # Show form
+    result = await flow.async_step_init()
+    assert result["type"] == FlowResultType.FORM
+    assert result["step_id"] == "init"
+
+    # Submit form
     result = await flow.async_step_init({
-        CONF_PERIOD: "weekly",
         CONF_TYPES: [TYPE_MAX],
     })
 
     assert result["type"] == FlowResultType.CREATE_ENTRY
     assert result["data"] == {
-        CONF_PERIOD: "weekly",
+        CONF_TYPES: [TYPE_MAX],
+    }
+
+
+@pytest.mark.asyncio
+async def test_config_flow_duplicate_unique_id(hass):
+    """Test config flow aborts if unique_id already configured."""
+    flow = MaxMinConfigFlow()
+    flow.hass = Mock()
+    flow.async_set_unique_id = AsyncMock()
+    flow._abort_if_unique_id_configured = Mock(return_value={"type": FlowResultType.ABORT, "reason": "already_configured"})
+
+    result = await flow.async_step_user({
+        CONF_SENSOR_ENTITY: "sensor.test",
+        CONF_PERIOD: PERIOD_DAILY,
+        CONF_TYPES: [TYPE_MAX],
+    })
+
+    assert result["type"] == FlowResultType.ABORT
+    assert result["reason"] == "already_configured"
+
+
+@pytest.mark.asyncio
+async def test_get_options_flow(hass):
+    """Test get options flow."""
+    config_entry = MagicMock()
+    flow = MaxMinConfigFlow.async_get_options_flow(config_entry)
+    assert isinstance(flow, MaxMinOptionsFlow)
+
+
+
+@pytest.mark.asyncio
+async def test_config_flow_user_form(hass):
+    """Test user form."""
+    flow = MaxMinConfigFlow()
+    flow.hass = Mock()
+
+    result = await flow.async_step_user()
+
+    assert result["type"] == FlowResultType.FORM
+    assert result["step_id"] == "user"
+
+
+@pytest.mark.asyncio
+async def test_config_flow_valid_user_input(hass):
+    """Test valid user input."""
+    flow = MaxMinConfigFlow()
+    flow.hass = Mock()
+    flow.async_set_unique_id = AsyncMock()
+    flow._abort_if_unique_id_configured = Mock(return_value=None)
+
+    result = await flow.async_step_user({
+        CONF_SENSOR_ENTITY: "sensor.test",
+        CONF_PERIOD: PERIOD_DAILY,
+        CONF_TYPES: [TYPE_MAX],
+    })
+
+    assert result["type"] == FlowResultType.CREATE_ENTRY
+    assert result["title"] == "Max Min"
+    assert result["data"] == {
+        CONF_SENSOR_ENTITY: "sensor.test",
+        CONF_PERIOD: PERIOD_DAILY,
         CONF_TYPES: [TYPE_MAX],
     }
 
@@ -59,6 +124,7 @@ async def test_config_flow_invalid_sensor(hass):
 
     # Mock async_set_unique_id to avoid issues
     flow.async_set_unique_id = AsyncMock()
+    flow._abort_if_unique_id_configured = Mock(return_value=None)
 
     # Mock validation - in real implementation, would check if sensor exists
     result = await flow.async_step_user({
@@ -77,6 +143,7 @@ async def test_config_flow_weekly_period(hass):
     flow = MaxMinConfigFlow()
     flow.hass = Mock()  # Simple mock instead of async fixture
     flow.async_set_unique_id = AsyncMock()
+    flow._abort_if_unique_id_configured = Mock(return_value=None)
 
     result = await flow.async_step_user({
         CONF_SENSOR_ENTITY: "sensor.test",
@@ -94,6 +161,7 @@ async def test_config_flow_monthly_period(hass):
     flow = MaxMinConfigFlow()
     flow.hass = Mock()  # Simple mock instead of async fixture
     flow.async_set_unique_id = AsyncMock()
+    flow._abort_if_unique_id_configured = Mock(return_value=None)
 
     result = await flow.async_step_user({
         CONF_SENSOR_ENTITY: "sensor.test",
@@ -209,32 +277,3 @@ async def test_async_get_options_flow(hass):
     result = MaxMinConfigFlow.async_get_options_flow(config_entry)
     assert isinstance(result, MaxMinOptionsFlow)
     assert result._config_entry == config_entry
-
-
-@pytest.mark.asyncio
-async def test_options_flow_already_configured(hass):
-    """Test options flow aborts when already configured."""
-    config_entry = MagicMock()
-    config_entry.options = {
-        CONF_PERIOD: PERIOD_DAILY,
-        CONF_TYPES: [TYPE_MAX, TYPE_MIN],
-    }
-    config_entry.data = {CONF_SENSOR_ENTITY: "sensor.test"}
-    config_entry.entry_id = "test_entry"
-    
-    # Mock another entry with same unique_id
-    another_entry = MagicMock()
-    another_entry.entry_id = "another_entry"
-    another_entry.unique_id = "sensor.test_weekly"
-    
-    flow = MaxMinOptionsFlow(config_entry)
-    flow.hass = Mock()
-    flow.hass.config_entries.async_entries = Mock(return_value=[another_entry])
-    
-    result = await flow.async_step_init({
-        CONF_PERIOD: "weekly",
-        CONF_TYPES: [TYPE_MAX],
-    })
-    
-    assert result["type"] == FlowResultType.ABORT
-    assert result["reason"] == "already_configured"

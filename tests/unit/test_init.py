@@ -95,3 +95,16 @@ async def test_async_unload_entry_forward_failure(hass):
     result = await async_unload_entry(hass, config_entry)
     assert result is False
     assert config_entry.entry_id in hass.data[DOMAIN]
+
+
+@pytest.mark.asyncio
+async def test_async_reload_entry(hass):
+    """Test async reload entry."""
+    from custom_components.max_min import async_reload_entry
+    
+    config_entry = Mock()
+    config_entry.entry_id = "test_entry"
+    hass.config_entries.async_reload = AsyncMock()
+
+    await async_reload_entry(hass, config_entry)
+    hass.config_entries.async_reload.assert_called_once_with("test_entry")

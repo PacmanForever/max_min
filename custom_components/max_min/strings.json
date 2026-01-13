@@ -2,10 +2,13 @@
   "config": {
     "step": {
       "user": {
+        "title": "Add new sensor/s",
         "data": {
           "sensor_entity": "Source sensor",
           "period": "Period",
-          "types": "Sensor types"
+          "types": "New sensors",
+          "initial_max": "Initial max value",
+          "initial_min": "Initial min value"
         }
       }
     },

@@ -4,6 +4,7 @@ import inspect
 from datetime import datetime, timedelta
 import logging
 
+from homeassistant.util import dt as dt_util
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.event import async_track_state_change_event, async_track_point_in_time
@@ -92,7 +93,7 @@ class MaxMinDataUpdateCoordinator(DataUpdateCoordinator):
 
     def _schedule_reset(self):
         """Schedule the next reset."""
-        now = datetime.now(self.hass.config.time_zone)
+        now = dt_util.now()
         if self.period == PERIOD_DAILY:
             reset_time = (now + timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0)
         elif self.period == PERIOD_WEEKLY:
