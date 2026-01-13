@@ -2,11 +2,13 @@
 
 from homeassistant.components.sensor import SensorEntity
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HomeAssistant, callback
+from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import (
+    CONF_DEVICE_ID,
     CONF_PERIOD,
     CONF_SENSOR_ENTITY,
     CONF_TYPES,
@@ -69,6 +71,20 @@ class MaxSensor(CoordinatorEntity, SensorEntity):
                 self._attr_unit_of_measurement = source_state.attributes["unit_of_measurement"]
 
     @property
+    def device_info(self):
+        """Return device info."""
+        device_id = self._config_entry.data.get(CONF_DEVICE_ID)
+        if device_id and self.coordinator.hass:
+            device_registry = dr.async_get(self.coordinator.hass)
+            device = device_registry.async_get(device_id)
+            if device:
+                return {
+                    "identifiers": device.identifiers,
+                    "connections": device.connections,
+                }
+        return None
+
+    @property
     def native_value(self):
         """Return the state of the sensor."""
         return self.coordinator.max_value
@@ -96,6 +112,20 @@ class MinSensor(CoordinatorEntity, SensorEntity):
             source_state = coordinator.hass.states.get(source_entity)
             if source_state and source_state.attributes.get("unit_of_measurement"):
                 self._attr_unit_of_measurement = source_state.attributes["unit_of_measurement"]
+
+    @property
+    def device_info(self):
+        """Return device info."""
+        device_id = self._config_entry.data.get(CONF_DEVICE_ID)
+        if device_id and self.coordinator.hass:
+            device_registry = dr.async_get(self.coordinator.hass)
+            device = device_registry.async_get(device_id)
+            if device:
+                return {
+                    "identifiers": device.identifiers,
+                    "connections": device.connections,
+                }
+        return None
 
     @property
     def native_value(self):

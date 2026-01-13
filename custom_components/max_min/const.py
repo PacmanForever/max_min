@@ -14,3 +14,5 @@ PERIOD_YEARLY = "yearly"
 
 TYPE_MAX = "max"
 TYPE_MIN = "min"
+
+CONF_DEVICE_ID = "device_id"

@@ -40,6 +40,7 @@ class MaxMinDataUpdateCoordinator(DataUpdateCoordinator):
         self.max_value = config_entry.options.get(CONF_INITIAL_MAX, config_entry.data.get(CONF_INITIAL_MAX))
         self.min_value = config_entry.options.get(CONF_INITIAL_MIN, config_entry.data.get(CONF_INITIAL_MIN))
         self._reset_listener = None
+        self._unsub_sensor_state_listener = None
 
         # Check if DataUpdateCoordinator accepts config_entry (HA 2024.2+)
         sig = inspect.signature(DataUpdateCoordinator.__init__)
@@ -61,8 +62,11 @@ class MaxMinDataUpdateCoordinator(DataUpdateCoordinator):
         if state and state.state not in (None, "unknown", "unavailable"):
             try:
                 current_value = float(state.state)
-                self.max_value = current_value
-                self.min_value = current_value
+                # Respect initial values if configured
+                if self.max_value is None or current_value > self.max_value:
+                    self.max_value = current_value
+                if self.min_value is None or current_value < self.min_value:
+                    self.min_value = current_value
             except ValueError:
                 _LOGGER.warning("Sensor %s has non-numeric state: %s", self.sensor_entity, state.state)
         else:
@@ -72,7 +76,7 @@ class MaxMinDataUpdateCoordinator(DataUpdateCoordinator):
         self._schedule_reset()
 
         # Listen to sensor changes
-        async_track_state_change_event(
+        self._unsub_sensor_state_listener = async_track_state_change_event(
             self.hass, [self.sensor_entity], self._handle_sensor_change
         )
 
@@ -83,11 +87,17 @@ class MaxMinDataUpdateCoordinator(DataUpdateCoordinator):
         if new_state and new_state.state not in (None, "unknown", "unavailable"):
             try:
                 value = float(new_state.state)
+                updated = False
                 if self.max_value is None or value > self.max_value:
                     self.max_value = value
+                    updated = True
                 if self.min_value is None or value < self.min_value:
                     self.min_value = value
-                self.async_set_updated_data({})
+                    updated = True
+                
+                if updated:
+                    _LOGGER.debug("Sensor updated: %s. Max: %s, Min: %s", value, self.max_value, self.min_value)
+                    self.async_set_updated_data({})
             except ValueError:
                 _LOGGER.warning("Invalid sensor value: %s", new_state.state)
 
@@ -121,6 +131,7 @@ class MaxMinDataUpdateCoordinator(DataUpdateCoordinator):
     @callback
     def _handle_reset(self, now):
         """Handle period reset."""
+        _LOGGER.debug("Handling period reset for %s", self.config_entry.title)
         state = self.hass.states.get(self.sensor_entity)
         if state and state.state not in (None, "unknown", "unavailable"):
             try:
@@ -141,3 +152,8 @@ class MaxMinDataUpdateCoordinator(DataUpdateCoordinator):
         """Unload the coordinator."""
         if self._reset_listener:
             self._reset_listener()
+            self._reset_listener = None
+            
+        if self._unsub_sensor_state_listener:
+            self._unsub_sensor_state_listener()
+            self._unsub_sensor_state_listener = None

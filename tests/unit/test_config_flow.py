@@ -99,6 +99,11 @@ async def test_config_flow_valid_user_input(hass):
     flow.hass = Mock()
     flow.async_set_unique_id = AsyncMock()
     flow._abort_if_unique_id_configured = Mock(return_value=None)
+    
+    # Mock state
+    mock_state = Mock()
+    mock_state.name = "Test Sensor"
+    flow.hass.states.get.return_value = mock_state
 
     result = await flow.async_step_user({
         CONF_SENSOR_ENTITY: "sensor.test",
@@ -107,7 +112,7 @@ async def test_config_flow_valid_user_input(hass):
     })
 
     assert result["type"] == FlowResultType.CREATE_ENTRY
-    assert result["title"] == "Max Min"
+    assert result["title"] == "Test Sensor - Daily"
     assert result["data"] == {
         CONF_SENSOR_ENTITY: "sensor.test",
         CONF_PERIOD: PERIOD_DAILY,
@@ -277,3 +282,42 @@ async def test_async_get_options_flow(hass):
     result = MaxMinConfigFlow.async_get_options_flow(config_entry)
     assert isinstance(result, MaxMinOptionsFlow)
     assert result._config_entry == config_entry
+
+
+@pytest.mark.asyncio
+async def test_config_flow_min_greater_than_max(hass):
+    """Test config flow validation for min > max."""
+    flow = MaxMinConfigFlow()
+    flow.hass = Mock()
+    flow.async_set_unique_id = AsyncMock()
+
+    result = await flow.async_step_user({
+        CONF_SENSOR_ENTITY: "sensor.test",
+        CONF_PERIOD: PERIOD_DAILY,
+        CONF_TYPES: [TYPE_MAX],
+        "initial_min": 10.0,
+        "initial_max": 5.0,
+    })
+
+    assert result["type"] == FlowResultType.FORM
+    assert result["errors"] == {"base": "min_greater_than_max"}
+
+
+@pytest.mark.asyncio
+async def test_options_flow_min_greater_than_max(hass):
+    """Test options flow validation for min > max."""
+    config_entry = MagicMock()
+    config_entry.options = {}
+    config_entry.data = {CONF_SENSOR_ENTITY: "sensor.test"}
+    
+    flow = MaxMinOptionsFlow(config_entry)
+    flow.hass = Mock()
+    
+    result = await flow.async_step_init({
+        CONF_TYPES: [TYPE_MAX],
+        "initial_min": 10.0,
+        "initial_max": 5.0,
+    })
+
+    assert result["type"] == FlowResultType.FORM
+    assert result["errors"] == {"base": "min_greater_than_max"}

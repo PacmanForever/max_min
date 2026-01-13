@@ -1,12 +1,13 @@
 """Test sensor platform."""
 
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 
 import pytest
 
-from custom_components.max_min.const import CONF_SENSOR_ENTITY
+from custom_components.max_min.const import CONF_SENSOR_ENTITY, CONF_DEVICE_ID
 from custom_components.max_min.coordinator import MaxMinDataUpdateCoordinator
 from custom_components.max_min.sensor import MaxSensor, MinSensor
+from homeassistant.helpers import device_registry as dr
 
 
 @pytest.fixture
@@ -15,8 +16,53 @@ def coordinator():
     coord = Mock(spec=MaxMinDataUpdateCoordinator)
     coord.max_value = 15.0
     coord.min_value = 5.0
-    coord.hass = None  # Initially no hass
+    coord.hass = Mock()
+    coord.hass.states.get.return_value = Mock(state="10")
+    coord.hass.states.get.return_value.attributes = {"unit_of_measurement": "°C"}
     return coord
+
+@pytest.mark.asyncio
+async def test_sensor_device_info(coordinator):
+    """Test sensor with device info."""
+    config_entry = Mock()
+    config_entry.entry_id = "test_entry"
+    config_entry.data = {
+        CONF_SENSOR_ENTITY: "sensor.test",
+        CONF_DEVICE_ID: "test_device_id"
+    }
+
+    # Mock device registry
+    device_registry = Mock()
+    device = Mock()
+    device.identifiers = {("test_domain", "test_id")}
+    device.connections = {("mac", "00:00:00:00:00:00")}
+    device_registry.async_get.return_value = device
+    
+    # We need to mock dr.async_get to return our mock registry
+    with patch("homeassistant.helpers.device_registry.async_get", return_value=device_registry):
+        sensor = MaxSensor(coordinator, config_entry, "Test Max")
+        
+        # device_info is a property that calls the registry
+        device_info = sensor.device_info
+        
+        assert device_info is not None
+        assert device_info["identifiers"] == {("test_domain", "test_id")}
+        assert device_info["connections"] == {("mac", "00:00:00:00:00:00")}
+        
+        device_registry.async_get.assert_called_with("test_device_id")
+
+
+@pytest.mark.asyncio
+async def test_sensor_no_device_info(coordinator):
+    """Test sensor without device info."""
+    config_entry = Mock()
+    config_entry.entry_id = "test_entry"
+    config_entry.data = {
+        CONF_SENSOR_ENTITY: "sensor.test"
+    }
+    
+    sensor = MaxSensor(coordinator, config_entry, "Test Max")
+    assert sensor.device_info is None
 
 
 @pytest.fixture
