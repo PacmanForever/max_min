@@ -99,3 +99,16 @@ def test_string_translations():
     assert options_step["data"]["period"] == "Period"
     assert options_step["data"]["types"] == "Sensors"
     assert options_step["data"]["device_id"] == "Device (Optional)"
+
+def test_en_translation_match():
+    """Test that en.json matches strings.json."""
+    strings_path = "custom_components/max_min/strings.json"
+    en_path = "custom_components/max_min/translations/en.json"
+    
+    if os.path.exists(en_path):
+        with open(strings_path, "r") as f:
+            strings = json.load(f)
+        with open(en_path, "r") as f:
+            en_strings = json.load(f)
+            
+        assert strings == en_strings, "en.json does not match strings.json"
