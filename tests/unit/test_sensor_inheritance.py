@@ -52,6 +52,12 @@ def test_sensor_inheritance(coordinator, config_entry, hass):
     assert max_sensor.unit_of_measurement == "°C"
     assert max_sensor.device_class == "temperature"
     assert max_sensor.state_class == "measurement"
+    
+    min_sensor = MinSensor(coordinator, config_entry, "Min Test")
+    
+    assert min_sensor.unit_of_measurement == "°C"
+    assert min_sensor.device_class == "temperature"
+    assert min_sensor.state_class == "measurement"
 
 def test_sensor_defaults_if_source_missing(coordinator, config_entry, hass):
     """Test defaults when source sensor has no attributes."""

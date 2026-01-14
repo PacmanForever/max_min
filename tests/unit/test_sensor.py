@@ -29,6 +29,7 @@ async def test_sensor_device_info(coordinator):
     """Test sensor with device info."""
     config_entry = Mock()
     config_entry.entry_id = "test_entry"
+    config_entry.options = {}
     config_entry.data = {
         CONF_SENSOR_ENTITY: "sensor.test",
         CONF_DEVICE_ID: "test_device_id"
@@ -54,12 +55,19 @@ async def test_sensor_device_info(coordinator):
         
         device_registry.async_get.assert_called_with("test_device_id")
 
+        # Test MinSensor device info as well to cover that code path
+        min_sensor = MinSensor(coordinator, config_entry, "Test Min")
+        min_device_info = min_sensor.device_info
+        assert min_device_info is not None
+        assert min_device_info["identifiers"] == {("test_domain", "test_id")}
+
 
 @pytest.mark.asyncio
 async def test_sensor_no_device_info(coordinator):
     """Test sensor without device info."""
     config_entry = Mock()
     config_entry.entry_id = "test_entry"
+    config_entry.options = {}
     config_entry.data = {
         CONF_SENSOR_ENTITY: "sensor.test"
     }
@@ -96,10 +104,10 @@ def test_max_sensor(coordinator, config_entry, hass):
     # Set hass on coordinator
     coordinator.hass = hass
     
-    sensor = MaxSensor(coordinator, config_entry, "Max Test Daily")
+    sensor = MaxSensor(coordinator, config_entry, "Test Daily Max")
     assert sensor.native_value == 15.0
     assert sensor.available is True
-    assert sensor.name == "Max Test Daily"
+    assert sensor.name == "Test Daily Max"
     assert sensor.unique_id == "test_entry_max"
     assert sensor._attr_native_unit_of_measurement == "°C"
 
@@ -108,10 +116,10 @@ def test_min_sensor(coordinator, config_entry, hass):
     """Test min sensor."""
     coordinator.hass = hass
     
-    sensor = MinSensor(coordinator, config_entry, "Min Test Daily")
+    sensor = MinSensor(coordinator, config_entry, "Test Daily Min")
     assert sensor.native_value == 5.0
     assert sensor.available is True
-    assert sensor.name == "Min Test Daily"
+    assert sensor.name == "Test Daily Min"
     assert sensor.unique_id == "test_entry_min"
     assert sensor._attr_native_unit_of_measurement == "°C"
 

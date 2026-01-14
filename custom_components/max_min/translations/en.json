@@ -2,12 +2,12 @@
   "config": {
     "step": {
       "user": {
-        "title": "Add new sensor/s",
+        "title": "Add new Max/Min sensor/s",
         "data": {
           "sensor_entity": "Source sensor",
-          "device_id": "Device (optional)",
+          "device_id": "Device to link (optional)",
           "period": "Period",
-          "types": "New sensors",
+          "types": "Sensors",
           "initial_max": "Initial max value",
           "initial_min": "Initial min value"
         }
@@ -28,6 +28,7 @@
         "data": {
           "period": "Period",
           "types": "Sensors",
+          "device_id": "Device to link (optional)",
           "initial_max": "Initial max value",
           "initial_min": "Initial min value"
         }

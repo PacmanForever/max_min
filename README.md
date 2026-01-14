@@ -47,11 +47,15 @@ After installation, add the integration via the Home Assistant UI:
 1. Go to Settings > Devices and services > Add integration.
 2. Search for "Max Min".
 3. Select the source sensor (an existing numeric sensor).
-4. Choose the period: Daily, Weekly, Monthly or Yearly.
+4. (Optional) Select a device to link the new sensors to.
+5. Choose the period: Daily, Weekly, Monthly or Yearly.
+6. Select if you want to create a max sensor, min sensor, or both.
+
+**Note**: When you link sensors to a device, Home Assistant will show a screen at the end of the setup asking you to assign an area. This is standard Home Assistant behavior; if the device already has an area, it will be pre-selected.
 5. Select sensor types: Max, Min, or both.
 6. (Optional) Set initial values for max and/or min to start with existing values.
 
-**Note**: You can create multiple configurations for the same sensor with different periods. For example, you can have both daily and weekly max/min sensors for the same temperature sensor.
+**Note**: You can create multiple configurations for the same sensor with different periods. For example, you can have both daily and weekly max/min sensors for the same temperature sensor. However, creating a duplicate configuration for the same sensor and period is not allowed (e.g., you cannot have two "Daily" configurations for the same sensor).
 
 ### Examples of created sensors
 

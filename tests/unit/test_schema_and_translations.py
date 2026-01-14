@@ -80,11 +80,11 @@ def test_string_translations():
         
     user_step = strings["config"]["step"]["user"]
     
-    assert user_step["title"] == "Add new sensor/s"
+    assert user_step["title"] == "Add new Max/Min sensor/s"
     assert user_step["data"]["sensor_entity"] == "Source sensor"
-    assert user_step["data"]["device_id"] == "Device (optional)"
+    assert user_step["data"]["device_id"] == "Device to link (optional)"
     assert user_step["data"]["period"] == "Period"
-    assert user_step["data"]["types"] == "New sensors"
+    assert user_step["data"]["types"] == "Sensors"
     assert user_step["data"]["initial_min"] == "Initial min value"
     assert user_step["data"]["initial_max"] == "Initial max value"
     
@@ -92,3 +92,4 @@ def test_string_translations():
     assert options_step["title"] == "Sensor settings"
     assert options_step["data"]["period"] == "Period"
     assert options_step["data"]["types"] == "Sensors"
+    assert options_step["data"]["device_id"] == "Device to link (optional)"

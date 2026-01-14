@@ -45,9 +45,9 @@ async def async_setup_entry(
     period_label = period_labels.get(period, period)
 
     if TYPE_MAX in types:
-        entities.append(MaxSensor(coordinator, config_entry, f"Max {sensor_name} {period_label}"))
+        entities.append(MaxSensor(coordinator, config_entry, f"{sensor_name} {period_label} Max"))
     if TYPE_MIN in types:
-        entities.append(MinSensor(coordinator, config_entry, f"Min {sensor_name} {period_label}"))
+        entities.append(MinSensor(coordinator, config_entry, f"{sensor_name} {period_label} Min"))
 
     async_add_entities(entities)
 
@@ -77,7 +77,7 @@ class MaxSensor(CoordinatorEntity, SensorEntity):
     @property
     def device_info(self):
         """Return device info."""
-        device_id = self._config_entry.data.get(CONF_DEVICE_ID)
+        device_id = self._config_entry.options.get(CONF_DEVICE_ID, self._config_entry.data.get(CONF_DEVICE_ID))
         if device_id and self.coordinator.hass:
             device_registry = dr.async_get(self.coordinator.hass)
             device = device_registry.async_get(device_id)
@@ -124,7 +124,7 @@ class MinSensor(CoordinatorEntity, SensorEntity):
     @property
     def device_info(self):
         """Return device info."""
-        device_id = self._config_entry.data.get(CONF_DEVICE_ID)
+        device_id = self._config_entry.options.get(CONF_DEVICE_ID, self._config_entry.data.get(CONF_DEVICE_ID))
         if device_id and self.coordinator.hass:
             device_registry = dr.async_get(self.coordinator.hass)
             device = device_registry.async_get(device_id)

@@ -87,8 +87,8 @@ class MaxMinConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 vol.Required(CONF_TYPES, default=default_types): selector.SelectSelector(
                     selector.SelectSelectorConfig(
                         options=[
-                            {"value": TYPE_MAX, "label": "Maximum"},
                             {"value": TYPE_MIN, "label": "Minimum"},
+                            {"value": TYPE_MAX, "label": "Maximum"},
                         ],
                         multiple=True,
                     )
@@ -131,11 +131,13 @@ class MaxMinOptionsFlow(config_entries.OptionsFlow):
         # or input new values only when needed
         default_min = None
         default_max = None
+        default_device = self._config_entry.options.get(CONF_DEVICE_ID, self._config_entry.data.get(CONF_DEVICE_ID))
 
         if user_input:
              default_types = user_input.get(CONF_TYPES, default_types)
              default_min = user_input.get(CONF_INITIAL_MIN, default_min)
              default_max = user_input.get(CONF_INITIAL_MAX, default_max)
+             default_device = user_input.get(CONF_DEVICE_ID, default_device)
 
         return self.async_show_form(
             step_id="init",
@@ -146,11 +148,14 @@ class MaxMinOptionsFlow(config_entries.OptionsFlow):
                 ): selector.SelectSelector(
                     selector.SelectSelectorConfig(
                         options=[
-                            {"value": TYPE_MAX, "label": "Maximum"},
                             {"value": TYPE_MIN, "label": "Minimum"},
+                            {"value": TYPE_MAX, "label": "Maximum"},
                         ],
                         multiple=True,
                     )
+                ),
+                vol.Optional(CONF_DEVICE_ID, description={"suggested_value": default_device}): selector.DeviceSelector(
+                    selector.DeviceSelectorConfig()
                 ),
                 vol.Optional(CONF_INITIAL_MIN, description={"suggested_value": default_min}): vol.Coerce(float),
                 vol.Optional(CONF_INITIAL_MAX, description={"suggested_value": default_max}): vol.Coerce(float),
