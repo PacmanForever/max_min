@@ -5,6 +5,24 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.5] - 2026-01-14
+
+### Fixed
+- **Critical**: Restored Max/Min values are now correctly preserved on restart. Previously, sensors would reset to the current source value, causing data loss (e.g., Max dropping to current value).
+- Fixed entity cleanup logic to ensure stale entities are removed when options change.
+
+## [0.2.5] - 2026-01-14
+
+### Fixed
+- **Critical Data Loss on Restart**: Fixed an issue where Max/Min sensors would reset to the *current* source value on restart, losing historical data for the current period. This caused Max values to drop and Min values to rise incorrectly. Implemented `RestoreEntity` to preserve states across restarts.
+- **Entity Cleanup**: Fixed stale entities remaining after changing options (e.g., removing a period or type).
+
+## [0.2.4] - 2026-01-14
+
+### Changed
+- **Config Flow Validation**: "Basic Settings" and "Optional Settings" steps now correctly enforce required fields.
+- **UI Tweaks**: "Device" selection moved to the "Optional Settings" step to reduce clutter.
+
 ## [0.2.0] - 2026-01-14
 
 ### Added

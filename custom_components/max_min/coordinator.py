@@ -85,6 +85,28 @@ class MaxMinDataUpdateCoordinator(DataUpdateCoordinator):
         if period in self.tracked_data:
             return self.tracked_data[period].get(type_)
         return None
+    
+    def update_restored_data(self, period, type_, value):
+        """Update data from restored state."""
+        if period not in self.tracked_data:
+            self.tracked_data[period] = {"max": None, "min": None}
+            
+        data = self.tracked_data[period]
+        
+        # Only update if the restored value extends the current range (or initializes it)
+        # Note: stored data might have been initialized by current sensor state in first_refresh
+        # If restored value is "more extreme", we keep it.
+        # But we also want to overwrite if the current value is just "current" and the restored is "historical max/min"
+        
+        # Case Max:
+        if type_ == "max":
+            if data["max"] is None or value > data["max"]:
+                data["max"] = value
+        
+        # Case Min:
+        if type_ == "min":
+            if data["min"] is None or value < data["min"]:
+                data["min"] = value
 
     async def async_config_entry_first_refresh(self) -> None:
         """Initialize values and listeners."""

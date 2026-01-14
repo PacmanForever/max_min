@@ -6,6 +6,7 @@ from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
+from homeassistant.helpers.restore_state import RestoreEntity
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import (
@@ -59,6 +60,21 @@ async def async_setup_entry(
         for dev_id in devices_to_unlink:
             dev_reg.async_update_device(dev_id, remove_config_entry_id=config_entry.entry_id)
 
+    # Identify and remove stale entities
+    # Calculate all expected unique IDs for the current configuration
+    expected_unique_ids = set()
+    for period in periods:
+        if TYPE_MAX in types:
+            expected_unique_ids.add(f"{config_entry.entry_id}_{period}_max")
+        if TYPE_MIN in types:
+            expected_unique_ids.add(f"{config_entry.entry_id}_{period}_min")
+
+    ent_reg = er.async_get(hass)
+    entity_entries = er.async_entries_for_config_entry(ent_reg, config_entry.entry_id)
+    for entity_entry in entity_entries:
+        if entity_entry.unique_id not in expected_unique_ids:
+            ent_reg.async_remove(entity_entry.entity_id)
+
     entities = []
     source_entity = config_entry.data[CONF_SENSOR_ENTITY]
     sensor_name = source_entity
@@ -91,7 +107,7 @@ async def async_setup_entry(
     async_add_entities(entities)
 
 
-class MaxSensor(CoordinatorEntity, SensorEntity):
+class MaxSensor(CoordinatorEntity, SensorEntity, RestoreEntity):
     """Representation of a Max sensor."""
 
     def __init__(self, coordinator: MaxMinDataUpdateCoordinator, config_entry: ConfigEntry, name: str, period: str) -> None:
@@ -102,6 +118,17 @@ class MaxSensor(CoordinatorEntity, SensorEntity):
         self.period = period
         self._attr_unique_id = f"{config_entry.entry_id}_{period}_max"
         self._source_entity = config_entry.data[CONF_SENSOR_ENTITY]
+
+    async def async_added_to_hass(self) -> None:
+        """Handle entity which will be added."""
+        await super().async_added_to_hass()
+        last_state = await self.async_get_last_state()
+        if last_state and last_state.state not in (None, "unknown", "unavailable"):
+            try:
+                value = float(last_state.state)
+                self.coordinator.update_restored_data(self.period, "max", value)
+            except ValueError:
+                pass
 
     @property
     def native_unit_of_measurement(self):
@@ -155,7 +182,7 @@ class MaxSensor(CoordinatorEntity, SensorEntity):
         return self.coordinator.get_value(self.period, "max") is not None
 
 
-class MinSensor(CoordinatorEntity, SensorEntity):
+class MinSensor(CoordinatorEntity, SensorEntity, RestoreEntity):
     """Representation of a Min sensor."""
 
     def __init__(self, coordinator: MaxMinDataUpdateCoordinator, config_entry: ConfigEntry, name: str, period: str) -> None:
@@ -166,6 +193,17 @@ class MinSensor(CoordinatorEntity, SensorEntity):
         self.period = period
         self._attr_unique_id = f"{config_entry.entry_id}_{period}_min"
         self._source_entity = config_entry.data[CONF_SENSOR_ENTITY]
+
+    async def async_added_to_hass(self) -> None:
+        """Handle entity which will be added."""
+        await super().async_added_to_hass()
+        last_state = await self.async_get_last_state()
+        if last_state and last_state.state not in (None, "unknown", "unavailable"):
+            try:
+                value = float(last_state.state)
+                self.coordinator.update_restored_data(self.period, "min", value)
+            except ValueError:
+                pass
 
     @property
     def native_unit_of_measurement(self):
