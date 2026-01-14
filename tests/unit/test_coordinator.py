@@ -331,3 +331,30 @@ async def test_reset_rescheduling_edge_cases(hass, config_entry):
         assert reset_time.year == 2024
         assert reset_time.month == 1
         assert reset_time.day == 1
+
+@pytest.mark.asyncio
+async def test_coordinator_per_period_initial_values(hass, config_entry):
+    """Test coordinator respects per-period initial values."""
+    config_entry.options = {
+        CONF_PERIODS: [PERIOD_DAILY, PERIOD_WEEKLY],
+        "daily_initial_max": 20.0,
+        "daily_initial_min": 5.0,
+        "weekly_initial_max": 30.0,
+        "weekly_initial_min": 0.0,
+    }
+    
+    # Set global values in data (legacy fallback test)
+    # The coordinator logic: specific > global
+    config_entry.data["initial_max"] = 100.0
+    config_entry.data["initial_min"] = -100.0
+
+    # Ensure no current state updates overwrite initial values
+    hass.states.get.return_value = None 
+    
+    coordinator = MaxMinDataUpdateCoordinator(hass, config_entry)
+    await coordinator.async_config_entry_first_refresh()
+
+    assert coordinator.get_value(PERIOD_DAILY, TYPE_MAX) == 20.0
+    assert coordinator.get_value(PERIOD_DAILY, TYPE_MIN) == 5.0
+    assert coordinator.get_value(PERIOD_WEEKLY, TYPE_MAX) == 30.0
+    assert coordinator.get_value(PERIOD_WEEKLY, TYPE_MIN) == 0.0

@@ -44,13 +44,22 @@ class MaxMinDataUpdateCoordinator(DataUpdateCoordinator):
 
         # Data structure: {period: {"max": value, "min": value}}
         self.tracked_data = {}
-        initial_max = config_entry.options.get(CONF_INITIAL_MAX, config_entry.data.get(CONF_INITIAL_MAX))
-        initial_min = config_entry.options.get(CONF_INITIAL_MIN, config_entry.data.get(CONF_INITIAL_MIN))
+        
+        # Legacy global values (backward compatibility)
+        global_initial_max = config_entry.options.get(CONF_INITIAL_MAX, config_entry.data.get(CONF_INITIAL_MAX))
+        global_initial_min = config_entry.options.get(CONF_INITIAL_MIN, config_entry.data.get(CONF_INITIAL_MIN))
 
         for period in self.periods:
+            # Try specific period value first, then global
+            specific_max_key = f"{period}_{CONF_INITIAL_MAX}"
+            specific_min_key = f"{period}_{CONF_INITIAL_MIN}"
+            
+            p_initial_max = config_entry.options.get(specific_max_key, config_entry.data.get(specific_max_key, global_initial_max))
+            p_initial_min = config_entry.options.get(specific_min_key, config_entry.data.get(specific_min_key, global_initial_min))
+
             self.tracked_data[period] = {
-                "max": initial_max,
-                "min": initial_min
+                "max": p_initial_max,
+                "min": p_initial_min
             }
 
         self._reset_listeners = {}

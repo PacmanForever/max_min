@@ -255,6 +255,7 @@ async def test_config_flow_only_min(hass):
     """Test config flow with only min type."""
     flow = MaxMinConfigFlow()
     flow.hass = Mock()  # Simple mock instead of async fixture
+    flow.hass.states.get.return_value = None # Ensure fallback to entity_id
     flow.async_set_unique_id = AsyncMock()
 
     # Step 1
@@ -269,6 +270,30 @@ async def test_config_flow_only_min(hass):
 
     assert result["type"] == FlowResultType.CREATE_ENTRY
     assert result["data"][CONF_TYPES] == [TYPE_MIN]
+    assert result["title"] == "sensor.test (Min)"
+
+
+@pytest.mark.asyncio
+async def test_config_flow_both_types(hass):
+    """Test config flow with both types."""
+    flow = MaxMinConfigFlow()
+    flow.hass = Mock()
+    flow.hass.states.get.return_value = None # Ensure fallback to entity_id
+    flow.async_set_unique_id = AsyncMock()
+
+    # Step 1
+    await flow.async_step_user({
+        CONF_SENSOR_ENTITY: "sensor.test",
+        CONF_PERIODS: [PERIOD_DAILY],
+        CONF_TYPES: [TYPE_MAX, TYPE_MIN],
+    })
+    
+    # Step 2
+    result = await flow.async_step_optional_settings({})
+
+    assert result["type"] == FlowResultType.CREATE_ENTRY
+    assert set(result["data"][CONF_TYPES]) == {TYPE_MAX, TYPE_MIN}
+    assert result["title"] == "sensor.test (Max/Min)"
 
 
 @pytest.mark.asyncio
@@ -354,12 +379,13 @@ async def test_config_flow_min_greater_than_max(hass):
 
     # Step 2 with error
     result = await flow.async_step_optional_settings({
-        "initial_min": 10.0,
-        "initial_max": 5.0,
+        "daily_initial_min": 10.0,
+        "daily_initial_max": 5.0,
     })
 
     assert result["type"] == FlowResultType.FORM
-    assert result["errors"] == {"base": "min_greater_than_max"}
+    assert result["errors"]["base"] == "min_greater_than_max"
+    assert result["errors"]["daily_initial_min"] == "min_greater_than_max"
 
 
 @pytest.mark.asyncio
@@ -375,16 +401,18 @@ async def test_options_flow_min_greater_than_max(hass):
     # Step 1: Init
     await flow.async_step_init({
         CONF_TYPES: [TYPE_MAX],
+        CONF_PERIODS: [PERIOD_DAILY],
     })
     
     # Step 2: Optional Settings with error
     result = await flow.async_step_optional_settings({
-        "initial_min": 10.0,
-        "initial_max": 5.0,
+        "daily_initial_min": 10.0,
+        "daily_initial_max": 5.0,
     })
 
     assert result["type"] == FlowResultType.FORM
-    assert result["errors"] == {"base": "min_greater_than_max"}
+    assert result["errors"]["base"] == "min_greater_than_max"
+    assert result["errors"]["daily_initial_min"] == "min_greater_than_max"
 
 
 @pytest.mark.asyncio
@@ -437,3 +465,20 @@ async def test_options_flow_update_title(hass):
     assert flow.hass.config_entries.async_update_entry.called
     call_args = flow.hass.config_entries.async_update_entry.call_args
     assert call_args[1]["title"] == "My Temp (Min)"
+
+    # Test with Both Types
+    config_entry.options = {CONF_TYPES: [TYPE_MAX]}
+    flow = MaxMinOptionsFlow(config_entry)
+    flow.hass = Mock()
+    flow.hass.states.get.return_value = None
+    flow.hass.config_entries.async_update_entry = Mock()
+
+    await flow.async_step_init({
+        CONF_PERIODS: [PERIOD_DAILY],
+        CONF_TYPES: [TYPE_MAX, TYPE_MIN],
+    })
+    await flow.async_step_optional_settings({})
+    
+    assert flow.hass.config_entries.async_update_entry.called
+    call_args = flow.hass.config_entries.async_update_entry.call_args
+    assert call_args[1]["title"] == "sensor.test (Max/Min)"

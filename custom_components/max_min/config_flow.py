@@ -86,13 +86,21 @@ class MaxMinConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     async def async_step_optional_settings(self, user_input=None):
         """Handle optional settings step."""
         errors = {}
-        if user_input is not None:
-            initial_min = user_input.get(CONF_INITIAL_MIN)
-            initial_max = user_input.get(CONF_INITIAL_MAX)
+        periods = self.data.get(CONF_PERIODS, [PERIOD_DAILY])
+        types = self.data.get(CONF_TYPES, [TYPE_MAX, TYPE_MIN])
 
-            if initial_min is not None and initial_max is not None and initial_min > initial_max:
-                errors["base"] = "min_greater_than_max"
-            else:
+        if user_input is not None:
+             # Validate min < max for each period
+            for period in periods:
+                initial_min = user_input.get(f"{period}_{CONF_INITIAL_MIN}")
+                initial_max = user_input.get(f"{period}_{CONF_INITIAL_MAX}")
+
+                if initial_min is not None and initial_max is not None and initial_min > initial_max:
+                    errors["base"] = "min_greater_than_max"
+                    # Also mark the specific fields if supported by frontend, ensuring they turn red
+                    errors[f"{period}_{CONF_INITIAL_MIN}"] = "min_greater_than_max"
+
+            if not errors:
                 final_data = {**self.data, **user_input}
                 
                 # Create a better title
@@ -103,7 +111,6 @@ class MaxMinConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     if state and state.name:
                         sensor_name = state.name
 
-                types = self.data.get(CONF_TYPES, [])
                 if TYPE_MAX in types and TYPE_MIN in types:
                     suffix = "Max/Min"
                 elif TYPE_MAX in types:
@@ -117,20 +124,24 @@ class MaxMinConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 
                 return self.async_create_entry(title=title, data=final_data)
         
-        # Defaults
-        suggested_min = None
-        suggested_max = None
-        default_device = None
+        # Build strict schema dynamically based on selected periods/types
+        schema = {}
+        for period in periods:
+            # We rely on dynamic keys. Translations for these would need to be handled carefully,
+            # but for now we assume the label will be derived from the key in a readable way or we need explicit translation placeholders
+            # ideally. For this iteration, we keep it simple.
+            if TYPE_MIN in types:
+                schema[vol.Optional(f"{period}_{CONF_INITIAL_MIN}")] = vol.Coerce(float)
+            if TYPE_MAX in types:
+                schema[vol.Optional(f"{period}_{CONF_INITIAL_MAX}")] = vol.Coerce(float)
+
+        schema[vol.Optional(CONF_DEVICE_ID)] = selector.DeviceSelector(
+            selector.DeviceSelectorConfig()
+        )
 
         return self.async_show_form(
             step_id="optional_settings",
-            data_schema=vol.Schema({
-                vol.Optional(CONF_INITIAL_MIN, description={"suggested_value": suggested_min}): vol.Coerce(float),
-                vol.Optional(CONF_INITIAL_MAX, description={"suggested_value": suggested_max}): vol.Coerce(float),
-                vol.Optional(CONF_DEVICE_ID, description={"suggested_value": default_device}): selector.DeviceSelector(
-                    selector.DeviceSelectorConfig()
-                ),
-            }),
+            data_schema=vol.Schema(schema),
             errors=errors,
         )
 
@@ -195,13 +206,21 @@ class MaxMinOptionsFlow(config_entries.OptionsFlow):
     async def async_step_optional_settings(self, user_input=None):
         """Manage optional settings."""
         errors = {}
-        if user_input is not None:
-            initial_min = user_input.get(CONF_INITIAL_MIN)
-            initial_max = user_input.get(CONF_INITIAL_MAX)
+        # Get current configuration (merging existing + new from init step)
+        periods = self.options.get(CONF_PERIODS, self._config_entry.options.get(CONF_PERIODS, self._config_entry.data.get(CONF_PERIODS, [PERIOD_DAILY])))
+        types = self.options.get(CONF_TYPES, self._config_entry.options.get(CONF_TYPES, self._config_entry.data.get(CONF_TYPES, [TYPE_MAX, TYPE_MIN])))
 
-            if initial_min is not None and initial_max is not None and initial_min > initial_max:
-                errors["base"] = "min_greater_than_max"
-            else:
+        if user_input is not None:
+             # Validate min < max for each period
+            for period in periods:
+                initial_min = user_input.get(f"{period}_{CONF_INITIAL_MIN}")
+                initial_max = user_input.get(f"{period}_{CONF_INITIAL_MAX}")
+
+                if initial_min is not None and initial_max is not None and initial_min > initial_max:
+                    errors["base"] = "min_greater_than_max"
+                    errors[f"{period}_{CONF_INITIAL_MIN}"] = "min_greater_than_max"
+            
+            if not errors:
                 self.options.update(user_input)
                 # Ensure device_id is captured as None if cleared/missing to override data
                 if CONF_DEVICE_ID not in self.options:
@@ -216,8 +235,6 @@ class MaxMinOptionsFlow(config_entries.OptionsFlow):
                         if state and state.name:
                             sensor_name = state.name
 
-                        types = self.options.get(CONF_TYPES, self._config_entry.data.get(CONF_TYPES, []))
-                        
                         if TYPE_MAX in types and TYPE_MIN in types:
                             suffix = "Max/Min"
                         elif TYPE_MAX in types:
@@ -232,19 +249,39 @@ class MaxMinOptionsFlow(config_entries.OptionsFlow):
 
                 return self.async_create_entry(title="", data=self.options)
 
-        # Defaults
-        default_min = None
-        default_max = None
-        default_device = self._config_entry.options.get(CONF_DEVICE_ID, self._config_entry.data.get(CONF_DEVICE_ID))
+        # Build schema
+        schema = {}
+        saved_options = self._config_entry.options if self._config_entry.options else self._config_entry.data
+        
+        for period in periods:
+            # Try to find specific value, fallback to global legacy value
+            if TYPE_MIN in types:
+                key = f"{period}_{CONF_INITIAL_MIN}"
+                if user_input is not None:
+                    default = user_input.get(key)
+                else:
+                    default = saved_options.get(key, saved_options.get(CONF_INITIAL_MIN))
+                schema[vol.Optional(key, description={"suggested_value": default})] = vol.Coerce(float)
+                
+            if TYPE_MAX in types:
+                key = f"{period}_{CONF_INITIAL_MAX}"
+                if user_input is not None:
+                    default = user_input.get(key)
+                else:
+                    default = saved_options.get(key, saved_options.get(CONF_INITIAL_MAX))
+                schema[vol.Optional(key, description={"suggested_value": default})] = vol.Coerce(float)
+
+        if user_input is not None:
+            default_device = user_input.get(CONF_DEVICE_ID)
+        else:
+            default_device = saved_options.get(CONF_DEVICE_ID)
+
+        schema[vol.Optional(CONF_DEVICE_ID, description={"suggested_value": default_device})] = selector.DeviceSelector(
+             selector.DeviceSelectorConfig()
+        )
 
         return self.async_show_form(
             step_id="optional_settings",
-            data_schema=vol.Schema({
-                vol.Optional(CONF_INITIAL_MIN, description={"suggested_value": default_min}): vol.Coerce(float),
-                vol.Optional(CONF_INITIAL_MAX, description={"suggested_value": default_max}): vol.Coerce(float),
-                vol.Optional(CONF_DEVICE_ID, description={"suggested_value": default_device}): selector.DeviceSelector(
-                    selector.DeviceSelectorConfig()
-                ),
-            }),
+            data_schema=vol.Schema(schema),
             errors=errors,
         )
