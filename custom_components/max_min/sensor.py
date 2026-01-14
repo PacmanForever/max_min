@@ -37,6 +37,7 @@ async def async_setup_entry(
     # Clean up device association if device is removed
     device_id = config_entry.options.get(CONF_DEVICE_ID, config_entry.data.get(CONF_DEVICE_ID))
     if not device_id:
+        # Unlink entities from device
         ent_reg = er.async_get(hass)
         for suffix in ["_max", "_min"]:
             unique_id = f"{config_entry.entry_id}{suffix}"
@@ -45,6 +46,15 @@ async def async_setup_entry(
                 entity_entry = ent_reg.async_get(entity_id)
                 if entity_entry and entity_entry.device_id:
                      ent_reg.async_update_entity(entity_id, device_id=None)
+        
+        # Unlink config entry from device
+        dev_reg = dr.async_get(hass)
+        devices_to_unlink = [
+            dev.id for dev in dev_reg.devices.values() 
+            if config_entry.entry_id in dev.config_entries
+        ]
+        for dev_id in devices_to_unlink:
+            dev_reg.async_update_device(dev_id, remove_config_entry_id=config_entry.entry_id)
 
     entities = []
     sensor_state = hass.states.get(config_entry.data[CONF_SENSOR_ENTITY])

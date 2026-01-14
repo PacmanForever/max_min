@@ -50,10 +50,15 @@ async def test_sensor_setup(hass, config_entry):
 
     async_add_entities = Mock()
 
-    with patch("homeassistant.helpers.entity_registry.async_get") as mock_er_get:
+    with patch("homeassistant.helpers.entity_registry.async_get") as mock_er_get, \
+            patch("homeassistant.helpers.device_registry.async_get") as mock_dr_get:
         mock_registry = Mock()
         mock_registry.async_get_entity_id.return_value = None  # Use return_value to mock a method call
         mock_er_get.return_value = mock_registry
+
+        mock_dev_reg = Mock()
+        mock_dev_reg.devices = {} # Empty devices dict
+        mock_dr_get.return_value = mock_dev_reg
         
         await async_setup_entry(hass, config_entry, async_add_entities)
 
