@@ -4,6 +4,7 @@ from homeassistant.components.sensor import SensorEntity
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers import device_registry as dr
+from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
@@ -32,6 +33,18 @@ async def async_setup_entry(
     coordinator = hass.data["max_min"][config_entry.entry_id]
     types = config_entry.options.get(CONF_TYPES, config_entry.data.get(CONF_TYPES, [TYPE_MAX, TYPE_MIN]))
     period = config_entry.options.get(CONF_PERIOD, config_entry.data.get(CONF_PERIOD, PERIOD_DAILY))
+
+    # Clean up device association if device is removed
+    device_id = config_entry.options.get(CONF_DEVICE_ID, config_entry.data.get(CONF_DEVICE_ID))
+    if not device_id:
+        ent_reg = er.async_get(hass)
+        for suffix in ["_max", "_min"]:
+            unique_id = f"{config_entry.entry_id}{suffix}"
+            entity_id = ent_reg.async_get_entity_id("sensor", "max_min", unique_id)
+            if entity_id:
+                entity_entry = ent_reg.async_get(entity_id)
+                if entity_entry and entity_entry.device_id:
+                     ent_reg.async_update_entity(entity_id, device_id=None)
 
     entities = []
     sensor_state = hass.states.get(config_entry.data[CONF_SENSOR_ENTITY])

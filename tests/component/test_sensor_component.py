@@ -8,7 +8,7 @@ from custom_components.max_min import DOMAIN
 from custom_components.max_min.const import CONF_PERIOD, CONF_SENSOR_ENTITY, CONF_TYPES, PERIOD_DAILY, TYPE_MAX, TYPE_MIN
 from custom_components.max_min.coordinator import MaxMinDataUpdateCoordinator
 from custom_components.max_min.sensor import async_setup_entry
-
+from unittest.mock import patch
 
 @pytest.fixture
 def config_entry():
@@ -50,7 +50,12 @@ async def test_sensor_setup(hass, config_entry):
 
     async_add_entities = Mock()
 
-    await async_setup_entry(hass, config_entry, async_add_entities)
+    with patch("homeassistant.helpers.entity_registry.async_get") as mock_er_get:
+        mock_registry = Mock()
+        mock_registry.async_get_entity_id.return_value = None  # Use return_value to mock a method call
+        mock_er_get.return_value = mock_registry
+        
+        await async_setup_entry(hass, config_entry, async_add_entities)
 
     # Check that entities were added
     assert async_add_entities.called
