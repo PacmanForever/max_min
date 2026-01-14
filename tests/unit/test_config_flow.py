@@ -106,11 +106,18 @@ async def test_config_flow_valid_user_input(hass):
     mock_state.name = "Test Sensor"
     flow.hass.states.get.return_value = mock_state
 
+    # Step 1
     result = await flow.async_step_user({
         CONF_SENSOR_ENTITY: "sensor.test",
         CONF_PERIOD: PERIOD_DAILY,
         CONF_TYPES: [TYPE_MAX],
     })
+    
+    assert result["type"] == FlowResultType.FORM
+    assert result["step_id"] == "optional_settings"
+
+    # Step 2
+    result = await flow.async_step_optional_settings({})
 
     assert result["type"] == FlowResultType.CREATE_ENTRY
     assert result["title"] == "Test Sensor - Daily"
@@ -138,6 +145,13 @@ async def test_config_flow_invalid_sensor(hass):
         CONF_PERIOD: PERIOD_DAILY,
         CONF_TYPES: [TYPE_MAX],
     })
+    
+    # Validation passed (mocked), proceeds to next step
+    assert result["type"] == FlowResultType.FORM
+    assert result["step_id"] == "optional_settings"
+    
+    # Complete flow
+    result = await flow.async_step_optional_settings({})
 
     # Should still create entry, validation happens later
     assert result["type"] == FlowResultType.CREATE_ENTRY
@@ -151,11 +165,15 @@ async def test_config_flow_weekly_period(hass):
     flow.async_set_unique_id = AsyncMock()
     flow._abort_if_unique_id_configured = Mock(return_value=None)
 
-    result = await flow.async_step_user({
+    # Step 1
+    await flow.async_step_user({
         CONF_SENSOR_ENTITY: "sensor.test",
         CONF_PERIOD: "weekly",
         CONF_TYPES: [TYPE_MAX],
     })
+    
+    # Step 2
+    result = await flow.async_step_optional_settings({})
 
     assert result["type"] == FlowResultType.CREATE_ENTRY
     assert result["data"][CONF_PERIOD] == "weekly"
@@ -169,11 +187,15 @@ async def test_config_flow_monthly_period(hass):
     flow.async_set_unique_id = AsyncMock()
     flow._abort_if_unique_id_configured = Mock(return_value=None)
 
-    result = await flow.async_step_user({
+    # Step 1
+    await flow.async_step_user({
         CONF_SENSOR_ENTITY: "sensor.test",
         CONF_PERIOD: "monthly",
         CONF_TYPES: [TYPE_MIN],
     })
+    
+    # Step 2
+    result = await flow.async_step_optional_settings({})
 
     assert result["type"] == FlowResultType.CREATE_ENTRY
     assert result["data"][CONF_PERIOD] == "monthly"
@@ -186,11 +208,15 @@ async def test_config_flow_yearly_period(hass):
     flow.hass = Mock()  # Simple mock instead of async fixture
     flow.async_set_unique_id = AsyncMock()
 
-    result = await flow.async_step_user({
+    # Step 1
+    await flow.async_step_user({
         CONF_SENSOR_ENTITY: "sensor.test",
         CONF_PERIOD: "yearly",
         CONF_TYPES: [TYPE_MAX, TYPE_MIN],
     })
+
+    # Step 2
+    result = await flow.async_step_optional_settings({})
 
     assert result["type"] == FlowResultType.CREATE_ENTRY
     assert result["data"][CONF_PERIOD] == "yearly"
@@ -203,11 +229,15 @@ async def test_config_flow_only_max(hass):
     flow.hass = Mock()  # Simple mock instead of async fixture
     flow.async_set_unique_id = AsyncMock()
 
-    result = await flow.async_step_user({
+    # Step 1
+    await flow.async_step_user({
         CONF_SENSOR_ENTITY: "sensor.test",
         CONF_PERIOD: PERIOD_DAILY,
         CONF_TYPES: [TYPE_MAX],
     })
+    
+    # Step 2
+    result = await flow.async_step_optional_settings({})
 
     assert result["type"] == FlowResultType.CREATE_ENTRY
     assert result["data"][CONF_TYPES] == [TYPE_MAX]
@@ -220,11 +250,15 @@ async def test_config_flow_only_min(hass):
     flow.hass = Mock()  # Simple mock instead of async fixture
     flow.async_set_unique_id = AsyncMock()
 
-    result = await flow.async_step_user({
+    # Step 1
+    await flow.async_step_user({
         CONF_SENSOR_ENTITY: "sensor.test",
         CONF_PERIOD: PERIOD_DAILY,
         CONF_TYPES: [TYPE_MIN],
     })
+    
+    # Step 2
+    result = await flow.async_step_optional_settings({})
 
     assert result["type"] == FlowResultType.CREATE_ENTRY
     assert result["data"][CONF_TYPES] == [TYPE_MIN]
@@ -245,9 +279,13 @@ async def test_options_flow_update(hass):
     flow.hass.config_entries.async_entries = Mock(return_value=[])
     flow.async_set_unique_id = AsyncMock()
 
+    # Simulate section data structure
     result = await flow.async_step_init({
         CONF_PERIOD: "weekly",
         CONF_TYPES: [TYPE_MAX],
+        "optional_section": {
+             # Empty or specific values
+        }
     })
 
     assert result["type"] == FlowResultType.CREATE_ENTRY
@@ -292,11 +330,17 @@ async def test_config_flow_min_greater_than_max(hass):
     flow = MaxMinConfigFlow()
     flow.hass = Mock()
     flow.async_set_unique_id = AsyncMock()
+    flow._abort_if_unique_id_configured = Mock(return_value=None)
 
-    result = await flow.async_step_user({
+    # Step 1
+    await flow.async_step_user({
         CONF_SENSOR_ENTITY: "sensor.test",
         CONF_PERIOD: PERIOD_DAILY,
         CONF_TYPES: [TYPE_MAX],
+    })
+
+    # Step 2 with error
+    result = await flow.async_step_optional_settings({
         "initial_min": 10.0,
         "initial_max": 5.0,
     })
@@ -315,10 +359,13 @@ async def test_options_flow_min_greater_than_max(hass):
     flow = MaxMinOptionsFlow(config_entry)
     flow.hass = Mock()
     
+    # Simulate section data structure
     result = await flow.async_step_init({
         CONF_TYPES: [TYPE_MAX],
-        "initial_min": 10.0,
-        "initial_max": 5.0,
+        "optional_section": {
+            "initial_min": 10.0,
+            "initial_max": 5.0,
+        }
     })
 
     assert result["type"] == FlowResultType.FORM

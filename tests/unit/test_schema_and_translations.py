@@ -28,38 +28,49 @@ async def test_config_flow_schema_order(hass):
     flow = MaxMinConfigFlow()
     flow.hass = Mock()
     
-    # We need to call step_user to get the schema
+    # Step 1: User
     result = await flow.async_step_user()
     
     assert result["type"] == FlowResultType.FORM
-    schema = result["data_schema"]
+    schema_1 = result["data_schema"]
+    schema_keys_1 = list(schema_1.schema.keys())
     
-    # voluptuous Schema internals are a bit complex, but we can iterate over the schema
-    # The schema keys are the dict keys passed to vol.Schema()
-    # In recent python versions (3.7+), insertion order is preserved in dicts
+    field_names_1 = []
+    for key in schema_keys_1:
+        field_names_1.append(str(key.schema) if hasattr(key, "schema") else str(key))
+        
+    # Check order for step 1
+    assert CONF_SENSOR_ENTITY in field_names_1[0]
+    assert CONF_PERIOD in field_names_1[1]
+    assert CONF_TYPES in field_names_1[2]
     
-    schema_keys = list(schema.schema.keys())
+    # Step 2: Optional Settings
+    # We need to pass valid data to step 1 to reach step 2
+    flow.async_set_unique_id = AsyncMock()
+    flow._abort_if_unique_id_configured = Mock(return_value=None)
     
-    # Extract the string keys from the schema markers
-    field_names = []
-    for key in schema_keys:
-        # Key is typically a Marker object (like Required('sensor_entity'))
-        # We want the actual key name
-        field_names.append(str(key.schema) if hasattr(key, "schema") else str(key))
-
-    # Check order
-    # New Expected: sensor_entity, period, types, initial_min, initial_max, device_id
+    await flow.async_step_user({
+        CONF_SENSOR_ENTITY: "sensor.test",
+        CONF_PERIOD: "daily",
+        CONF_TYPES: ["max"]
+    })
     
-    assert CONF_SENSOR_ENTITY in field_names[0]
-    assert CONF_PERIOD in field_names[1]
-    assert CONF_TYPES in field_names[2]
+    result = await flow.async_step_optional_settings()
+    assert result["type"] == FlowResultType.FORM
+    schema_2 = result["data_schema"]
+    schema_keys_2 = list(schema_2.schema.keys())
     
-    # Verify min comes before max
+    field_names_2 = []
+    for key in schema_keys_2:
+        field_names_2.append(str(key.schema) if hasattr(key, "schema") else str(key))
+        
+    # Check order for step 2
+    # Expected: initial_min, initial_max, device_id
     min_index = -1
     max_index = -1
     device_index = -1
     
-    for i, name in enumerate(field_names):
+    for i, name in enumerate(field_names_2):
         if CONF_INITIAL_MIN in name:
             min_index = i
         if CONF_INITIAL_MAX in name:
@@ -72,8 +83,8 @@ async def test_config_flow_schema_order(hass):
     assert device_index != -1, "device_id field missing"
     
     assert min_index < max_index, f"initial_min ({min_index}) must differ before initial_max ({max_index})"
-    # Device should be last or at least after max
     assert max_index < device_index, f"initial_max ({max_index}) must come before device_id ({device_index})"
+
 
 def test_string_translations():
     """Test that strings.json contains the correct labels."""
@@ -88,16 +99,22 @@ def test_string_translations():
     
     assert user_step["title"] == "Add new Max/Min sensor/s"
     assert user_step["data"]["sensor_entity"] == "Source sensor"
-    assert user_step["data"]["device_id"] == "Device (Optional)"
     assert user_step["data"]["period"] == "Period"
     assert user_step["data"]["types"] == "Sensors"
-    assert user_step["data"]["initial_min"] == "Initial Min Value (Optional)"
-    assert user_step["data"]["initial_max"] == "Initial Max Value (Optional)"
+    
+    # Optional settings step
+    optional_step = strings["config"]["step"]["optional_settings"]
+    assert optional_step["title"] == "Optional settings"
+    assert optional_step["data"]["initial_min"] == "Initial Min Value (Optional)"
+    assert optional_step["data"]["initial_max"] == "Initial Max Value (Optional)"
+    assert optional_step["data"]["device_id"] == "Device (Optional)"
     
     options_step = strings["options"]["step"]["init"]
     assert options_step["title"] == "Max/Min sensor/s options"
     assert options_step["data"]["period"] == "Period"
     assert options_step["data"]["types"] == "Sensors"
+    assert options_step["data"]["initial_min"] == "Initial Min Value (Optional)"
+    assert options_step["data"]["initial_max"] == "Initial Max Value (Optional)"
     assert options_step["data"]["device_id"] == "Device (Optional)"
 
 def test_en_translation_match():

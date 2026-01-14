@@ -3,6 +3,7 @@
 import voluptuous as vol
 from homeassistant import config_entries
 from homeassistant.core import callback
+from homeassistant.data_entry_flow import section
 from homeassistant.helpers import selector
 
 from .const import (
@@ -28,43 +29,29 @@ class MaxMinConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
     VERSION = 1
 
+    def __init__(self):
+        """Initialize the config flow."""
+        self.data = {}
+
     async def async_step_user(self, user_input=None):
         """Handle the initial step."""
         errors = {}
         if user_input is not None:
-            initial_min = user_input.get(CONF_INITIAL_MIN)
-            initial_max = user_input.get(CONF_INITIAL_MAX)
+            # Set unique ID based on sensor and period to allow multiple periods per sensor
+            sensor_entity = user_input[CONF_SENSOR_ENTITY]
+            period = user_input[CONF_PERIOD]
+            await self.async_set_unique_id(f"{sensor_entity}_{period}")
+            abort_result = self._abort_if_unique_id_configured()
+            if abort_result:
+                return abort_result
 
-            if initial_min is not None and initial_max is not None and initial_min > initial_max:
-                errors["base"] = "min_greater_than_max"
-            else:
-                # Set unique ID based on sensor and period to allow multiple periods per sensor
-                sensor_entity = user_input[CONF_SENSOR_ENTITY]
-                period = user_input[CONF_PERIOD]
-                await self.async_set_unique_id(f"{sensor_entity}_{period}")
-                abort_result = self._abort_if_unique_id_configured()
-                if abort_result:
-                    return abort_result
-
-                # Create a better title
-                period_label = period.capitalize()
-                sensor_name = sensor_entity
-                if self.hass:
-                    state = self.hass.states.get(sensor_entity)
-                    if state and state.name:
-                        sensor_name = state.name
-
-                title = f"{sensor_name} - {period_label}"
-                
-                return self.async_create_entry(title=title, data=user_input)
+            self.data = user_input
+            return await self.async_step_optional_settings()
 
         # Defaults for schema
         default_sensor = user_input.get(CONF_SENSOR_ENTITY) if user_input else vol.UNDEFINED
         default_period = user_input.get(CONF_PERIOD, PERIOD_DAILY) if user_input else PERIOD_DAILY
         default_types = user_input.get(CONF_TYPES, [TYPE_MAX, TYPE_MIN]) if user_input else [TYPE_MAX, TYPE_MIN]
-        suggested_min = user_input.get(CONF_INITIAL_MIN) if user_input else None
-        suggested_max = user_input.get(CONF_INITIAL_MAX) if user_input else None
-        default_device = user_input.get(CONF_DEVICE_ID) if user_input else None
 
         return self.async_show_form(
             step_id="user",
@@ -92,6 +79,44 @@ class MaxMinConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                         multiple=True,
                     )
                 ),
+            }),
+            errors=errors,
+        )
+
+    async def async_step_optional_settings(self, user_input=None):
+        """Handle optional settings step."""
+        errors = {}
+        if user_input is not None:
+            initial_min = user_input.get(CONF_INITIAL_MIN)
+            initial_max = user_input.get(CONF_INITIAL_MAX)
+
+            if initial_min is not None and initial_max is not None and initial_min > initial_max:
+                errors["base"] = "min_greater_than_max"
+            else:
+                final_data = {**self.data, **user_input}
+                
+                # Create a better title
+                sensor_entity = self.data[CONF_SENSOR_ENTITY]
+                period = self.data[CONF_PERIOD]
+                period_label = period.capitalize()
+                sensor_name = sensor_entity
+                if self.hass:
+                    state = self.hass.states.get(sensor_entity)
+                    if state and state.name:
+                        sensor_name = state.name
+
+                title = f"{sensor_name} - {period_label}"
+                
+                return self.async_create_entry(title=title, data=final_data)
+        
+        # Defaults
+        suggested_min = None
+        suggested_max = None
+        default_device = None
+
+        return self.async_show_form(
+            step_id="optional_settings",
+            data_schema=vol.Schema({
                 vol.Optional(CONF_INITIAL_MIN, description={"suggested_value": suggested_min}): vol.Coerce(float),
                 vol.Optional(CONF_INITIAL_MAX, description={"suggested_value": suggested_max}): vol.Coerce(float),
                 vol.Optional(CONF_DEVICE_ID, description={"suggested_value": default_device}): selector.DeviceSelector(
@@ -119,6 +144,12 @@ class MaxMinOptionsFlow(config_entries.OptionsFlow):
         """Manage the options."""
         errors = {}
         if user_input is not None:
+            # Flatten data from sections if present
+            optional_defaults = user_input.get("optional_section", {})
+            user_input.update(optional_defaults)
+            if "optional_section" in user_input:
+                del user_input["optional_section"]
+
             initial_min = user_input.get(CONF_INITIAL_MIN)
             initial_max = user_input.get(CONF_INITIAL_MAX)
 
@@ -132,6 +163,7 @@ class MaxMinOptionsFlow(config_entries.OptionsFlow):
 
         # Defaults for schema
         default_types = self._config_entry.options.get(CONF_TYPES, [TYPE_MAX, TYPE_MIN])
+        
         # In options flow, we don't pre-fill initial values to allow user to keep existing logic
         # or input new values only when needed
         default_min = None
@@ -139,10 +171,12 @@ class MaxMinOptionsFlow(config_entries.OptionsFlow):
         default_device = self._config_entry.options.get(CONF_DEVICE_ID, self._config_entry.data.get(CONF_DEVICE_ID))
 
         if user_input:
+             # Handle flattened or nested input during re-render
+             optional_in = user_input.get("optional_section", user_input)
              default_types = user_input.get(CONF_TYPES, default_types)
-             default_min = user_input.get(CONF_INITIAL_MIN, default_min)
-             default_max = user_input.get(CONF_INITIAL_MAX, default_max)
-             default_device = user_input.get(CONF_DEVICE_ID, default_device)
+             default_min = optional_in.get(CONF_INITIAL_MIN, default_min)
+             default_max = optional_in.get(CONF_INITIAL_MAX, default_max)
+             default_device = optional_in.get(CONF_DEVICE_ID, default_device)
 
         return self.async_show_form(
             step_id="init",
@@ -159,10 +193,15 @@ class MaxMinOptionsFlow(config_entries.OptionsFlow):
                         multiple=True,
                     )
                 ),
-                vol.Optional(CONF_INITIAL_MIN, description={"suggested_value": default_min}): vol.Coerce(float),
-                vol.Optional(CONF_INITIAL_MAX, description={"suggested_value": default_max}): vol.Coerce(float),
-                vol.Optional(CONF_DEVICE_ID, description={"suggested_value": default_device}): selector.DeviceSelector(
-                    selector.DeviceSelectorConfig()
+                vol.Optional("optional_section"): section(
+                    vol.Schema({
+                        vol.Optional(CONF_INITIAL_MIN, description={"suggested_value": default_min}): vol.Coerce(float),
+                        vol.Optional(CONF_INITIAL_MAX, description={"suggested_value": default_max}): vol.Coerce(float),
+                        vol.Optional(CONF_DEVICE_ID, description={"suggested_value": default_device}): selector.DeviceSelector(
+                            selector.DeviceSelectorConfig()
+                        ),
+                    }), 
+                    {"collapsed": False}
                 ),
             }),
             errors=errors
