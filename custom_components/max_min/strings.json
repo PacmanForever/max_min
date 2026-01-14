@@ -28,7 +28,9 @@
     },
     "error": {
       "sensor_not_found": "The selected sensor does not exist",
-      "min_greater_than_max": "Initial minimum value cannot be greater than initial maximum value"
+      "min_greater_than_max": "Initial minimum value cannot be greater than initial maximum value",
+      "periods_required": "Please select at least one period.",
+      "types_required": "Please select at least one sensor type."
     },
     "abort": {
       "already_configured": "This configuration already exists"
@@ -61,7 +63,9 @@
       }
     },
     "error": {
-      "min_greater_than_max": "Initial minimum value cannot be greater than initial maximum value"
+      "min_greater_than_max": "Initial minimum value cannot be greater than initial maximum value",
+      "periods_required": "Please select at least one period.",
+      "types_required": "Please select at least one sensor type."
     }
   }
 }

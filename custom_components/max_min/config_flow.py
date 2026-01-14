@@ -36,16 +36,23 @@ class MaxMinConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         """Handle the initial step."""
         errors = {}
         if user_input is not None:
-            # Set unique ID based on sensor 
-            # Now we allow only one entry per sensor, managing multiple periods
-            sensor_entity = user_input[CONF_SENSOR_ENTITY]
-            await self.async_set_unique_id(f"{sensor_entity}")
-            abort_result = self._abort_if_unique_id_configured()
-            if abort_result:
-                return abort_result
+            if not user_input.get(CONF_PERIODS):
+                errors[CONF_PERIODS] = "periods_required"
+            
+            if not user_input.get(CONF_TYPES):
+                errors[CONF_TYPES] = "types_required"
 
-            self.data = user_input
-            return await self.async_step_optional_settings()
+            if not errors:
+                # Set unique ID based on sensor 
+                # Now we allow only one entry per sensor, managing multiple periods
+                sensor_entity = user_input[CONF_SENSOR_ENTITY]
+                await self.async_set_unique_id(f"{sensor_entity}")
+                abort_result = self._abort_if_unique_id_configured()
+                if abort_result:
+                    return abort_result
+
+                self.data = user_input
+                return await self.async_step_optional_settings()
 
         # Defaults for schema
         default_sensor = user_input.get(CONF_SENSOR_ENTITY) if user_input else vol.UNDEFINED
@@ -161,9 +168,17 @@ class MaxMinOptionsFlow(config_entries.OptionsFlow):
 
     async def async_step_init(self, user_input=None):
         """Manage the options."""
+        errors = {}
         if user_input is not None:
-            self.options.update(user_input)
-            return await self.async_step_optional_settings()
+            if not user_input.get(CONF_PERIODS):
+                errors[CONF_PERIODS] = "periods_required"
+
+            if not user_input.get(CONF_TYPES):
+                errors[CONF_TYPES] = "types_required"
+            
+            if not errors:
+                self.options.update(user_input)
+                return await self.async_step_optional_settings()
 
         # Defaults for schema
         default_types = self._config_entry.options.get(CONF_TYPES, self._config_entry.data.get(CONF_TYPES, [TYPE_MAX, TYPE_MIN]))
@@ -204,6 +219,7 @@ class MaxMinOptionsFlow(config_entries.OptionsFlow):
                     selector.DeviceSelectorConfig()
                 ),
             }),
+            errors=errors,
         )
 
     async def async_step_optional_settings(self, user_input=None):

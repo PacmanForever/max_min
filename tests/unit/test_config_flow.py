@@ -44,6 +44,7 @@ async def test_config_flow_options(hass):
 
     # Submit form (Step 1)
     result = await flow.async_step_init({
+        CONF_PERIODS: [PERIOD_DAILY],
         CONF_TYPES: [TYPE_MAX],
     })
     
@@ -56,6 +57,7 @@ async def test_config_flow_options(hass):
     
     assert result["type"] == FlowResultType.CREATE_ENTRY
     assert result["data"] == {
+        CONF_PERIODS: [PERIOD_DAILY],
         CONF_TYPES: [TYPE_MAX],
         "device_id": None,
     }
@@ -482,3 +484,60 @@ async def test_options_flow_update_title(hass):
     assert flow.hass.config_entries.async_update_entry.called
     call_args = flow.hass.config_entries.async_update_entry.call_args
     assert call_args[1]["title"] == "sensor.test (Max/Min)"
+
+
+@pytest.mark.asyncio
+async def test_config_flow_validation_requirements(hass):
+    """Test that validation fails if periods or types are empty."""
+    flow = MaxMinConfigFlow()
+    flow.hass = Mock()
+    
+    # Empty periods
+    result = await flow.async_step_user({
+        CONF_SENSOR_ENTITY: "sensor.test", 
+        CONF_PERIODS: [],
+        CONF_TYPES: [TYPE_MAX]
+    })
+    
+    assert result["type"] == FlowResultType.FORM
+    assert result["errors"] == {CONF_PERIODS: "periods_required"}
+
+    # Empty types
+    result = await flow.async_step_user({
+        CONF_SENSOR_ENTITY: "sensor.test",
+        CONF_PERIODS: [PERIOD_DAILY],
+        CONF_TYPES: []
+    })
+    
+    assert result["type"] == FlowResultType.FORM
+    assert result["errors"] == {CONF_TYPES: "types_required"}
+
+
+@pytest.mark.asyncio
+async def test_options_flow_validation_requirements(hass):
+    """Test that options validation fails if periods or types are empty."""
+    config_entry = MagicMock()
+    config_entry.options = {}
+    config_entry.data = {CONF_SENSOR_ENTITY: "sensor.test"}
+    
+    flow = MaxMinOptionsFlow(config_entry)
+    flow.hass = Mock()
+    
+    # Empty periods
+    result = await flow.async_step_init({
+        CONF_PERIODS: [],
+        CONF_TYPES: [TYPE_MAX]
+    })
+    
+    assert result["type"] == FlowResultType.FORM
+    assert result["errors"] == {CONF_PERIODS: "periods_required"}
+
+    # Empty types
+    result = await flow.async_step_init({
+        CONF_PERIODS: [PERIOD_DAILY],
+        CONF_TYPES: []
+    })
+    
+    assert result["type"] == FlowResultType.FORM
+    assert result["errors"] == {CONF_TYPES: "types_required"}
+
