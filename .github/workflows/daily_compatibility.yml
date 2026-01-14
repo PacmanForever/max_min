@@ -10,7 +10,7 @@ jobs:
     strategy:
       matrix:
         ha-version: ["stable", "beta"]
-        python-version: ["3.11", "3.12"]
+        python-version: ["3.12"]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
