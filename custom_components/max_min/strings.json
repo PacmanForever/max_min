@@ -30,21 +30,22 @@
     "step": {
       "init": {
         "title": "Max/Min sensor/s options",
-        "sections": {
-            "optional_section": {
-                "name": "Optional settings",
-                "data": {
-                    "initial_min": "Initial Min Value (Optional)",
-                    "initial_max": "Initial Max Value (Optional)",
-                    "device_id": "Device (Optional)"
-                }
-            }
-        },
         "data": {
           "periods": "Periods",
           "types": "Sensors"
         }
+      },
+      "optional_settings": {
+        "title": "Optional settings",
+        "data": {
+          "initial_min": "Initial Min Value (Optional)",
+          "initial_max": "Initial Max Value (Optional)",
+          "device_id": "Device (Optional)"
+        }
       }
+    },
+    "error": {
+      "min_greater_than_max": "Initial minimum value cannot be greater than initial maximum value"
     }
   }
 }

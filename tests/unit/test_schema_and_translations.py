@@ -114,12 +114,12 @@ def test_string_translations():
     assert options_step["data"]["periods"] == "Periods"
     assert options_step["data"]["types"] == "Sensors"
     
-    # Check sections
-    assert options_step["sections"]["optional_section"]["name"] == "Optional settings"
-    section_data = options_step["sections"]["optional_section"]["data"]
-    assert section_data["initial_min"] == "Initial Min Value (Optional)"
-    assert section_data["initial_max"] == "Initial Max Value (Optional)"
-    assert section_data["device_id"] == "Device (Optional)"
+    # Check optional settings step in options
+    options_optional_step = strings["options"]["step"]["optional_settings"]
+    assert options_optional_step["title"] == "Optional settings"
+    assert options_optional_step["data"]["initial_min"] == "Initial Min Value (Optional)"
+    assert options_optional_step["data"]["initial_max"] == "Initial Max Value (Optional)"
+    assert options_optional_step["data"]["device_id"] == "Device (Optional)"
 
 def test_en_translation_match():
     """Test that en.json matches strings.json."""

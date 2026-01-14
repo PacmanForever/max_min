@@ -42,11 +42,18 @@ async def test_config_flow_options(hass):
     assert result["type"] == FlowResultType.FORM
     assert result["step_id"] == "init"
 
-    # Submit form
+    # Submit form (Step 1)
     result = await flow.async_step_init({
         CONF_TYPES: [TYPE_MAX],
     })
-
+    
+    # Should proceed to Optional Settings
+    assert result["type"] == FlowResultType.FORM
+    assert result["step_id"] == "optional_settings"
+    
+    # Submit Optional Settings (Step 2)
+    result = await flow.async_step_optional_settings({})
+    
     assert result["type"] == FlowResultType.CREATE_ENTRY
     assert result["data"] == {
         CONF_TYPES: [TYPE_MAX],
@@ -120,7 +127,7 @@ async def test_config_flow_valid_user_input(hass):
     result = await flow.async_step_optional_settings({})
 
     assert result["type"] == FlowResultType.CREATE_ENTRY
-    assert result["title"] == "Test Sensor (Max/Min)"
+    assert result["title"] == "Test Sensor (Max)"
     assert result["data"] == {
         CONF_SENSOR_ENTITY: "sensor.test",
         CONF_PERIODS: [PERIOD_DAILY],
@@ -280,12 +287,18 @@ async def test_options_flow_update(hass):
     flow.async_set_unique_id = AsyncMock()
 
     # Simulate section data structure
+    # Step 1: Init
     result = await flow.async_step_init({
         CONF_PERIODS: ["weekly"],
         CONF_TYPES: [TYPE_MAX],
-        "optional_section": {
-             # Empty or specific values
-        }
+    })
+    
+    assert result["type"] == FlowResultType.FORM
+    assert result["step_id"] == "optional_settings"
+    
+    # Step 2: Optional Settings
+    result = await flow.async_step_optional_settings({
+         # Empty or specific values
     })
 
     assert result["type"] == FlowResultType.CREATE_ENTRY
@@ -359,14 +372,68 @@ async def test_options_flow_min_greater_than_max(hass):
     flow = MaxMinOptionsFlow(config_entry)
     flow.hass = Mock()
     
-    # Simulate section data structure
-    result = await flow.async_step_init({
+    # Step 1: Init
+    await flow.async_step_init({
         CONF_TYPES: [TYPE_MAX],
-        "optional_section": {
-            "initial_min": 10.0,
-            "initial_max": 5.0,
-        }
+    })
+    
+    # Step 2: Optional Settings with error
+    result = await flow.async_step_optional_settings({
+        "initial_min": 10.0,
+        "initial_max": 5.0,
     })
 
     assert result["type"] == FlowResultType.FORM
     assert result["errors"] == {"base": "min_greater_than_max"}
+
+
+@pytest.mark.asyncio
+async def test_options_flow_update_title(hass):
+    """Test options flow updates title based on types."""
+    config_entry = MagicMock()
+    config_entry.options = {
+        CONF_TYPES: [TYPE_MAX, TYPE_MIN],
+    }
+    config_entry.data = {CONF_SENSOR_ENTITY: "sensor.test"}
+    
+    flow = MaxMinOptionsFlow(config_entry)
+    flow.hass = Mock()
+    flow.hass.states.get.return_value = None
+    flow.hass.config_entries.async_update_entry = Mock()
+    
+    # Step 1: Init - Change to only Max
+    await flow.async_step_init({
+        CONF_PERIODS: [PERIOD_DAILY],
+        CONF_TYPES: [TYPE_MAX],
+    })
+    
+    # Step 2: Optional Settings
+    result = await flow.async_step_optional_settings({})
+
+    assert result["type"] == FlowResultType.CREATE_ENTRY
+    
+    # Check if update_entry was called with updated title
+    assert flow.hass.config_entries.async_update_entry.called
+    call_args = flow.hass.config_entries.async_update_entry.call_args
+    assert call_args[1]["title"] == "sensor.test (Max)"
+
+    # Test with Min & Friendly Name
+    config_entry.options = {CONF_TYPES: [TYPE_MAX]}
+    flow = MaxMinOptionsFlow(config_entry)
+    flow.hass = Mock()
+    
+    mock_state = Mock()
+    mock_state.name = "My Temp"
+    flow.hass.states.get.return_value = mock_state
+    
+    flow.hass.config_entries.async_update_entry = Mock()
+
+    await flow.async_step_init({
+        CONF_PERIODS: [PERIOD_DAILY],
+        CONF_TYPES: [TYPE_MIN],
+    })
+    await flow.async_step_optional_settings({})
+    
+    assert flow.hass.config_entries.async_update_entry.called
+    call_args = flow.hass.config_entries.async_update_entry.call_args
+    assert call_args[1]["title"] == "My Temp (Min)"
