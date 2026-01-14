@@ -162,7 +162,7 @@ class MaxMinOptionsFlow(config_entries.OptionsFlow):
                 return self.async_create_entry(title="", data=user_input)
 
         # Defaults for schema
-        default_types = self._config_entry.options.get(CONF_TYPES, [TYPE_MAX, TYPE_MIN])
+        default_types = self._config_entry.options.get(CONF_TYPES, self._config_entry.data.get(CONF_TYPES, [TYPE_MAX, TYPE_MIN]))
         
         # In options flow, we don't pre-fill initial values to allow user to keep existing logic
         # or input new values only when needed
