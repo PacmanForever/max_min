@@ -1,7 +1,7 @@
 # Max Min
 
 [![HACS](https://img.shields.io/badge/HACS-Custom-orange.svg)](https://github.com/hacs/integration)
-[![Version](https://img.shields.io/github/v/tag/PacmanForever/max_min)](https://github.com/PacmanForever/max_min/tags)
+[![Version](https://img.shields.io/github/v/release/PacmanForever/max_min)](https://github.com/PacmanForever/max_min/releases)
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
 [![Unit Tests](https://github.com/PacmanForever/max_min/actions/workflows/tests_unit.yml/badge.svg)](https://github.com/PacmanForever/max_min/actions/workflows/tests_unit.yml)
 [![Component Tests](https://github.com/PacmanForever/max_min/actions/workflows/tests_component.yml/badge.svg)](https://github.com/PacmanForever/max_min/actions/workflows/tests_component.yml)
