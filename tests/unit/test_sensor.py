@@ -4,7 +4,13 @@ from unittest.mock import Mock, patch
 
 import pytest
 
-from custom_components.max_min.const import CONF_SENSOR_ENTITY, CONF_DEVICE_ID
+from custom_components.max_min.const import (
+    CONF_SENSOR_ENTITY, 
+    CONF_DEVICE_ID,
+    PERIOD_DAILY,
+    TYPE_MAX,
+    TYPE_MIN
+)
 from custom_components.max_min.coordinator import MaxMinDataUpdateCoordinator
 from custom_components.max_min.sensor import MaxSensor, MinSensor
 from homeassistant.helpers import device_registry as dr
@@ -14,8 +20,7 @@ from homeassistant.helpers import device_registry as dr
 def coordinator():
     """Mock coordinator."""
     coord = Mock(spec=MaxMinDataUpdateCoordinator)
-    coord.max_value = 15.0
-    coord.min_value = 5.0
+    coord.get_value.side_effect = lambda period, type_: 15.0 if type_ == TYPE_MAX else 5.0
     coord.hass = Mock()
     coord.hass.states.get.return_value = Mock(state="10")
     coord.hass.states.get.return_value.attributes = {
@@ -44,7 +49,7 @@ async def test_sensor_device_info(coordinator):
     
     # We need to mock dr.async_get to return our mock registry
     with patch("homeassistant.helpers.device_registry.async_get", return_value=device_registry):
-        sensor = MaxSensor(coordinator, config_entry, "Test Max")
+        sensor = MaxSensor(coordinator, config_entry, "Test Max", PERIOD_DAILY)
         
         # device_info is a property that calls the registry
         device_info = sensor.device_info
@@ -56,7 +61,7 @@ async def test_sensor_device_info(coordinator):
         device_registry.async_get.assert_called_with("test_device_id")
 
         # Test MinSensor device info as well to cover that code path
-        min_sensor = MinSensor(coordinator, config_entry, "Test Min")
+        min_sensor = MinSensor(coordinator, config_entry, "Test Min", PERIOD_DAILY)
         min_device_info = min_sensor.device_info
         assert min_device_info is not None
         assert min_device_info["identifiers"] == {("test_domain", "test_id")}
@@ -72,7 +77,7 @@ async def test_sensor_no_device_info(coordinator):
         CONF_SENSOR_ENTITY: "sensor.test"
     }
     
-    sensor = MaxSensor(coordinator, config_entry, "Test Max")
+    sensor = MaxSensor(coordinator, config_entry, "Test Max", PERIOD_DAILY)
     assert sensor.device_info is None
 
 
@@ -104,11 +109,11 @@ def test_max_sensor(coordinator, config_entry, hass):
     # Set hass on coordinator
     coordinator.hass = hass
     
-    sensor = MaxSensor(coordinator, config_entry, "Test Daily Max")
+    sensor = MaxSensor(coordinator, config_entry, "Test Daily Max", PERIOD_DAILY)
     assert sensor.native_value == 15.0
     assert sensor.available is True
     assert sensor.name == "Test Daily Max"
-    assert sensor.unique_id == "test_entry_max"
+    assert sensor.unique_id == "test_entry_daily_max"
     assert sensor._attr_native_unit_of_measurement == "°C"
 
 
@@ -116,22 +121,22 @@ def test_min_sensor(coordinator, config_entry, hass):
     """Test min sensor."""
     coordinator.hass = hass
     
-    sensor = MinSensor(coordinator, config_entry, "Test Daily Min")
+    sensor = MinSensor(coordinator, config_entry, "Test Daily Min", PERIOD_DAILY)
     assert sensor.native_value == 5.0
     assert sensor.available is True
     assert sensor.name == "Test Daily Min"
-    assert sensor.unique_id == "test_entry_min"
+    assert sensor.unique_id == "test_entry_daily_min"
     assert sensor._attr_native_unit_of_measurement == "°C"
 
 
 def test_sensor_unavailable(coordinator, config_entry, hass):
     """Test sensor unavailable."""
     coordinator.hass = hass
-    coordinator.max_value = None
-    coordinator.min_value = None
+    coordinator.get_value.return_value = None
+    coordinator.get_value.side_effect = None # Remove side_effect to return None
 
-    max_sensor = MaxSensor(coordinator, config_entry, "Max Test")
-    min_sensor = MinSensor(coordinator, config_entry, "Min Test")
+    max_sensor = MaxSensor(coordinator, config_entry, "Max Test", PERIOD_DAILY)
+    min_sensor = MinSensor(coordinator, config_entry, "Min Test", PERIOD_DAILY)
 
     assert max_sensor.available is False
     assert min_sensor.available is False
@@ -145,7 +150,7 @@ def test_sensor_no_unit(coordinator, config_entry, hass):
     hass.states.get.return_value = source_state
     coordinator.hass = hass
     
-    sensor = MaxSensor(coordinator, config_entry, "Max Test")
+    sensor = MaxSensor(coordinator, config_entry, "Max Test", PERIOD_DAILY)
     assert sensor.unit_of_measurement is None
 
 
@@ -153,7 +158,7 @@ def test_max_sensor_no_hass(coordinator, config_entry):
     """Test max sensor without hass."""
     # coordinator.hass is already None
     coordinator.hass = None
-    sensor = MaxSensor(coordinator, config_entry, "Max Test")
+    sensor = MaxSensor(coordinator, config_entry, "Max Test", PERIOD_DAILY)
     assert sensor.unit_of_measurement is None
 
 
@@ -161,7 +166,7 @@ def test_min_sensor_no_hass(coordinator, config_entry):
     """Test min sensor without hass."""
     # coordinator.hass is already None
     coordinator.hass = None
-    sensor = MinSensor(coordinator, config_entry, "Min Test")
+    sensor = MinSensor(coordinator, config_entry, "Min Test", PERIOD_DAILY)
     assert sensor.unit_of_measurement is None
 
 
@@ -170,37 +175,45 @@ def test_sensor_source_unavailable(coordinator, config_entry, hass):
     hass.states.get.return_value = None
     coordinator.hass = hass
     
-    sensor = MaxSensor(coordinator, config_entry, "Max Test")
+    sensor = MaxSensor(coordinator, config_entry, "Max Test", PERIOD_DAILY)
     assert sensor.unit_of_measurement is None
 
 
 def test_max_sensor_device_class(coordinator, config_entry, hass):
     """Test max sensor device class."""
     coordinator.hass = hass
-    sensor = MaxSensor(coordinator, config_entry, "Max Test")
+    sensor = MaxSensor(coordinator, config_entry, "Max Test", PERIOD_DAILY)
     assert sensor.device_class == "measurement"
 
 
 def test_min_sensor_device_class(coordinator, config_entry, hass):
     """Test min sensor device class."""
     coordinator.hass = hass
-    sensor = MinSensor(coordinator, config_entry, "Min Test")
+    sensor = MinSensor(coordinator, config_entry, "Min Test", PERIOD_DAILY)
     assert sensor.device_class == "measurement"
 
 
 def test_sensor_attributes(coordinator, config_entry, hass):
     """Test sensor attributes."""
     coordinator.hass = hass
-    max_sensor = MaxSensor(coordinator, config_entry, "Max Test")
-    min_sensor = MinSensor(coordinator, config_entry, "Min Test")
+    max_sensor = MaxSensor(coordinator, config_entry, "Max Test", PERIOD_DAILY)
+    min_sensor = MinSensor(coordinator, config_entry, "Min Test", PERIOD_DAILY)
 
     # Check that sensors have proper attributes
     assert hasattr(max_sensor, "_attr_name")
     assert hasattr(max_sensor, "_attr_unique_id")
     assert hasattr(max_sensor, "_attr_device_class")
-    assert hasattr(max_sensor, "_attr_native_unit_of_measurement")
 
-    assert hasattr(min_sensor, "_attr_name")
-    assert hasattr(min_sensor, "_attr_unique_id")
-    assert hasattr(min_sensor, "_attr_device_class")
-    assert hasattr(min_sensor, "_attr_native_unit_of_measurement")
+
+@pytest.mark.asyncio
+async def test_min_sensor_no_device_info(coordinator):
+    """Test min sensor without device info."""
+    config_entry = Mock()
+    config_entry.entry_id = "test_entry"
+    config_entry.options = {}
+    config_entry.data = {
+        CONF_SENSOR_ENTITY: "sensor.test"
+    }
+    
+    sensor = MinSensor(coordinator, config_entry, "Test Min", PERIOD_DAILY)
+    assert sensor.device_info is None

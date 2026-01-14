@@ -2,7 +2,7 @@
 
 DOMAIN = "max_min"
 CONF_SENSOR_ENTITY = "sensor_entity"
-CONF_PERIOD = "period"
+CONF_PERIODS = "periods"
 CONF_TYPES = "types"
 CONF_INITIAL_MIN = "initial_min"
 CONF_INITIAL_MAX = "initial_max"

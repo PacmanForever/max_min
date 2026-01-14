@@ -8,7 +8,7 @@ from homeassistant.data_entry_flow import FlowResult, FlowResultType
 
 from custom_components.max_min.config_flow import MaxMinConfigFlow, MaxMinOptionsFlow
 from custom_components.max_min.const import (
-    CONF_PERIOD,
+    CONF_PERIODS,
     CONF_SENSOR_ENTITY,
     CONF_TYPES,
     DOMAIN,
@@ -64,7 +64,7 @@ async def test_config_flow_duplicate_unique_id(hass):
 
     result = await flow.async_step_user({
         CONF_SENSOR_ENTITY: "sensor.test",
-        CONF_PERIOD: PERIOD_DAILY,
+        CONF_PERIODS: [PERIOD_DAILY],
         CONF_TYPES: [TYPE_MAX],
     })
 
@@ -109,7 +109,7 @@ async def test_config_flow_valid_user_input(hass):
     # Step 1
     result = await flow.async_step_user({
         CONF_SENSOR_ENTITY: "sensor.test",
-        CONF_PERIOD: PERIOD_DAILY,
+        CONF_PERIODS: [PERIOD_DAILY],
         CONF_TYPES: [TYPE_MAX],
     })
     
@@ -120,10 +120,10 @@ async def test_config_flow_valid_user_input(hass):
     result = await flow.async_step_optional_settings({})
 
     assert result["type"] == FlowResultType.CREATE_ENTRY
-    assert result["title"] == "Test Sensor - Daily"
+    assert result["title"] == "Test Sensor (Max/Min)"
     assert result["data"] == {
         CONF_SENSOR_ENTITY: "sensor.test",
-        CONF_PERIOD: PERIOD_DAILY,
+        CONF_PERIODS: [PERIOD_DAILY],
         CONF_TYPES: [TYPE_MAX],
     }
 
@@ -142,7 +142,7 @@ async def test_config_flow_invalid_sensor(hass):
     # Mock validation - in real implementation, would check if sensor exists
     result = await flow.async_step_user({
         CONF_SENSOR_ENTITY: "sensor.invalid",
-        CONF_PERIOD: PERIOD_DAILY,
+        CONF_PERIODS: [PERIOD_DAILY],
         CONF_TYPES: [TYPE_MAX],
     })
     
@@ -168,7 +168,7 @@ async def test_config_flow_weekly_period(hass):
     # Step 1
     await flow.async_step_user({
         CONF_SENSOR_ENTITY: "sensor.test",
-        CONF_PERIOD: "weekly",
+        CONF_PERIODS: ["weekly"],
         CONF_TYPES: [TYPE_MAX],
     })
     
@@ -176,7 +176,7 @@ async def test_config_flow_weekly_period(hass):
     result = await flow.async_step_optional_settings({})
 
     assert result["type"] == FlowResultType.CREATE_ENTRY
-    assert result["data"][CONF_PERIOD] == "weekly"
+    assert result["data"][CONF_PERIODS] == ["weekly"]
 
 
 @pytest.mark.asyncio
@@ -190,7 +190,7 @@ async def test_config_flow_monthly_period(hass):
     # Step 1
     await flow.async_step_user({
         CONF_SENSOR_ENTITY: "sensor.test",
-        CONF_PERIOD: "monthly",
+        CONF_PERIODS: ["monthly"],
         CONF_TYPES: [TYPE_MIN],
     })
     
@@ -198,7 +198,7 @@ async def test_config_flow_monthly_period(hass):
     result = await flow.async_step_optional_settings({})
 
     assert result["type"] == FlowResultType.CREATE_ENTRY
-    assert result["data"][CONF_PERIOD] == "monthly"
+    assert result["data"][CONF_PERIODS] == ["monthly"]
 
 
 @pytest.mark.asyncio
@@ -211,7 +211,7 @@ async def test_config_flow_yearly_period(hass):
     # Step 1
     await flow.async_step_user({
         CONF_SENSOR_ENTITY: "sensor.test",
-        CONF_PERIOD: "yearly",
+        CONF_PERIODS: ["yearly"],
         CONF_TYPES: [TYPE_MAX, TYPE_MIN],
     })
 
@@ -219,7 +219,7 @@ async def test_config_flow_yearly_period(hass):
     result = await flow.async_step_optional_settings({})
 
     assert result["type"] == FlowResultType.CREATE_ENTRY
-    assert result["data"][CONF_PERIOD] == "yearly"
+    assert result["data"][CONF_PERIODS] == ["yearly"]
 
 
 @pytest.mark.asyncio
@@ -232,7 +232,7 @@ async def test_config_flow_only_max(hass):
     # Step 1
     await flow.async_step_user({
         CONF_SENSOR_ENTITY: "sensor.test",
-        CONF_PERIOD: PERIOD_DAILY,
+        CONF_PERIODS: [PERIOD_DAILY],
         CONF_TYPES: [TYPE_MAX],
     })
     
@@ -253,7 +253,7 @@ async def test_config_flow_only_min(hass):
     # Step 1
     await flow.async_step_user({
         CONF_SENSOR_ENTITY: "sensor.test",
-        CONF_PERIOD: PERIOD_DAILY,
+        CONF_PERIODS: [PERIOD_DAILY],
         CONF_TYPES: [TYPE_MIN],
     })
     
@@ -269,7 +269,7 @@ async def test_options_flow_update(hass):
     """Test options flow update."""
     config_entry = MagicMock()
     config_entry.options = {
-        CONF_PERIOD: PERIOD_DAILY,
+        CONF_PERIODS: [PERIOD_DAILY],
         CONF_TYPES: [TYPE_MAX, TYPE_MIN],
     }
     config_entry.data = {CONF_SENSOR_ENTITY: "sensor.test"}
@@ -281,7 +281,7 @@ async def test_options_flow_update(hass):
 
     # Simulate section data structure
     result = await flow.async_step_init({
-        CONF_PERIOD: "weekly",
+        CONF_PERIODS: ["weekly"],
         CONF_TYPES: [TYPE_MAX],
         "optional_section": {
              # Empty or specific values
@@ -290,7 +290,7 @@ async def test_options_flow_update(hass):
 
     assert result["type"] == FlowResultType.CREATE_ENTRY
     assert result["data"] == {
-        CONF_PERIOD: "weekly",
+        CONF_PERIODS: ["weekly"],
         CONF_TYPES: [TYPE_MAX],
         "device_id": None,
     }
@@ -301,7 +301,7 @@ async def test_options_flow_show_form(hass):
     """Test options flow shows form."""
     config_entry = MagicMock()
     config_entry.options = {
-        CONF_PERIOD: PERIOD_DAILY,
+        CONF_PERIODS: [PERIOD_DAILY],
         CONF_TYPES: [TYPE_MAX, TYPE_MIN],
     }
     config_entry.data = {CONF_SENSOR_ENTITY: "sensor.test"}
@@ -335,7 +335,7 @@ async def test_config_flow_min_greater_than_max(hass):
     # Step 1
     await flow.async_step_user({
         CONF_SENSOR_ENTITY: "sensor.test",
-        CONF_PERIOD: PERIOD_DAILY,
+        CONF_PERIODS: [PERIOD_DAILY],
         CONF_TYPES: [TYPE_MAX],
     })
 

@@ -10,7 +10,7 @@ from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import (
     CONF_DEVICE_ID,
-    CONF_PERIOD,
+    CONF_PERIODS,
     CONF_SENSOR_ENTITY,
     CONF_TYPES,
     PERIOD_DAILY,
@@ -32,20 +32,23 @@ async def async_setup_entry(
     """Set up the sensor platform."""
     coordinator = hass.data["max_min"][config_entry.entry_id]
     types = config_entry.options.get(CONF_TYPES, config_entry.data.get(CONF_TYPES, [TYPE_MAX, TYPE_MIN]))
-    period = config_entry.options.get(CONF_PERIOD, config_entry.data.get(CONF_PERIOD, PERIOD_DAILY))
+    periods = config_entry.options.get(CONF_PERIODS, config_entry.data.get(CONF_PERIODS, [PERIOD_DAILY]))
+    # Fallback to verify single list
+    if isinstance(periods, str):
+        periods = [periods]
 
     # Clean up device association if device is removed
     device_id = config_entry.options.get(CONF_DEVICE_ID, config_entry.data.get(CONF_DEVICE_ID))
     if not device_id:
         # Unlink entities from device
         ent_reg = er.async_get(hass)
-        for suffix in ["_max", "_min"]:
-            unique_id = f"{config_entry.entry_id}{suffix}"
-            entity_id = ent_reg.async_get_entity_id("sensor", "max_min", unique_id)
-            if entity_id:
-                entity_entry = ent_reg.async_get(entity_id)
-                if entity_entry and entity_entry.device_id:
-                     ent_reg.async_update_entity(entity_id, device_id=None)
+        # We need to find all entities related to this config entry
+        # The period is part of unique_id now, so we can't strict predict suffix easily without knowing old periods
+        # But we can iterate over registry entries
+        entity_entries = er.async_entries_for_config_entry(ent_reg, config_entry.entry_id)
+        for entity_entry in entity_entries:
+            if entity_entry.device_id:
+                 ent_reg.async_update_entity(entity_entry.entity_id, device_id=None)
         
         # Unlink config entry from device
         dev_reg = dr.async_get(hass)
@@ -77,12 +80,13 @@ async def async_setup_entry(
         PERIOD_YEARLY: "Yearly",
         PERIOD_ALL_TIME: "All time",
     }
-    period_label = period_labels.get(period, period)
-
-    if TYPE_MAX in types:
-        entities.append(MaxSensor(coordinator, config_entry, f"{sensor_name} {period_label} Max"))
-    if TYPE_MIN in types:
-        entities.append(MinSensor(coordinator, config_entry, f"{sensor_name} {period_label} Min"))
+    
+    for period in periods:
+        period_label = period_labels.get(period, period)
+        if TYPE_MAX in types:
+            entities.append(MaxSensor(coordinator, config_entry, f"{sensor_name} {period_label} Max", period))
+        if TYPE_MIN in types:
+            entities.append(MinSensor(coordinator, config_entry, f"{sensor_name} {period_label} Min", period))
 
     async_add_entities(entities)
 
@@ -90,12 +94,13 @@ async def async_setup_entry(
 class MaxSensor(CoordinatorEntity, SensorEntity):
     """Representation of a Max sensor."""
 
-    def __init__(self, coordinator: MaxMinDataUpdateCoordinator, config_entry: ConfigEntry, name: str) -> None:
+    def __init__(self, coordinator: MaxMinDataUpdateCoordinator, config_entry: ConfigEntry, name: str, period: str) -> None:
         """Initialize the sensor."""
         super().__init__(coordinator)
         self._config_entry = config_entry
         self._attr_name = name
-        self._attr_unique_id = f"{config_entry.entry_id}_max"
+        self.period = period
+        self._attr_unique_id = f"{config_entry.entry_id}_{period}_max"
         
         # Inherit attributes from source sensor
         source_entity = config_entry.data[CONF_SENSOR_ENTITY]
@@ -126,23 +131,24 @@ class MaxSensor(CoordinatorEntity, SensorEntity):
     @property
     def native_value(self):
         """Return the state of the sensor."""
-        return self.coordinator.max_value
+        return self.coordinator.get_value(self.period, "max")
 
     @property
     def available(self):
         """Return if the sensor is available."""
-        return self.coordinator.max_value is not None
+        return self.coordinator.get_value(self.period, "max") is not None
 
 
 class MinSensor(CoordinatorEntity, SensorEntity):
     """Representation of a Min sensor."""
 
-    def __init__(self, coordinator: MaxMinDataUpdateCoordinator, config_entry: ConfigEntry, name: str) -> None:
+    def __init__(self, coordinator: MaxMinDataUpdateCoordinator, config_entry: ConfigEntry, name: str, period: str) -> None:
         """Initialize the sensor."""
         super().__init__(coordinator)
         self._config_entry = config_entry
         self._attr_name = name
-        self._attr_unique_id = f"{config_entry.entry_id}_min"
+        self.period = period
+        self._attr_unique_id = f"{config_entry.entry_id}_{period}_min"
         
         # Inherit attributes from source sensor
         source_entity = config_entry.data[CONF_SENSOR_ENTITY]
@@ -173,9 +179,9 @@ class MinSensor(CoordinatorEntity, SensorEntity):
     @property
     def native_value(self):
         """Return the state of the sensor."""
-        return self.coordinator.min_value
+        return self.coordinator.get_value(self.period, "min")
 
     @property
     def available(self):
         """Return if the sensor is available."""
-        return self.coordinator.min_value is not None
+        return self.coordinator.get_value(self.period, "min") is not None

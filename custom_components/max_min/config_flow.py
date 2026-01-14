@@ -10,7 +10,7 @@ from .const import (
     CONF_DEVICE_ID,
     CONF_INITIAL_MAX,
     CONF_INITIAL_MIN,
-    CONF_PERIOD,
+    CONF_PERIODS,
     CONF_SENSOR_ENTITY,
     CONF_TYPES,
     DOMAIN,
@@ -37,10 +37,10 @@ class MaxMinConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         """Handle the initial step."""
         errors = {}
         if user_input is not None:
-            # Set unique ID based on sensor and period to allow multiple periods per sensor
+            # Set unique ID based on sensor 
+            # Now we allow only one entry per sensor, managing multiple periods
             sensor_entity = user_input[CONF_SENSOR_ENTITY]
-            period = user_input[CONF_PERIOD]
-            await self.async_set_unique_id(f"{sensor_entity}_{period}")
+            await self.async_set_unique_id(f"{sensor_entity}")
             abort_result = self._abort_if_unique_id_configured()
             if abort_result:
                 return abort_result
@@ -50,7 +50,7 @@ class MaxMinConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
         # Defaults for schema
         default_sensor = user_input.get(CONF_SENSOR_ENTITY) if user_input else vol.UNDEFINED
-        default_period = user_input.get(CONF_PERIOD, PERIOD_DAILY) if user_input else PERIOD_DAILY
+        default_periods = user_input.get(CONF_PERIODS, [PERIOD_DAILY]) if user_input else [PERIOD_DAILY]
         default_types = user_input.get(CONF_TYPES, [TYPE_MAX, TYPE_MIN]) if user_input else [TYPE_MAX, TYPE_MIN]
 
         return self.async_show_form(
@@ -59,7 +59,7 @@ class MaxMinConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 vol.Required(CONF_SENSOR_ENTITY, default=default_sensor): selector.EntitySelector(
                     selector.EntitySelectorConfig(domain="sensor")
                 ),
-                vol.Required(CONF_PERIOD, default=default_period): selector.SelectSelector(
+                vol.Required(CONF_PERIODS, default=default_periods): selector.SelectSelector(
                     selector.SelectSelectorConfig(
                         options=[
                             {"value": PERIOD_DAILY, "label": "Daily"},
@@ -67,7 +67,8 @@ class MaxMinConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                             {"value": PERIOD_MONTHLY, "label": "Monthly"},
                             {"value": PERIOD_YEARLY, "label": "Yearly"},
                             {"value": PERIOD_ALL_TIME, "label": "All time"},
-                        ]
+                        ],
+                        multiple=True,
                     )
                 ),
                 vol.Required(CONF_TYPES, default=default_types): selector.SelectSelector(
@@ -97,15 +98,13 @@ class MaxMinConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 
                 # Create a better title
                 sensor_entity = self.data[CONF_SENSOR_ENTITY]
-                period = self.data[CONF_PERIOD]
-                period_label = period.capitalize()
                 sensor_name = sensor_entity
                 if self.hass:
                     state = self.hass.states.get(sensor_entity)
                     if state and state.name:
                         sensor_name = state.name
 
-                title = f"{sensor_name} - {period_label}"
+                title = f"{sensor_name} (Max/Min)"
                 
                 return self.async_create_entry(title=title, data=final_data)
         
@@ -163,6 +162,7 @@ class MaxMinOptionsFlow(config_entries.OptionsFlow):
 
         # Defaults for schema
         default_types = self._config_entry.options.get(CONF_TYPES, self._config_entry.data.get(CONF_TYPES, [TYPE_MAX, TYPE_MIN]))
+        default_periods = self._config_entry.options.get(CONF_PERIODS, self._config_entry.data.get(CONF_PERIODS, [PERIOD_DAILY]))
         
         # In options flow, we don't pre-fill initial values to allow user to keep existing logic
         # or input new values only when needed
@@ -174,6 +174,7 @@ class MaxMinOptionsFlow(config_entries.OptionsFlow):
              # Handle flattened or nested input during re-render
              optional_in = user_input.get("optional_section", user_input)
              default_types = user_input.get(CONF_TYPES, default_types)
+             default_periods = user_input.get(CONF_PERIODS, default_periods)
              default_min = optional_in.get(CONF_INITIAL_MIN, default_min)
              default_max = optional_in.get(CONF_INITIAL_MAX, default_max)
              default_device = optional_in.get(CONF_DEVICE_ID, default_device)
@@ -181,6 +182,21 @@ class MaxMinOptionsFlow(config_entries.OptionsFlow):
         return self.async_show_form(
             step_id="init",
             data_schema=vol.Schema({
+                vol.Required(
+                    CONF_PERIODS,
+                    default=default_periods,
+                ): selector.SelectSelector(
+                    selector.SelectSelectorConfig(
+                        options=[
+                            {"value": PERIOD_DAILY, "label": "Daily"},
+                            {"value": PERIOD_WEEKLY, "label": "Weekly"},
+                            {"value": PERIOD_MONTHLY, "label": "Monthly"},
+                            {"value": PERIOD_YEARLY, "label": "Yearly"},
+                            {"value": PERIOD_ALL_TIME, "label": "All time"},
+                        ],
+                        multiple=True,
+                    )
+                ),
                 vol.Optional(
                     CONF_TYPES,
                     default=default_types,

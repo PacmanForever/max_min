@@ -6,7 +6,8 @@ from homeassistant.const import STATE_UNKNOWN, STATE_UNAVAILABLE
 from custom_components.max_min.sensor import MaxSensor, MinSensor
 from custom_components.max_min.const import (
     CONF_SENSOR_ENTITY,
-    CONF_DEVICE_ID
+    CONF_DEVICE_ID,
+    PERIOD_DAILY
 )
 
 @pytest.fixture
@@ -47,13 +48,13 @@ def test_sensor_inheritance(coordinator, config_entry, hass):
     """Test that sensors inherit attributes from source."""
     coordinator.hass = hass
     
-    max_sensor = MaxSensor(coordinator, config_entry, "Max Test")
+    max_sensor = MaxSensor(coordinator, config_entry, "Max Test", PERIOD_DAILY)
     
     assert max_sensor.unit_of_measurement == "°C"
     assert max_sensor.device_class == "temperature"
     assert max_sensor.state_class == "measurement"
     
-    min_sensor = MinSensor(coordinator, config_entry, "Min Test")
+    min_sensor = MinSensor(coordinator, config_entry, "Min Test", PERIOD_DAILY)
     
     assert min_sensor.unit_of_measurement == "°C"
     assert min_sensor.device_class == "temperature"
@@ -64,7 +65,7 @@ def test_sensor_defaults_if_source_missing(coordinator, config_entry, hass):
     hass.states.get.return_value = Mock(state="10.0", attributes={})
     coordinator.hass = hass
     
-    max_sensor = MaxSensor(coordinator, config_entry, "Max Test")
+    max_sensor = MaxSensor(coordinator, config_entry, "Max Test", PERIOD_DAILY)
     
     # Should use defaults or None
     assert max_sensor.device_class is None # Previously "measurement"

@@ -10,7 +10,7 @@ from custom_components.max_min.config_flow import MaxMinConfigFlow
 from custom_components.max_min.const import (
     CONF_INITIAL_MAX,
     CONF_INITIAL_MIN,
-    CONF_PERIOD,
+    CONF_PERIODS,
     CONF_SENSOR_ENTITY,
     CONF_TYPES,
     CONF_DEVICE_ID
@@ -41,7 +41,7 @@ async def test_config_flow_schema_order(hass):
         
     # Check order for step 1
     assert CONF_SENSOR_ENTITY in field_names_1[0]
-    assert CONF_PERIOD in field_names_1[1]
+    assert CONF_PERIODS in field_names_1[1]
     assert CONF_TYPES in field_names_1[2]
     
     # Step 2: Optional Settings
@@ -51,7 +51,7 @@ async def test_config_flow_schema_order(hass):
     
     await flow.async_step_user({
         CONF_SENSOR_ENTITY: "sensor.test",
-        CONF_PERIOD: "daily",
+        CONF_PERIODS: ["daily"],
         CONF_TYPES: ["max"]
     })
     
@@ -99,7 +99,7 @@ def test_string_translations():
     
     assert user_step["title"] == "Add new Max/Min sensor/s"
     assert user_step["data"]["sensor_entity"] == "Source sensor"
-    assert user_step["data"]["period"] == "Period"
+    assert user_step["data"]["periods"] == "Periods"
     assert user_step["data"]["types"] == "Sensors"
     
     # Optional settings step
@@ -111,7 +111,7 @@ def test_string_translations():
     
     options_step = strings["options"]["step"]["init"]
     assert options_step["title"] == "Max/Min sensor/s options"
-    assert options_step["data"]["period"] == "Period"
+    assert options_step["data"]["periods"] == "Periods"
     assert options_step["data"]["types"] == "Sensors"
     
     # Check sections

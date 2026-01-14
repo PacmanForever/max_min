@@ -5,7 +5,7 @@
         "title": "Add new Max/Min sensor/s",
         "data": {
           "sensor_entity": "Source sensor",
-          "period": "Period",
+          "periods": "Periods",
           "types": "Sensors"
         }
       },
@@ -41,7 +41,7 @@
             }
         },
         "data": {
-          "period": "Period",
+          "periods": "Periods",
           "types": "Sensors"
         }
       }

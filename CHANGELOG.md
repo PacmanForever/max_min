@@ -5,6 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.0] - 2026-01-14
+
+### Added
+- **Multi-period support**: Now you can select multiple periods (Daily, Weekly, Monthly, Yearly, All Time) for a single source sensor. This creates multiple entities automatically (e.g., "Sensor Daily Max", "Sensor Weekly Max").
+
+### Changed
+- **Breaking Change**: Configuration schema updated. `period` (single selection) replaced with `periods` (multiple selection).
+- Codebase refactored to support list-based period management in Coordinator and Config Flow.
+
+## [0.1.13] - 2026-01-14
+
+### Fixed
+- Fix default values in Options Flow.
+
 ## [0.1.5] - 2026-01-14
 
 ### Changed
