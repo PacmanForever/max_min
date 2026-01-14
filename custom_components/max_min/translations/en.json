@@ -12,9 +12,17 @@
       "optional_settings": {
         "title": "Optional settings",
         "data": {
-          "initial_min": "Initial Min Value (Optional)",
-          "initial_max": "Initial Max Value (Optional)",
-          "device_id": "Device (Optional)"
+          "device_id": "Device (Optional)",
+          "daily_initial_min": "Daily: Initial Min Value",
+          "daily_initial_max": "Daily: Initial Max Value",
+          "weekly_initial_min": "Weekly: Initial Min Value",
+          "weekly_initial_max": "Weekly: Initial Max Value",
+          "monthly_initial_min": "Monthly: Initial Min Value",
+          "monthly_initial_max": "Monthly: Initial Max Value",
+          "yearly_initial_min": "Yearly: Initial Min Value",
+          "yearly_initial_max": "Yearly: Initial Max Value",
+          "all_time_initial_min": "All-time: Initial Min Value",
+          "all_time_initial_max": "All-time: Initial Max Value"
         }
       }
     },
@@ -38,9 +46,17 @@
       "optional_settings": {
         "title": "Optional settings",
         "data": {
-          "initial_min": "Initial Min Value (Optional)",
-          "initial_max": "Initial Max Value (Optional)",
-          "device_id": "Device (Optional)"
+          "device_id": "Device (Optional)",
+          "daily_initial_min": "Daily: Initial Min Value",
+          "daily_initial_max": "Daily: Initial Max Value",
+          "weekly_initial_min": "Weekly: Initial Min Value",
+          "weekly_initial_max": "Weekly: Initial Max Value",
+          "monthly_initial_min": "Monthly: Initial Min Value",
+          "monthly_initial_max": "Monthly: Initial Max Value",
+          "yearly_initial_min": "Yearly: Initial Min Value",
+          "yearly_initial_max": "Yearly: Initial Max Value",
+          "all_time_initial_min": "All-time: Initial Min Value",
+          "all_time_initial_max": "All-time: Initial Max Value"
         }
       }
     },

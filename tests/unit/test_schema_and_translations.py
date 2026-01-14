@@ -52,7 +52,7 @@ async def test_config_flow_schema_order(hass):
     await flow.async_step_user({
         CONF_SENSOR_ENTITY: "sensor.test",
         CONF_PERIODS: ["daily"],
-        CONF_TYPES: ["max"]
+        CONF_TYPES: ["max", "min"]
     })
     
     result = await flow.async_step_optional_settings()
@@ -105,8 +105,8 @@ def test_string_translations():
     # Optional settings step
     optional_step = strings["config"]["step"]["optional_settings"]
     assert optional_step["title"] == "Optional settings"
-    assert optional_step["data"]["initial_min"] == "Initial Min Value (Optional)"
-    assert optional_step["data"]["initial_max"] == "Initial Max Value (Optional)"
+    assert optional_step["data"]["daily_initial_min"] == "Daily: Initial Min Value"
+    assert optional_step["data"]["daily_initial_max"] == "Daily: Initial Max Value"
     assert optional_step["data"]["device_id"] == "Device (Optional)"
     
     options_step = strings["options"]["step"]["init"]
@@ -117,8 +117,8 @@ def test_string_translations():
     # Check optional settings step in options
     options_optional_step = strings["options"]["step"]["optional_settings"]
     assert options_optional_step["title"] == "Optional settings"
-    assert options_optional_step["data"]["initial_min"] == "Initial Min Value (Optional)"
-    assert options_optional_step["data"]["initial_max"] == "Initial Max Value (Optional)"
+    assert options_optional_step["data"]["daily_initial_min"] == "Daily: Initial Min Value"
+    assert options_optional_step["data"]["daily_initial_max"] == "Daily: Initial Max Value"
     assert options_optional_step["data"]["device_id"] == "Device (Optional)"
 
 def test_en_translation_match():
