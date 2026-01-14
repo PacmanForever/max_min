@@ -114,7 +114,7 @@ def test_max_sensor(coordinator, config_entry, hass):
     assert sensor.available is True
     assert sensor.name == "Test Daily Max"
     assert sensor.unique_id == "test_entry_daily_max"
-    assert sensor._attr_native_unit_of_measurement == "°C"
+    assert sensor.native_unit_of_measurement == "°C"
 
 
 def test_min_sensor(coordinator, config_entry, hass):
@@ -126,7 +126,7 @@ def test_min_sensor(coordinator, config_entry, hass):
     assert sensor.available is True
     assert sensor.name == "Test Daily Min"
     assert sensor.unique_id == "test_entry_daily_min"
-    assert sensor._attr_native_unit_of_measurement == "°C"
+    assert sensor.native_unit_of_measurement == "°C"
 
 
 def test_sensor_unavailable(coordinator, config_entry, hass):
@@ -202,7 +202,8 @@ def test_sensor_attributes(coordinator, config_entry, hass):
     # Check that sensors have proper attributes
     assert hasattr(max_sensor, "_attr_name")
     assert hasattr(max_sensor, "_attr_unique_id")
-    assert hasattr(max_sensor, "_attr_device_class")
+    assert max_sensor.device_class == "measurement"
+    assert hasattr(min_sensor, "device_class")
 
 
 @pytest.mark.asyncio

@@ -79,6 +79,9 @@ class MaxMinConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                         multiple=True,
                     )
                 ),
+                vol.Optional(CONF_DEVICE_ID): selector.DeviceSelector(
+                    selector.DeviceSelectorConfig()
+                ),
             }),
             errors=errors,
         )
@@ -135,10 +138,6 @@ class MaxMinConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             if TYPE_MAX in types:
                 schema[vol.Optional(f"{period}_{CONF_INITIAL_MAX}")] = vol.Coerce(float)
 
-        schema[vol.Optional(CONF_DEVICE_ID)] = selector.DeviceSelector(
-            selector.DeviceSelectorConfig()
-        )
-
         return self.async_show_form(
             step_id="optional_settings",
             data_schema=vol.Schema(schema),
@@ -169,7 +168,8 @@ class MaxMinOptionsFlow(config_entries.OptionsFlow):
         # Defaults for schema
         default_types = self._config_entry.options.get(CONF_TYPES, self._config_entry.data.get(CONF_TYPES, [TYPE_MAX, TYPE_MIN]))
         default_periods = self._config_entry.options.get(CONF_PERIODS, self._config_entry.data.get(CONF_PERIODS, [PERIOD_DAILY]))
-        
+        default_device = self._config_entry.options.get(CONF_DEVICE_ID, self._config_entry.data.get(CONF_DEVICE_ID))
+
         return self.async_show_form(
             step_id="init",
             data_schema=vol.Schema({
@@ -188,7 +188,7 @@ class MaxMinOptionsFlow(config_entries.OptionsFlow):
                         multiple=True,
                     )
                 ),
-                vol.Optional(
+                vol.Required(
                     CONF_TYPES,
                     default=default_types,
                 ): selector.SelectSelector(
@@ -199,6 +199,9 @@ class MaxMinOptionsFlow(config_entries.OptionsFlow):
                         ],
                         multiple=True,
                     )
+                ),
+                vol.Optional(CONF_DEVICE_ID, description={"suggested_value": default_device}): selector.DeviceSelector(
+                    selector.DeviceSelectorConfig()
                 ),
             }),
         )
@@ -224,7 +227,11 @@ class MaxMinOptionsFlow(config_entries.OptionsFlow):
                 self.options.update(user_input)
                 # Ensure device_id is captured as None if cleared/missing to override data
                 if CONF_DEVICE_ID not in self.options:
-                    self.options[CONF_DEVICE_ID] = None
+                    # It should be in options based on prev step, but if not we might inherit it or set to None
+                    # Actually if user_input (this step) is mostly empty, we rely on self.options from step_init
+                    # to carry the device_id.
+                    if CONF_DEVICE_ID not in self.options:
+                        self.options[CONF_DEVICE_ID] = None
                 
                 # Update title based on selected types
                 if self.hass:
@@ -270,15 +277,6 @@ class MaxMinOptionsFlow(config_entries.OptionsFlow):
                 else:
                     default = saved_options.get(key, saved_options.get(CONF_INITIAL_MAX))
                 schema[vol.Optional(key, description={"suggested_value": default})] = vol.Coerce(float)
-
-        if user_input is not None:
-            default_device = user_input.get(CONF_DEVICE_ID)
-        else:
-            default_device = saved_options.get(CONF_DEVICE_ID)
-
-        schema[vol.Optional(CONF_DEVICE_ID, description={"suggested_value": default_device})] = selector.DeviceSelector(
-             selector.DeviceSelectorConfig()
-        )
 
         return self.async_show_form(
             step_id="optional_settings",

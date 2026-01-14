@@ -101,18 +101,34 @@ class MaxSensor(CoordinatorEntity, SensorEntity):
         self._attr_name = name
         self.period = period
         self._attr_unique_id = f"{config_entry.entry_id}_{period}_max"
-        
-        # Inherit attributes from source sensor
-        source_entity = config_entry.data[CONF_SENSOR_ENTITY]
-        if coordinator.hass:
-            source_state = coordinator.hass.states.get(source_entity)
-            if source_state:
-                if source_state.attributes.get("unit_of_measurement"):
-                    self._attr_native_unit_of_measurement = source_state.attributes["unit_of_measurement"]
-                if source_state.attributes.get("device_class"):
-                    self._attr_device_class = source_state.attributes["device_class"]
-                if source_state.attributes.get("state_class"):
-                    self._attr_state_class = source_state.attributes["state_class"]
+        self._source_entity = config_entry.data[CONF_SENSOR_ENTITY]
+
+    @property
+    def native_unit_of_measurement(self):
+        """Return the unit of measurement of the sensor."""
+        if self.coordinator.hass:
+            state = self.coordinator.hass.states.get(self._source_entity)
+            if state:
+                return state.attributes.get("unit_of_measurement")
+        return None
+
+    @property
+    def device_class(self):
+        """Return the device class of the sensor."""
+        if self.coordinator.hass:
+            state = self.coordinator.hass.states.get(self._source_entity)
+            if state:
+                return state.attributes.get("device_class")
+        return None
+
+    @property
+    def state_class(self):
+        """Return the state class of the sensor."""
+        if self.coordinator.hass:
+            state = self.coordinator.hass.states.get(self._source_entity)
+            if state:
+                return state.attributes.get("state_class")
+        return None
 
     @property
     def device_info(self):
@@ -149,18 +165,34 @@ class MinSensor(CoordinatorEntity, SensorEntity):
         self._attr_name = name
         self.period = period
         self._attr_unique_id = f"{config_entry.entry_id}_{period}_min"
-        
-        # Inherit attributes from source sensor
-        source_entity = config_entry.data[CONF_SENSOR_ENTITY]
-        if coordinator.hass:
-            source_state = coordinator.hass.states.get(source_entity)
-            if source_state:
-                if source_state.attributes.get("unit_of_measurement"):
-                    self._attr_native_unit_of_measurement = source_state.attributes["unit_of_measurement"]
-                if source_state.attributes.get("device_class"):
-                    self._attr_device_class = source_state.attributes["device_class"]
-                if source_state.attributes.get("state_class"):
-                    self._attr_state_class = source_state.attributes["state_class"]
+        self._source_entity = config_entry.data[CONF_SENSOR_ENTITY]
+
+    @property
+    def native_unit_of_measurement(self):
+        """Return the unit of measurement of the sensor."""
+        if self.coordinator.hass:
+            state = self.coordinator.hass.states.get(self._source_entity)
+            if state:
+                return state.attributes.get("unit_of_measurement")
+        return None
+
+    @property
+    def device_class(self):
+        """Return the device class of the sensor."""
+        if self.coordinator.hass:
+            state = self.coordinator.hass.states.get(self._source_entity)
+            if state:
+                return state.attributes.get("device_class")
+        return None
+
+    @property
+    def state_class(self):
+        """Return the state class of the sensor."""
+        if self.coordinator.hass:
+            state = self.coordinator.hass.states.get(self._source_entity)
+            if state:
+                return state.attributes.get("state_class")
+        return None
 
     @property
     def device_info(self):

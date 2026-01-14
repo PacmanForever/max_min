@@ -43,6 +43,7 @@ async def test_config_flow_schema_order(hass):
     assert CONF_SENSOR_ENTITY in field_names_1[0]
     assert CONF_PERIODS in field_names_1[1]
     assert CONF_TYPES in field_names_1[2]
+    assert CONF_DEVICE_ID in field_names_1[3]
     
     # Step 2: Optional Settings
     # We need to pass valid data to step 1 to reach step 2
@@ -65,25 +66,22 @@ async def test_config_flow_schema_order(hass):
         field_names_2.append(str(key.schema) if hasattr(key, "schema") else str(key))
         
     # Check order for step 2
-    # Expected: initial_min, initial_max, device_id
+    # Expected: initial_min, initial_max (Device ID is now in step 1)
     min_index = -1
     max_index = -1
-    device_index = -1
     
     for i, name in enumerate(field_names_2):
         if CONF_INITIAL_MIN in name:
             min_index = i
         if CONF_INITIAL_MAX in name:
             max_index = i
-        if CONF_DEVICE_ID in name:
-            device_index = i
             
     assert min_index != -1, "initial_min field missing"
     assert max_index != -1, "initial_max field missing"
-    assert device_index != -1, "device_id field missing"
     
-    assert min_index < max_index, f"initial_min ({min_index}) must differ before initial_max ({max_index})"
-    assert max_index < device_index, f"initial_max ({max_index}) must come before device_id ({device_index})"
+    # Verify device_id is NOT in optional settings
+    for name in field_names_2:
+        assert CONF_DEVICE_ID not in name, "device_id should not be in optional settings"
 
 
 def test_string_translations():
@@ -101,25 +99,27 @@ def test_string_translations():
     assert user_step["data"]["sensor_entity"] == "Source sensor"
     assert user_step["data"]["periods"] == "Periods"
     assert user_step["data"]["types"] == "Sensors"
+    assert user_step["data"]["device_id"] == "Device (you can link these entities to a device)"
     
     # Optional settings step
     optional_step = strings["config"]["step"]["optional_settings"]
     assert optional_step["title"] == "Optional settings"
     assert optional_step["data"]["daily_initial_min"] == "Daily: Initial Min Value"
     assert optional_step["data"]["daily_initial_max"] == "Daily: Initial Max Value"
-    assert optional_step["data"]["device_id"] == "Device (Optional)"
+    assert "device_id" not in optional_step["data"]
     
     options_step = strings["options"]["step"]["init"]
     assert options_step["title"] == "Max/Min sensor/s options"
     assert options_step["data"]["periods"] == "Periods"
     assert options_step["data"]["types"] == "Sensors"
+    assert options_step["data"]["device_id"] == "Device (you can link these entities to a device)"
     
     # Check optional settings step in options
     options_optional_step = strings["options"]["step"]["optional_settings"]
     assert options_optional_step["title"] == "Optional settings"
     assert options_optional_step["data"]["daily_initial_min"] == "Daily: Initial Min Value"
     assert options_optional_step["data"]["daily_initial_max"] == "Daily: Initial Max Value"
-    assert options_optional_step["data"]["device_id"] == "Device (Optional)"
+    assert "device_id" not in options_optional_step["data"]
 
 def test_en_translation_match():
     """Test that en.json matches strings.json."""
