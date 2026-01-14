@@ -7,7 +7,7 @@
           "sensor_entity": "Source sensor",
           "periods": "Periods",
           "types": "Sensors",
-          "device_id": "Device (you can link these entities to a device)"
+          "device_id": "Device to link"
         }
       },
       "optional_settings": {
@@ -41,7 +41,7 @@
         "data": {
           "periods": "Periods",
           "types": "Sensors",
-          "device_id": "Device (you can link these entities to a device)"
+          "device_id": "Device to link"
         }
       },
       "optional_settings": {

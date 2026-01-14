@@ -99,7 +99,7 @@ def test_string_translations():
     assert user_step["data"]["sensor_entity"] == "Source sensor"
     assert user_step["data"]["periods"] == "Periods"
     assert user_step["data"]["types"] == "Sensors"
-    assert user_step["data"]["device_id"] == "Device (you can link these entities to a device)"
+    assert user_step["data"]["device_id"] == "Device to link"
     
     # Optional settings step
     optional_step = strings["config"]["step"]["optional_settings"]
@@ -112,7 +112,7 @@ def test_string_translations():
     assert options_step["title"] == "Max/Min sensor/s options"
     assert options_step["data"]["periods"] == "Periods"
     assert options_step["data"]["types"] == "Sensors"
-    assert options_step["data"]["device_id"] == "Device (you can link these entities to a device)"
+    assert options_step["data"]["device_id"] == "Device to link"
     
     # Check optional settings step in options
     options_optional_step = strings["options"]["step"]["optional_settings"]
