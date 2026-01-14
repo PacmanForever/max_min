@@ -57,8 +57,18 @@ async def async_setup_entry(
             dev_reg.async_update_device(dev_id, remove_config_entry_id=config_entry.entry_id)
 
     entities = []
-    sensor_state = hass.states.get(config_entry.data[CONF_SENSOR_ENTITY])
-    sensor_name = sensor_state.attributes.get("friendly_name", config_entry.data[CONF_SENSOR_ENTITY]) if sensor_state else config_entry.data[CONF_SENSOR_ENTITY]
+    source_entity = config_entry.data[CONF_SENSOR_ENTITY]
+    sensor_name = source_entity
+
+    # Try to get valid name from registry or state
+    ent_reg = er.async_get(hass)
+    entry = ent_reg.async_get(source_entity)
+    if entry and (entry.name or entry.original_name):
+        sensor_name = entry.name or entry.original_name
+    else:
+        sensor_state = hass.states.get(source_entity)
+        if sensor_state and sensor_state.attributes.get("friendly_name"):
+            sensor_name = sensor_state.attributes.get("friendly_name")
 
     period_labels = {
         PERIOD_DAILY: "Daily",

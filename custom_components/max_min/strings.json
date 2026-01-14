@@ -32,15 +32,17 @@
         "title": "Max/Min sensor/s options",
         "sections": {
             "optional_section": {
-                "name": "Optional settings"
+                "name": "Optional settings",
+                "data": {
+                    "initial_min": "Initial Min Value (Optional)",
+                    "initial_max": "Initial Max Value (Optional)",
+                    "device_id": "Device (Optional)"
+                }
             }
         },
         "data": {
           "period": "Period",
-          "types": "Sensors",
-          "initial_min": "Initial Min Value (Optional)",
-          "initial_max": "Initial Max Value (Optional)",
-          "device_id": "Device (Optional)"
+          "types": "Sensors"
         }
       }
     }

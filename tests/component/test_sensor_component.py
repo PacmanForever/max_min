@@ -54,6 +54,8 @@ async def test_sensor_setup(hass, config_entry):
             patch("homeassistant.helpers.device_registry.async_get") as mock_dr_get:
         mock_registry = Mock()
         mock_registry.async_get_entity_id.return_value = None  # Use return_value to mock a method call
+        # Mock async_get to return None so it falls back to state machine for name
+        mock_registry.async_get.return_value = None
         mock_er_get.return_value = mock_registry
 
         mock_dev_reg = Mock()
