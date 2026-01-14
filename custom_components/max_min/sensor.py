@@ -16,6 +16,7 @@ from .const import (
     PERIOD_MONTHLY,
     PERIOD_WEEKLY,
     PERIOD_YEARLY,
+    PERIOD_ALL_TIME,
     TYPE_MAX,
     TYPE_MIN,
 )
@@ -41,6 +42,7 @@ async def async_setup_entry(
         PERIOD_WEEKLY: "Weekly",
         PERIOD_MONTHLY: "Monthly",
         PERIOD_YEARLY: "Yearly",
+        PERIOD_ALL_TIME: "All time",
     }
     period_label = period_labels.get(period, period)
 

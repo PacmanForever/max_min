@@ -11,6 +11,7 @@ PERIOD_DAILY = "daily"
 PERIOD_WEEKLY = "weekly"
 PERIOD_MONTHLY = "monthly"
 PERIOD_YEARLY = "yearly"
+PERIOD_ALL_TIME = "all_time"
 
 TYPE_MAX = "max"
 TYPE_MIN = "min"

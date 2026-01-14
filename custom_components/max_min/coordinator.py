@@ -20,6 +20,7 @@ from .const import (
     PERIOD_MONTHLY,
     PERIOD_WEEKLY,
     PERIOD_YEARLY,
+    PERIOD_ALL_TIME,
     TYPE_MAX,
     TYPE_MIN,
 )
@@ -105,6 +106,9 @@ class MaxMinDataUpdateCoordinator(DataUpdateCoordinator):
 
     def _schedule_reset(self):
         """Schedule the next reset."""
+        if self.period == PERIOD_ALL_TIME:
+            return
+
         now = dt_util.now()
         if self.period == PERIOD_DAILY:
             reset_time = (now + timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0)

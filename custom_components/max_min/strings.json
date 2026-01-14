@@ -5,11 +5,11 @@
         "title": "Add new Max/Min sensor/s",
         "data": {
           "sensor_entity": "Source sensor",
-          "device_id": "Device to link (optional)",
           "period": "Period",
           "types": "Sensors",
-          "initial_max": "Initial max value",
-          "initial_min": "Initial min value"
+          "initial_min": "Initial Min Value (Optional)",
+          "initial_max": "Initial Max Value (Optional)",
+          "device_id": "Device (Optional)"
         }
       }
     },
@@ -24,13 +24,13 @@
   "options": {
     "step": {
       "init": {
-        "title": "Sensor settings",
+        "title": "Max/Min sensor/s options",
         "data": {
           "period": "Period",
           "types": "Sensors",
-          "device_id": "Device to link (optional)",
-          "initial_max": "Initial max value",
-          "initial_min": "Initial min value"
+          "initial_min": "Initial Min Value (Optional)",
+          "initial_max": "Initial Max Value (Optional)",
+          "device_id": "Device (Optional)"
         }
       }
     }

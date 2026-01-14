@@ -17,6 +17,7 @@ from .const import (
     PERIOD_MONTHLY,
     PERIOD_WEEKLY,
     PERIOD_YEARLY,
+    PERIOD_ALL_TIME,
     TYPE_MAX,
     TYPE_MIN,
 )
@@ -71,9 +72,6 @@ class MaxMinConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 vol.Required(CONF_SENSOR_ENTITY, default=default_sensor): selector.EntitySelector(
                     selector.EntitySelectorConfig(domain="sensor")
                 ),
-                vol.Optional(CONF_DEVICE_ID, description={"suggested_value": default_device}): selector.DeviceSelector(
-                    selector.DeviceSelectorConfig()
-                ),
                 vol.Required(CONF_PERIOD, default=default_period): selector.SelectSelector(
                     selector.SelectSelectorConfig(
                         options=[
@@ -81,6 +79,7 @@ class MaxMinConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                             {"value": PERIOD_WEEKLY, "label": "Weekly"},
                             {"value": PERIOD_MONTHLY, "label": "Monthly"},
                             {"value": PERIOD_YEARLY, "label": "Yearly"},
+                            {"value": PERIOD_ALL_TIME, "label": "All time"},
                         ]
                     )
                 ),
@@ -95,6 +94,9 @@ class MaxMinConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 ),
                 vol.Optional(CONF_INITIAL_MIN, description={"suggested_value": suggested_min}): vol.Coerce(float),
                 vol.Optional(CONF_INITIAL_MAX, description={"suggested_value": suggested_max}): vol.Coerce(float),
+                vol.Optional(CONF_DEVICE_ID, description={"suggested_value": default_device}): selector.DeviceSelector(
+                    selector.DeviceSelectorConfig()
+                ),
             }),
             errors=errors,
         )
@@ -123,6 +125,9 @@ class MaxMinOptionsFlow(config_entries.OptionsFlow):
             if initial_min is not None and initial_max is not None and initial_min > initial_max:
                 errors["base"] = "min_greater_than_max"
             else:
+                # Ensure device_id is captured as None if cleared/missing to override data
+                if CONF_DEVICE_ID not in user_input:
+                    user_input[CONF_DEVICE_ID] = None
                 return self.async_create_entry(title="", data=user_input)
 
         # Defaults for schema
@@ -154,11 +159,11 @@ class MaxMinOptionsFlow(config_entries.OptionsFlow):
                         multiple=True,
                     )
                 ),
+                vol.Optional(CONF_INITIAL_MIN, description={"suggested_value": default_min}): vol.Coerce(float),
+                vol.Optional(CONF_INITIAL_MAX, description={"suggested_value": default_max}): vol.Coerce(float),
                 vol.Optional(CONF_DEVICE_ID, description={"suggested_value": default_device}): selector.DeviceSelector(
                     selector.DeviceSelectorConfig()
                 ),
-                vol.Optional(CONF_INITIAL_MIN, description={"suggested_value": default_min}): vol.Coerce(float),
-                vol.Optional(CONF_INITIAL_MAX, description={"suggested_value": default_max}): vol.Coerce(float),
             }),
             errors=errors
         )

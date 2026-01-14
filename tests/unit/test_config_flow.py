@@ -50,6 +50,7 @@ async def test_config_flow_options(hass):
     assert result["type"] == FlowResultType.CREATE_ENTRY
     assert result["data"] == {
         CONF_TYPES: [TYPE_MAX],
+        "device_id": None,
     }
 
 
@@ -253,6 +254,7 @@ async def test_options_flow_update(hass):
     assert result["data"] == {
         CONF_PERIOD: "weekly",
         CONF_TYPES: [TYPE_MAX],
+        "device_id": None,
     }
 
 

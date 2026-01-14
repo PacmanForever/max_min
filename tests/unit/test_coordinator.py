@@ -15,6 +15,7 @@ from custom_components.max_min.const import (
     PERIOD_MONTHLY,
     PERIOD_WEEKLY,
     PERIOD_YEARLY,
+    PERIOD_ALL_TIME,
 )
 
 # Test sections:
@@ -189,6 +190,22 @@ async def test_yearly_reset(hass, config_entry):
         coordinator._handle_reset(datetime(2024, 1, 1, 0, 0, 0))
         assert coordinator.max_value == 10.0
         assert coordinator.min_value == 10.0
+
+
+@pytest.mark.asyncio
+async def test_all_time_no_reset(hass, config_entry):
+    """Test all time period (no reset)."""
+    config_entry.data[CONF_PERIOD] = PERIOD_ALL_TIME
+    coordinator = MaxMinDataUpdateCoordinator(hass, config_entry)
+    await coordinator.async_config_entry_first_refresh()
+
+    coordinator.max_value = 20.0
+    coordinator.min_value = 5.0
+
+    # Ensure no reset is scheduled
+    with patch("custom_components.max_min.coordinator.async_track_point_in_time") as mock_track:
+        coordinator._schedule_reset()
+        mock_track.assert_not_called()
 
 
 @pytest.mark.asyncio
