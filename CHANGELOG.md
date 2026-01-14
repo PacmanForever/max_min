@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.3] - 2026-01-14
+
+### Changed
+- Improved sensor attribute inheritance: New sensors now copy `unit_of_measurement`, `device_class`, and `state_class` from the source entity.
+- Updated sensor naming convention for better friendly names and entity IDs (e.g., "Sensor Name Daily Max").
+- UI Improvements:
+  - "New sensors" inputs in Options Flow now start empty instead of pre-filled.
+  - Reordered checkboxes: "Minimum" now appears before "Maximum".
+  - Renamed "New sensors" label to "Sensors" for consistency.
+  - Linked Device field is now editable in Options Flow and renamed to "Device to link (optional)".
+- Tests updated to maintain >95% coverage with new features.
+
 ## [0.1.2] - 2026-01-13
 
 ### Fixed
