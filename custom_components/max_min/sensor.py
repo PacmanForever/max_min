@@ -118,44 +118,53 @@ class MaxSensor(CoordinatorEntity, SensorEntity, RestoreEntity):
         self.period = period
         self._attr_unique_id = f"{config_entry.entry_id}_{period}_max"
         self._source_entity = config_entry.data[CONF_SENSOR_ENTITY]
+        self._attr_native_unit_of_measurement = None
+        self._attr_device_class = None
+        self._attr_state_class = None
 
     async def async_added_to_hass(self) -> None:
         """Handle entity which will be added."""
         await super().async_added_to_hass()
         last_state = await self.async_get_last_state()
-        if last_state and last_state.state not in (None, "unknown", "unavailable"):
-            try:
-                value = float(last_state.state)
-                self.coordinator.update_restored_data(self.period, "max", value)
-            except ValueError:
-                pass
+        if last_state:
+            # Restore attributes if available
+            self._attr_native_unit_of_measurement = last_state.attributes.get("unit_of_measurement")
+            self._attr_device_class = last_state.attributes.get("device_class")
+            self._attr_state_class = last_state.attributes.get("state_class")
+
+            if last_state.state not in (None, "unknown", "unavailable"):
+                try:
+                    value = float(last_state.state)
+                    self.coordinator.update_restored_data(self.period, "max", value)
+                except ValueError:
+                    pass
 
     @property
     def native_unit_of_measurement(self):
         """Return the unit of measurement of the sensor."""
         if self.coordinator.hass:
             state = self.coordinator.hass.states.get(self._source_entity)
-            if state:
-                return state.attributes.get("unit_of_measurement")
-        return None
+            if state and "unit_of_measurement" in state.attributes:
+                self._attr_native_unit_of_measurement = state.attributes.get("unit_of_measurement")
+        return self._attr_native_unit_of_measurement
 
     @property
     def device_class(self):
         """Return the device class of the sensor."""
         if self.coordinator.hass:
             state = self.coordinator.hass.states.get(self._source_entity)
-            if state:
-                return state.attributes.get("device_class")
-        return None
+            if state and "device_class" in state.attributes:
+                self._attr_device_class = state.attributes.get("device_class")
+        return self._attr_device_class
 
     @property
     def state_class(self):
         """Return the state class of the sensor."""
         if self.coordinator.hass:
             state = self.coordinator.hass.states.get(self._source_entity)
-            if state:
-                return state.attributes.get("state_class")
-        return None
+            if state and "state_class" in state.attributes:
+                self._attr_state_class = state.attributes.get("state_class")
+        return self._attr_state_class
 
     @property
     def device_info(self):
@@ -193,44 +202,53 @@ class MinSensor(CoordinatorEntity, SensorEntity, RestoreEntity):
         self.period = period
         self._attr_unique_id = f"{config_entry.entry_id}_{period}_min"
         self._source_entity = config_entry.data[CONF_SENSOR_ENTITY]
+        self._attr_native_unit_of_measurement = None
+        self._attr_device_class = None
+        self._attr_state_class = None
 
     async def async_added_to_hass(self) -> None:
         """Handle entity which will be added."""
         await super().async_added_to_hass()
         last_state = await self.async_get_last_state()
-        if last_state and last_state.state not in (None, "unknown", "unavailable"):
-            try:
-                value = float(last_state.state)
-                self.coordinator.update_restored_data(self.period, "min", value)
-            except ValueError:
-                pass
+        if last_state:
+            # Restore attributes if available
+            self._attr_native_unit_of_measurement = last_state.attributes.get("unit_of_measurement")
+            self._attr_device_class = last_state.attributes.get("device_class")
+            self._attr_state_class = last_state.attributes.get("state_class")
+
+            if last_state.state not in (None, "unknown", "unavailable"):
+                try:
+                    value = float(last_state.state)
+                    self.coordinator.update_restored_data(self.period, "min", value)
+                except ValueError:
+                    pass
 
     @property
     def native_unit_of_measurement(self):
         """Return the unit of measurement of the sensor."""
         if self.coordinator.hass:
             state = self.coordinator.hass.states.get(self._source_entity)
-            if state:
-                return state.attributes.get("unit_of_measurement")
-        return None
+            if state and "unit_of_measurement" in state.attributes:
+                self._attr_native_unit_of_measurement = state.attributes.get("unit_of_measurement")
+        return self._attr_native_unit_of_measurement
 
     @property
     def device_class(self):
         """Return the device class of the sensor."""
         if self.coordinator.hass:
             state = self.coordinator.hass.states.get(self._source_entity)
-            if state:
-                return state.attributes.get("device_class")
-        return None
+            if state and "device_class" in state.attributes:
+                self._attr_device_class = state.attributes.get("device_class")
+        return self._attr_device_class
 
     @property
     def state_class(self):
         """Return the state class of the sensor."""
         if self.coordinator.hass:
             state = self.coordinator.hass.states.get(self._source_entity)
-            if state:
-                return state.attributes.get("state_class")
-        return None
+            if state and "state_class" in state.attributes:
+                self._attr_state_class = state.attributes.get("state_class")
+        return self._attr_state_class
 
     @property
     def device_info(self):
