@@ -9,6 +9,7 @@ from .const import (
     CONF_DEVICE_ID,
     CONF_INITIAL_MAX,
     CONF_INITIAL_MIN,
+    CONF_OFFSET,
     CONF_PERIODS,
     CONF_SENSOR_ENTITY,
     CONF_TYPES,
@@ -58,6 +59,7 @@ class MaxMinConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         default_sensor = user_input.get(CONF_SENSOR_ENTITY) if user_input else vol.UNDEFINED
         default_periods = user_input.get(CONF_PERIODS, [PERIOD_DAILY]) if user_input else [PERIOD_DAILY]
         default_types = user_input.get(CONF_TYPES, [TYPE_MAX, TYPE_MIN]) if user_input else [TYPE_MAX, TYPE_MIN]
+        default_offset = user_input.get(CONF_OFFSET, 0) if user_input else 0
 
         return self.async_show_form(
             step_id="user",
@@ -88,6 +90,14 @@ class MaxMinConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 ),
                 vol.Optional(CONF_DEVICE_ID): selector.DeviceSelector(
                     selector.DeviceSelectorConfig()
+                ),
+                vol.Optional(CONF_OFFSET, default=default_offset): selector.NumberSelector(
+                    selector.NumberSelectorConfig(
+                        min=0,
+                        max=300,
+                        step=1,
+                        unit_of_measurement="seconds",
+                    )
                 ),
             }),
             errors=errors,
@@ -184,6 +194,7 @@ class MaxMinOptionsFlow(config_entries.OptionsFlow):
         default_types = self._config_entry.options.get(CONF_TYPES, self._config_entry.data.get(CONF_TYPES, [TYPE_MAX, TYPE_MIN]))
         default_periods = self._config_entry.options.get(CONF_PERIODS, self._config_entry.data.get(CONF_PERIODS, [PERIOD_DAILY]))
         default_device = self._config_entry.options.get(CONF_DEVICE_ID, self._config_entry.data.get(CONF_DEVICE_ID))
+        default_offset = self._config_entry.options.get(CONF_OFFSET, self._config_entry.data.get(CONF_OFFSET, 0))
 
         return self.async_show_form(
             step_id="init",
@@ -217,6 +228,17 @@ class MaxMinOptionsFlow(config_entries.OptionsFlow):
                 ),
                 vol.Optional(CONF_DEVICE_ID, description={"suggested_value": default_device}): selector.DeviceSelector(
                     selector.DeviceSelectorConfig()
+                ),
+                vol.Required(
+                    CONF_OFFSET, 
+                    default=default_offset,
+                ): selector.NumberSelector(
+                    selector.NumberSelectorConfig(
+                        min=0,
+                        max=300,
+                        step=1,
+                        unit_of_measurement="seconds",
+                    )
                 ),
             }),
             errors=errors,

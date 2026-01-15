@@ -47,17 +47,25 @@ After installation, add the integration via the Home Assistant UI:
 1. Go to Settings > Devices and services > Add integration.
 2. Search for "Max Min".
 3. Select the source sensor (an existing numeric sensor).
-4. (Optional) Select a device to link the new sensors to.
-5. Choose the period: Daily, Weekly, Monthly or Yearly.
-6. Select if you want to create a max sensor, min sensor, or both.
+4. Choose the period: Daily, Weekly, Monthly, Yearly or All time.
+5. Select sensor types: Max, Min, or both.
+6. (Optional) Select a device to link the new sensors to.
+7. (Optional) Set an Offset/Margin in seconds (default 0).
+8. (Optional) Set initial values for max and/or min to start with existing values.
 
 **Note**: When you link sensors to a device, Home Assistant will show a screen at the end of the setup asking you to assign an area. This is standard Home Assistant behavior; if the device already has an area, it will be pre-selected.
-5. Select sensor types: Max, Min, or both.
-6. (Optional) Set initial values for max and/or min to start with existing values.
 
-**Note**: You can create multiple configurations for the same sensor with different periods. For example, you can have both daily and weekly max/min sensors for the same temperature sensor. However, creating a duplicate configuration for the same sensor and period is not allowed (e.g., you cannot have two "Daily" configurations for the same sensor).
+## Offset / Margin
 
-### Examples of created sensors
+You can configure an **offset** (in seconds) to handle synchronization delays or sensor restarts near the end of a period.
+
+- **How it works**: If you set an offset of e.g. 10 seconds, the period reset will be delayed by 10 seconds (e.g., at 00:00:10).
+- **Dead Zone**: Updates received during the window `[Reset Time - Offset]` to `[Reset Time + Offset]` will be ignored.
+- **Why use it?**: This prevents data from the previous period (arriving late) from counting towards the new period, and prevents values from near-instantaneous restarts just before midnight from overwriting the day's true min/max.
+
+## Initial Values
+
+You can set initial values for the max and min sensors when configuring the integration. This is useful for migrating from other integrations or when you want to start with known baseline values.
 
 - **Max Daily Temperature**: Shows the maximum temperature value from 00:00 to 23:59 of the current day
 - **Min Weekly Humidity**: Shows the minimum humidity value from Monday 00:00 to Sunday 23:59

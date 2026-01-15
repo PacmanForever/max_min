@@ -7,7 +7,8 @@
           "sensor_entity": "Source sensor",
           "periods": "Periods",
           "types": "Sensors",
-          "device_id": "Device to link"
+          "device_id": "Device to link",
+          "offset": "Offset/Margin (seconds)"
         }
       },
       "optional_settings": {

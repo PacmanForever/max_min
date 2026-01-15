@@ -13,6 +13,7 @@ from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 from .const import (
     CONF_INITIAL_MAX,
     CONF_INITIAL_MIN,
+    CONF_OFFSET,
     CONF_PERIODS,
     CONF_SENSOR_ENTITY,
     CONF_TYPES,
@@ -41,6 +42,7 @@ class MaxMinDataUpdateCoordinator(DataUpdateCoordinator):
             self.periods = [self.periods]
             
         self.types = config_entry.options.get(CONF_TYPES, config_entry.data.get(CONF_TYPES, [TYPE_MAX, TYPE_MIN]))
+        self.offset = config_entry.options.get(CONF_OFFSET, config_entry.data.get(CONF_OFFSET, 0))
 
         # Data structure: {period: {"max": value, "min": value}}
         self.tracked_data = {}
@@ -63,6 +65,7 @@ class MaxMinDataUpdateCoordinator(DataUpdateCoordinator):
             }
 
         self._reset_listeners = {}
+        self._next_resets = {} # Keep track of next reset times for offset logic
         self._unsub_sensor_state_listener = None
 
         # Check if DataUpdateCoordinator accepts config_entry (HA 2024.2+)
@@ -142,8 +145,31 @@ class MaxMinDataUpdateCoordinator(DataUpdateCoordinator):
             try:
                 value = float(new_state.state)
                 updated = False
+                now = dt_util.now()
                 
                 for period in self.periods:
+                    # Logic for offset: ignoring values near reset time
+                    if period in self._next_resets and self.offset > 0:
+                        reset_time = self._next_resets[period]
+                        # If now is before offset window end but after window start (reset_time - offset)
+                        # The reset_listener is scheduled at reset_time + offset.
+                        # The period officially ends at reset_time.
+                        # We want to ignore updates from reset_time - offset to reset_time + offset.
+                        # If we have scheduled a reset at X+offset, and we are at X-offset...
+                        
+                        # We need the base reset time (without added offset) to calculate the start of forbidden window.
+                        # But self._next_resets stores the "theoretical" reset time (e.g. midnight).
+                        # Let's assume _schedule_resets stores the content of 'reset_time' in _next_resets.
+                        
+                        # Current Logic Check:
+                        # window start = reset_time - timedelta(seconds=self.offset)
+                        # window end = reset_time + timedelta(seconds=self.offset)
+                        # If now >= start and now <= end: skip
+                        
+                        if (now >= reset_time - timedelta(seconds=self.offset) and 
+                            now <= reset_time + timedelta(seconds=self.offset)):
+                            continue
+
                     if period not in self.tracked_data:
                         self.tracked_data[period] = {"max": None, "min": None}
                         
@@ -167,6 +193,7 @@ class MaxMinDataUpdateCoordinator(DataUpdateCoordinator):
         for unsub in self._reset_listeners.values():
             unsub()
         self._reset_listeners = {}
+        self._next_resets = {}
 
         for period in self.periods:
             if period == PERIOD_ALL_TIME:
@@ -191,11 +218,15 @@ class MaxMinDataUpdateCoordinator(DataUpdateCoordinator):
                 reset_time = now.replace(year=now.year + 1, month=1, day=1, hour=0, minute=0, second=0, microsecond=0)
 
             if reset_time:
+                self._next_resets[period] = reset_time
+                # apply offset to schedule time
+                schedule_time = reset_time + timedelta(seconds=self.offset)
+                
                 # Use a default argument in lambda to capture loop variable 'period' value 
                 self._reset_listeners[period] = async_track_point_in_time(
                     self.hass, 
                     lambda now, p=period: self._handle_reset(now, p), 
-                    reset_time
+                    schedule_time
                 )
 
     @callback
@@ -235,10 +266,12 @@ class MaxMinDataUpdateCoordinator(DataUpdateCoordinator):
             next_reset = now.replace(year=now.year + 1, month=1, day=1, hour=0, minute=0, second=0, microsecond=0)
             
         if next_reset:
+             self._next_resets[period] = next_reset
+             schedule_time = next_reset + timedelta(seconds=self.offset)
              self._reset_listeners[period] = async_track_point_in_time(
                 self.hass, 
                 lambda now, p=period: self._handle_reset(now, p), 
-                next_reset
+                schedule_time
             )
 
     async def async_unload(self):

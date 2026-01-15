@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.0] - 2026-01-15
+
+### Added
+- **Offset / Margin**: New configuration option to set a time margin (in seconds) for the period reset. This helps resolve issues with unsynchronized devices or source sensors that restart just before the period end.
+- **Dead Zone Logic**: Updates received within the offset window (before and after reset time) are now ignored to prevent incorrect data from polluting the next period.
+
 ## [0.2.5] - 2026-01-14
 
 ### Fixed
