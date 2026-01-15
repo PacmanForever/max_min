@@ -296,25 +296,25 @@ class MaxMinOptionsFlow(config_entries.OptionsFlow):
 
         # Build schema
         schema = {}
-        saved_options = self._config_entry.options if self._config_entry.options else self._config_entry.data
+        # We don't want to load saved options for initial values in Options Flow
+        # to avoid re-applying old initial values/overwriting history accidentally.
+        # saved_options = self._config_entry.options if self._config_entry.options else self._config_entry.data
         
         for period in periods:
             # Try to find specific value, fallback to global legacy value
             if TYPE_MIN in types:
                 key = f"{period}_{CONF_INITIAL_MIN}"
+                description = {}
                 if user_input is not None:
-                    default = user_input.get(key)
-                else:
-                    default = saved_options.get(key, saved_options.get(CONF_INITIAL_MIN))
-                schema[vol.Optional(key, description={"suggested_value": default})] = vol.Coerce(float)
+                    description = {"suggested_value": user_input.get(key)}
+                schema[vol.Optional(key, description=description)] = vol.Coerce(float)
                 
             if TYPE_MAX in types:
                 key = f"{period}_{CONF_INITIAL_MAX}"
+                description = {}
                 if user_input is not None:
-                    default = user_input.get(key)
-                else:
-                    default = saved_options.get(key, saved_options.get(CONF_INITIAL_MAX))
-                schema[vol.Optional(key, description={"suggested_value": default})] = vol.Coerce(float)
+                    description = {"suggested_value": user_input.get(key)}
+                schema[vol.Optional(key, description=description)] = vol.Coerce(float)
 
         return self.async_show_form(
             step_id="optional_settings",
