@@ -229,7 +229,7 @@ class MaxMinOptionsFlow(config_entries.OptionsFlow):
                 vol.Optional(CONF_DEVICE_ID, description={"suggested_value": default_device}): selector.DeviceSelector(
                     selector.DeviceSelectorConfig()
                 ),
-                vol.Required(
+                vol.Optional(
                     CONF_OFFSET, 
                     default=default_offset,
                 ): selector.NumberSelector(
