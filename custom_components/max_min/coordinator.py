@@ -89,13 +89,46 @@ class MaxMinDataUpdateCoordinator(DataUpdateCoordinator):
             return self.tracked_data[period].get(type_)
         return None
     
-    def update_restored_data(self, period, type_, value):
+    def _get_period_start(self, now, period):
+        """Get the start time of the current period."""
+        if period == PERIOD_DAILY:
+            return now.replace(hour=0, minute=0, second=0, microsecond=0)
+        elif period == PERIOD_WEEKLY:
+            start_of_week = now - timedelta(days=now.weekday())
+            return start_of_week.replace(hour=0, minute=0, second=0, microsecond=0)
+        elif period == PERIOD_MONTHLY:
+            return now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+        elif period == PERIOD_YEARLY:
+            return now.replace(month=1, day=1, hour=0, minute=0, second=0, microsecond=0)
+        return None
+
+    def update_restored_data(self, period, type_, value, last_reset=None):
         """Update data from restored state."""
         if period not in self.tracked_data:
-            self.tracked_data[period] = {"max": None, "min": None}
+            self.tracked_data[period] = {"max": None, "min": None, "last_reset": None}
             
         data = self.tracked_data[period]
         
+        # Check if the restored data is stale (from previous period)
+        # If last_reset is provided, we check against current period start.
+        if last_reset:
+            if isinstance(last_reset, str):
+                last_reset = dt_util.parse_datetime(last_reset)
+            
+            if last_reset:
+                now = dt_util.now()
+                period_start = self._get_period_start(now, period)
+                
+                # If the restored point is older than the current period start, ignore it
+                # Unless we are in "All Time" which never expires
+                if period != PERIOD_ALL_TIME and period_start and last_reset < period_start:
+                    _LOGGER.debug("Ignoring restored data for %s (stale): %s < %s", period, last_reset, period_start)
+                    return
+
+                # If the restored last_reset is newer than what we have, take it
+                if data.get("last_reset") is None or last_reset > data["last_reset"]:
+                    data["last_reset"] = last_reset
+
         # Only update if the restored value extends the current range (or initializes it)
         # Note: stored data might have been initialized by current sensor state in first_refresh
         # If restored value is "more extreme", we keep it.
@@ -118,12 +151,16 @@ class MaxMinDataUpdateCoordinator(DataUpdateCoordinator):
         if state and state.state not in (None, "unknown", "unavailable"):
             try:
                 current_value = float(state.state)
+                now = dt_util.now()
                 # Initialize info for all periods
                 for period, data in self.tracked_data.items():
                     if data["max"] is None or current_value > data["max"]:
                         data["max"] = current_value
                     if data["min"] is None or current_value < data["min"]:
                         data["min"] = current_value
+                    
+                    if data.get("last_reset") is None:
+                        data["last_reset"] = self._get_period_start(now, period)
             except ValueError:
                 _LOGGER.warning("Sensor %s has non-numeric state: %s", self.sensor_entity, state.state)
         else:
@@ -245,6 +282,7 @@ class MaxMinDataUpdateCoordinator(DataUpdateCoordinator):
         if period in self.tracked_data:
             self.tracked_data[period]["max"] = current_val
             self.tracked_data[period]["min"] = current_val
+            self.tracked_data[period]["last_reset"] = now
             self.async_set_updated_data({})
         
         # Reschedule only this period

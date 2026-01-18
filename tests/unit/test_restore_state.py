@@ -76,6 +76,7 @@ async def test_max_sensor_restores_state(mock_coordinator, mock_config_entry):
     # Mock last state
     last_state = Mock()
     last_state.state = "25.5"
+    last_state.attributes = {}
     sensor.async_get_last_state = AsyncMock(return_value=last_state)
     
     # Spy on coordinator
@@ -83,7 +84,7 @@ async def test_max_sensor_restores_state(mock_coordinator, mock_config_entry):
     
     await sensor.async_added_to_hass()
     
-    mock_coordinator.update_restored_data.assert_called_with(PERIOD_DAILY, "max", 25.5)
+    mock_coordinator.update_restored_data.assert_called_with(PERIOD_DAILY, "max", 25.5, None)
     # Since coord started at 10.0, it should be 25.5 now
     assert mock_coordinator.get_value(PERIOD_DAILY, "max") == 25.5
 
@@ -95,6 +96,7 @@ async def test_min_sensor_restores_state(mock_coordinator, mock_config_entry):
     # Mock last state
     last_state = Mock()
     last_state.state = "-5.0"
+    last_state.attributes = {}
     sensor.async_get_last_state = AsyncMock(return_value=last_state)
     
     # Spy on coordinator
@@ -102,7 +104,7 @@ async def test_min_sensor_restores_state(mock_coordinator, mock_config_entry):
     
     await sensor.async_added_to_hass()
     
-    mock_coordinator.update_restored_data.assert_called_with(PERIOD_DAILY, "min", -5.0)
+    mock_coordinator.update_restored_data.assert_called_with(PERIOD_DAILY, "min", -5.0, None)
     # Since coord started at 10.0, it should be -5.0 now
     assert mock_coordinator.get_value(PERIOD_DAILY, "min") == -5.0
 

@@ -135,9 +135,19 @@ class MaxSensor(CoordinatorEntity, SensorEntity, RestoreEntity):
             if last_state.state not in (None, "unknown", "unavailable"):
                 try:
                     value = float(last_state.state)
-                    self.coordinator.update_restored_data(self.period, "max", value)
+                    last_reset = last_state.attributes.get("last_reset")
+                    self.coordinator.update_restored_data(self.period, "max", value, last_reset)
                 except ValueError:
                     pass
+
+    @property
+    def extra_state_attributes(self):
+        """Return the state attributes."""
+        attrs = {}
+        last_reset = self.coordinator.get_value(self.period, "last_reset")
+        if last_reset:
+            attrs["last_reset"] = last_reset.isoformat()
+        return attrs
 
     @property
     def native_unit_of_measurement(self):
@@ -219,9 +229,19 @@ class MinSensor(CoordinatorEntity, SensorEntity, RestoreEntity):
             if last_state.state not in (None, "unknown", "unavailable"):
                 try:
                     value = float(last_state.state)
-                    self.coordinator.update_restored_data(self.period, "min", value)
+                    last_reset = last_state.attributes.get("last_reset")
+                    self.coordinator.update_restored_data(self.period, "min", value, last_reset)
                 except ValueError:
                     pass
+
+    @property
+    def extra_state_attributes(self):
+        """Return the state attributes."""
+        attrs = {}
+        last_reset = self.coordinator.get_value(self.period, "last_reset")
+        if last_reset:
+            attrs["last_reset"] = last_reset.isoformat()
+        return attrs
 
     @property
     def native_unit_of_measurement(self):

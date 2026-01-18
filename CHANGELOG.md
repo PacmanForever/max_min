@@ -5,6 +5,11 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.4] - 2026-01-18
+
+### Fixed
+- **Reset Reliability**: Implemented `last_reset` attribute tracking to robustness of daily resets. This ensures that if the system restarts or the component reloads after the scheduled reset time, the sensor will correctly identify stale data and reset itself, preventing "delayed" resets or carrying over old values.
+
 ## [0.3.3] - 2026-01-16
 
 ### Fixed
