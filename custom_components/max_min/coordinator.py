@@ -44,9 +44,10 @@ class MaxMinDataUpdateCoordinator(DataUpdateCoordinator):
         self.types = config_entry.options.get(CONF_TYPES, config_entry.data.get(CONF_TYPES, [TYPE_MAX, TYPE_MIN]))
         self.offset = config_entry.options.get(CONF_OFFSET, config_entry.data.get(CONF_OFFSET, 0))
 
-        # Data structure: {period: {"max": value, "min": value}}
+
+        # Data structure: {period: {"max": value, "min": value, "start": value, "end": value}}
         self.tracked_data = {}
-        
+
         # Legacy global values (backward compatibility)
         global_initial_max = config_entry.options.get(CONF_INITIAL_MAX, config_entry.data.get(CONF_INITIAL_MAX))
         global_initial_min = config_entry.options.get(CONF_INITIAL_MIN, config_entry.data.get(CONF_INITIAL_MIN))
@@ -55,13 +56,15 @@ class MaxMinDataUpdateCoordinator(DataUpdateCoordinator):
             # Try specific period value first, then global
             specific_max_key = f"{period}_{CONF_INITIAL_MAX}"
             specific_min_key = f"{period}_{CONF_INITIAL_MIN}"
-            
+
             p_initial_max = config_entry.options.get(specific_max_key, config_entry.data.get(specific_max_key, global_initial_max))
             p_initial_min = config_entry.options.get(specific_min_key, config_entry.data.get(specific_min_key, global_initial_min))
 
             self.tracked_data[period] = {
                 "max": p_initial_max,
-                "min": p_initial_min
+                "min": p_initial_min,
+                "start": None,
+                "end": None
             }
 
         self._reset_listeners = {}
@@ -158,9 +161,13 @@ class MaxMinDataUpdateCoordinator(DataUpdateCoordinator):
                         data["max"] = current_value
                     if data["min"] is None or current_value < data["min"]:
                         data["min"] = current_value
-                    
                     if data.get("last_reset") is None:
                         data["last_reset"] = self._get_period_start(now, period)
+                    # Delta support: initialize start/end
+                    if data.get("start") is None:
+                        data["start"] = current_value
+                    if data.get("end") is None:
+                        data["end"] = current_value
             except ValueError:
                 _LOGGER.warning("Sensor %s has non-numeric state: %s", self.sensor_entity, state.state)
         else:
@@ -183,33 +190,18 @@ class MaxMinDataUpdateCoordinator(DataUpdateCoordinator):
                 value = float(new_state.state)
                 updated = False
                 now = dt_util.now()
-                
+
                 for period in self.periods:
                     # Logic for offset: ignoring values near reset time
                     if period in self._next_resets and self.offset > 0:
                         reset_time = self._next_resets[period]
-                        # If now is before offset window end but after window start (reset_time - offset)
-                        # The reset_listener is scheduled at reset_time + offset.
-                        # The period officially ends at reset_time.
-                        # We want to ignore updates from reset_time - offset to reset_time + offset.
-                        # If we have scheduled a reset at X+offset, and we are at X-offset...
-                        
-                        # We need the base reset time (without added offset) to calculate the start of forbidden window.
-                        # But self._next_resets stores the "theoretical" reset time (e.g. midnight).
-                        # Let's assume _schedule_resets stores the content of 'reset_time' in _next_resets.
-                        
-                        # Current Logic Check:
-                        # window start = reset_time - timedelta(seconds=self.offset)
-                        # window end = reset_time + timedelta(seconds=self.offset)
-                        # If now >= start and now <= end: skip
-                        
                         if (now >= reset_time - timedelta(seconds=self.offset) and 
                             now <= reset_time + timedelta(seconds=self.offset)):
                             continue
 
                     if period not in self.tracked_data:
-                        self.tracked_data[period] = {"max": None, "min": None}
-                        
+                        self.tracked_data[period] = {"max": None, "min": None, "start": None, "end": None}
+
                     data = self.tracked_data[period]
                     if data["max"] is None or value > data["max"]:
                         data["max"] = value
@@ -217,7 +209,10 @@ class MaxMinDataUpdateCoordinator(DataUpdateCoordinator):
                     if data["min"] is None or value < data["min"]:
                         data["min"] = value
                         updated = True
-                
+                    # Delta support: update end value
+                    data["end"] = value
+                    updated = True
+
                 if updated:
                     _LOGGER.debug("Sensor updated: %s. Data: %s", value, self.tracked_data)
                     self.async_set_updated_data({})
@@ -283,10 +278,12 @@ class MaxMinDataUpdateCoordinator(DataUpdateCoordinator):
             self.tracked_data[period]["max"] = current_val
             self.tracked_data[period]["min"] = current_val
             self.tracked_data[period]["last_reset"] = now
+            # Delta support: reset start and end to current value
+            self.tracked_data[period]["start"] = current_val
+            self.tracked_data[period]["end"] = current_val
             self.async_set_updated_data({})
 
             # Notifica explícitament les entitats perquè actualitzin el seu estat
-            # Recorre totes les entitats registrades en aquest coordinator
             for entity in getattr(self, "entities", []):
                 if hasattr(entity, "period") and entity.period == period:
                     entity.async_write_ha_state()

@@ -1,3 +1,62 @@
+def test_delta_sensor_missing_start_end():
+
+    def test_delta_sensor_device_class_and_state_class():
+
+        def test_delta_sensor_extra_state_attributes_edge():
+            """Test DeltaSensor.extra_state_attributes edge cases."""
+            class DummyCoordinator:
+                def get_value(self, period, key):
+                    # Simulate all None
+                    return None
+                hass = None
+
+            config_entry = type("ConfigEntry", (), {"entry_id": "abc", "data": {"sensor_entity": "sensor.x"}})()
+            sensor = DeltaSensor(DummyCoordinator(), config_entry, "Test Delta", "daily")
+            attrs = sensor.extra_state_attributes
+            # Should be empty dict
+            assert isinstance(attrs, dict)
+            assert attrs == {}
+        """Test DeltaSensor.device_class and state_class edge cases."""
+        class DummyCoordinator:
+            def get_value(self, period, key):
+                return None
+            hass = None
+
+        config_entry = type("ConfigEntry", (), {"entry_id": "abc", "data": {"sensor_entity": "sensor.x"}})()
+        sensor = DeltaSensor(DummyCoordinator(), config_entry, "Test Delta", "daily")
+        # No hass, should return None
+        assert sensor.device_class is None
+        assert sensor.state_class is None
+
+        # Hass present, but state missing attributes
+        class Hass:
+            def __init__(self):
+                self.states = self
+            def get(self, entity):
+                class State:
+                    attributes = {}
+                return State()
+
+        dummy = DummyCoordinator()
+        dummy.hass = Hass()
+        sensor = DeltaSensor(dummy, config_entry, "Test Delta", "daily")
+        assert sensor.device_class is None
+        assert sensor.state_class is None
+    """Test DeltaSensor with missing start/end values."""
+    class DummyCoordinator:
+        def get_value(self, period, key):
+            # Only 'start' is missing
+            if key == "start":
+                return None
+            if key == "end":
+                return 5.0
+            return None
+        hass = None
+
+    config_entry = type("ConfigEntry", (), {"entry_id": "abc", "data": {"sensor_entity": "sensor.x"}})()
+    sensor = DeltaSensor(DummyCoordinator(), config_entry, "Test Delta", "daily")
+    assert sensor.native_value is None
+    assert not sensor.available
 """Test sensor platform."""
 
 from unittest.mock import Mock, patch
@@ -12,7 +71,7 @@ from custom_components.max_min.const import (
     TYPE_MIN
 )
 from custom_components.max_min.coordinator import MaxMinDataUpdateCoordinator
-from custom_components.max_min.sensor import MaxSensor, MinSensor
+from custom_components.max_min.sensor import MaxSensor, MinSensor, DeltaSensor
 from homeassistant.helpers import device_registry as dr
 
 
@@ -20,7 +79,18 @@ from homeassistant.helpers import device_registry as dr
 def coordinator():
     """Mock coordinator."""
     coord = Mock(spec=MaxMinDataUpdateCoordinator)
-    coord.get_value.side_effect = lambda period, type_: 15.0 if type_ == TYPE_MAX else 5.0
+    def get_value(period, type_):
+        if type_ == TYPE_MAX:
+            return 15.0
+        elif type_ == TYPE_MIN:
+            return 5.0
+        elif type_ == "start":
+            return 4.0
+        elif type_ == "end":
+            return 6.0
+        else:
+            return None
+    coord.get_value.side_effect = get_value
     coord.hass = Mock()
     coord.hass.states.get.return_value = Mock(state="10")
     coord.hass.states.get.return_value.attributes = {
@@ -28,6 +98,45 @@ def coordinator():
         "device_class": "measurement"
     }
     return coord
+def test_delta_sensor(coordinator, config_entry, hass):
+    """Test delta sensor basic functionality."""
+    coordinator.hass = hass
+    sensor = DeltaSensor(coordinator, config_entry, "Test Daily Delta", PERIOD_DAILY)
+    assert sensor.native_value == 2.0
+    assert sensor.available is True
+    assert sensor.name == "Test Daily Delta"
+    assert sensor.unique_id == "test_entry_daily_delta"
+    assert sensor.native_unit_of_measurement == "°C"
+    attrs = sensor.extra_state_attributes
+    assert attrs["start_value"] == 4.0
+    assert attrs["end_value"] == 6.0
+def test_delta_sensor_unavailable(coordinator, config_entry, hass):
+    """Test delta sensor unavailable."""
+    coordinator.hass = hass
+    coordinator.get_value.side_effect = lambda period, type_: None
+    sensor = DeltaSensor(coordinator, config_entry, "Delta Test", PERIOD_DAILY)
+    assert sensor.native_value is None
+    assert sensor.available is False
+def test_delta_sensor_no_unit(coordinator, config_entry, hass):
+    """Test delta sensor without unit."""
+    source_state = Mock()
+    source_state.attributes = {}
+    hass.states.get.return_value = source_state
+    coordinator.hass = hass
+    sensor = DeltaSensor(coordinator, config_entry, "Delta Test", PERIOD_DAILY)
+    assert sensor.native_unit_of_measurement is None
+def test_delta_sensor_no_hass(coordinator, config_entry):
+    """Test delta sensor without hass."""
+    coordinator.hass = None
+    sensor = DeltaSensor(coordinator, config_entry, "Delta Test", PERIOD_DAILY)
+    assert sensor.native_unit_of_measurement is None
+def test_delta_sensor_attributes(coordinator, config_entry, hass):
+    """Test delta sensor attributes."""
+    coordinator.hass = hass
+    sensor = DeltaSensor(coordinator, config_entry, "Delta Test", PERIOD_DAILY)
+    attrs = sensor.extra_state_attributes
+    assert "start_value" in attrs
+    assert "end_value" in attrs
 
 @pytest.mark.asyncio
 async def test_sensor_device_info(coordinator):

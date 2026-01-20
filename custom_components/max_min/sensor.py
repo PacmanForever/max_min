@@ -8,7 +8,7 @@ from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.restore_state import RestoreEntity
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
-
+from .coordinator import MaxMinDataUpdateCoordinator
 from .const import (
     CONF_DEVICE_ID,
     CONF_PERIODS,
@@ -21,7 +21,91 @@ from .const import (
     PERIOD_ALL_TIME,
     TYPE_MAX,
     TYPE_MIN,
+    TYPE_DELTA,
 )
+class DeltaSensor(CoordinatorEntity, SensorEntity, RestoreEntity):
+    """Representation of a Delta sensor (end - start)."""
+
+    def __init__(self, coordinator: MaxMinDataUpdateCoordinator, config_entry: ConfigEntry, name: str, period: str) -> None:
+        super().__init__(coordinator)
+        self._config_entry = config_entry
+        self._attr_name = name
+        self.period = period
+        self._attr_unique_id = f"{config_entry.entry_id}_{period}_delta"
+        self._source_entity = config_entry.data[CONF_SENSOR_ENTITY]
+        self._attr_native_unit_of_measurement = None
+        self._attr_device_class = None
+        self._attr_state_class = None
+
+    async def async_added_to_hass(self) -> None:
+        await super().async_added_to_hass()
+        # No restore logic needed for delta, as coordinator manages start/end
+
+    @property
+    def extra_state_attributes(self):
+        attrs = {}
+        last_reset = self.coordinator.get_value(self.period, "last_reset")
+        if last_reset:
+            attrs["last_reset"] = last_reset.isoformat()
+        start = self.coordinator.get_value(self.period, "start")
+        end = self.coordinator.get_value(self.period, "end")
+        if start is not None:
+            attrs["start_value"] = start
+        if end is not None:
+            attrs["end_value"] = end
+        return attrs
+
+    @property
+    def native_unit_of_measurement(self):
+        if self.coordinator.hass:
+            state = self.coordinator.hass.states.get(self._source_entity)
+            if state and "unit_of_measurement" in state.attributes:
+                self._attr_native_unit_of_measurement = state.attributes.get("unit_of_measurement")
+        return self._attr_native_unit_of_measurement
+
+    @property
+    def device_class(self):
+        if self.coordinator.hass:
+            state = self.coordinator.hass.states.get(self._source_entity)
+            if state and "device_class" in state.attributes:
+                self._attr_device_class = state.attributes.get("device_class")
+        return self._attr_device_class
+
+    @property
+    def state_class(self):
+        if self.coordinator.hass:
+            state = self.coordinator.hass.states.get(self._source_entity)
+            if state and "state_class" in state.attributes:
+                self._attr_state_class = state.attributes.get("state_class")
+        return self._attr_state_class
+
+    @property
+    def device_info(self):
+        device_id = self._config_entry.options.get(CONF_DEVICE_ID, self._config_entry.data.get(CONF_DEVICE_ID))
+        if device_id and self.coordinator.hass:
+            device_registry = dr.async_get(self.coordinator.hass)
+            device = device_registry.async_get(device_id)
+            if device:
+                return {
+                    "identifiers": device.identifiers,
+                    "connections": device.connections,
+                }
+        return None
+
+    @property
+    def native_value(self):
+        start = self.coordinator.get_value(self.period, "start")
+        end = self.coordinator.get_value(self.period, "end")
+        if start is not None and end is not None:
+            return end - start
+        return None
+
+    @property
+    def available(self):
+        start = self.coordinator.get_value(self.period, "start")
+        end = self.coordinator.get_value(self.period, "end")
+        return start is not None and end is not None
+
 from .coordinator import MaxMinDataUpdateCoordinator
 
 
@@ -103,6 +187,8 @@ async def async_setup_entry(
             entities.append(MaxSensor(coordinator, config_entry, f"{sensor_name} {period_label} Max", period))
         if TYPE_MIN in types:
             entities.append(MinSensor(coordinator, config_entry, f"{sensor_name} {period_label} Min", period))
+        if TYPE_DELTA in types:
+            entities.append(DeltaSensor(coordinator, config_entry, f"{sensor_name} {period_label} Delta", period))
 
     async_add_entities(entities)
 

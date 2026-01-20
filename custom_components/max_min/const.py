@@ -8,6 +8,7 @@ CONF_INITIAL_MIN = "initial_min"
 CONF_INITIAL_MAX = "initial_max"
 CONF_OFFSET = "offset"
 
+
 PERIOD_DAILY = "daily"
 PERIOD_WEEKLY = "weekly"
 PERIOD_MONTHLY = "monthly"
@@ -16,5 +17,6 @@ PERIOD_ALL_TIME = "all_time"
 
 TYPE_MAX = "max"
 TYPE_MIN = "min"
+TYPE_DELTA = "delta"
 
 CONF_DEVICE_ID = "device_id"
