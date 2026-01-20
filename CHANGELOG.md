@@ -1,6 +1,8 @@
+
+
 # 0.3.5 - 2026-01-20
-## Millores
-- El valor min/max es mostra immediatament després del reset diari, igual que HADailySensor. Ara el frontend reflecteix el valor correcte a les 00:00:00 sense esperar una nova actualització del sensor font.
+## Improvements
+- The min/max value is now updated immediately after the daily reset. The frontend now reflects the correct value at 00:00:00 without waiting for a new update from the source sensor.
 
 # Changelog
 
