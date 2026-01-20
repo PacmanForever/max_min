@@ -270,7 +270,7 @@ class MaxMinDataUpdateCoordinator(DataUpdateCoordinator):
     def _handle_reset(self, now, period):
         """Handle period reset."""
         _LOGGER.debug("Handling period reset for %s - %s", self.config_entry.title, period)
-        
+
         current_val = None
         state = self.hass.states.get(self.sensor_entity)
         if state and state.state not in (None, "unknown", "unavailable"):
@@ -278,13 +278,19 @@ class MaxMinDataUpdateCoordinator(DataUpdateCoordinator):
                 current_val = float(state.state)
             except ValueError:
                 pass
-        
+
         if period in self.tracked_data:
             self.tracked_data[period]["max"] = current_val
             self.tracked_data[period]["min"] = current_val
             self.tracked_data[period]["last_reset"] = now
             self.async_set_updated_data({})
-        
+
+            # Notifica explícitament les entitats perquè actualitzin el seu estat
+            # Recorre totes les entitats registrades en aquest coordinator
+            for entity in getattr(self, "entities", []):
+                if hasattr(entity, "period") and entity.period == period:
+                    entity.async_write_ha_state()
+
         # Reschedule only this period
         now = dt_util.now()
         next_reset = None
@@ -302,13 +308,13 @@ class MaxMinDataUpdateCoordinator(DataUpdateCoordinator):
                 next_reset = now.replace(month=now.month + 1, day=1, hour=0, minute=0, second=0, microsecond=0)
         elif period == PERIOD_YEARLY:
             next_reset = now.replace(year=now.year + 1, month=1, day=1, hour=0, minute=0, second=0, microsecond=0)
-            
+
         if next_reset:
-             self._next_resets[period] = next_reset
-             schedule_time = next_reset + timedelta(seconds=self.offset)
-             self._reset_listeners[period] = async_track_point_in_time(
-                self.hass, 
-                lambda now, p=period: self._handle_reset(now, p), 
+            self._next_resets[period] = next_reset
+            schedule_time = next_reset + timedelta(seconds=self.offset)
+            self._reset_listeners[period] = async_track_point_in_time(
+                self.hass,
+                lambda now, p=period: self._handle_reset(now, p),
                 schedule_time
             )
 
