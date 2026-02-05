@@ -1,5 +1,10 @@
 
 
+# 0.3.9 - 2026-02-05
+## Fixed
+- **UI**: Fixed an issue where creating a sensor with only "Delta" type selected would show an empty "Optional Settings" form. Now it skips this step automatically.
+- **UI**: Fixed naming convention. Sensors with only "Delta" type now have the "(Delta)" suffix in the title instead of the incorrect "(Max/Min)".
+
 # 0.3.8 - 2026-02-05
 ## Fixed
 - Fixed missing import for Delta sensor type in config flow which caused a crash.

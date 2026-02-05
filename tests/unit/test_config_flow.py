@@ -551,7 +551,8 @@ async def test_config_flow_delta_selection(hass):
     flow.async_set_unique_id = AsyncMock()
     flow._abort_if_unique_id_configured = Mock(return_value=None)
     
-    flow.hass.states.get.return_value = Mock(name="Test Sensor")
+    flow.hass.states.get.return_value = Mock()
+    flow.hass.states.get.return_value.name = "Test Sensor"
 
     result = await flow.async_step_user({
         CONF_SENSOR_ENTITY: "sensor.test",
@@ -559,10 +560,8 @@ async def test_config_flow_delta_selection(hass):
         CONF_TYPES: [TYPE_DELTA],
     })
     
-    assert result["type"] == FlowResultType.FORM
-    assert result["step_id"] == "optional_settings"
-    
-    result = await flow.async_step_optional_settings({})
-    
+    # Selecting ONLY Delta should skip the optional settings form (as it's empty)
+    # and go directly to create entry
     assert result["type"] == FlowResultType.CREATE_ENTRY
     assert result["data"][CONF_TYPES] == [TYPE_DELTA]
+    assert result["title"] == "Test Sensor (Delta)"

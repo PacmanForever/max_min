@@ -133,14 +133,15 @@ class MaxMinConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     if state and state.name:
                         sensor_name = state.name
 
-                if TYPE_MAX in types and TYPE_MIN in types:
-                    suffix = "Max/Min"
-                elif TYPE_MAX in types:
-                    suffix = "Max"
-                elif TYPE_MIN in types:
-                    suffix = "Min"
-                else:
-                    suffix = "Max/Min"
+                suffixes = []
+                if TYPE_MAX in types:
+                    suffixes.append("Max")
+                if TYPE_MIN in types:
+                    suffixes.append("Min")
+                if TYPE_DELTA in types:
+                    suffixes.append("Delta")
+                
+                suffix = "/".join(suffixes) if suffixes else "Max/Min"
 
                 title = f"{sensor_name} ({suffix})"
                 
@@ -156,6 +157,10 @@ class MaxMinConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 schema[vol.Optional(f"{period}_{CONF_INITIAL_MIN}")] = vol.Coerce(float)
             if TYPE_MAX in types:
                 schema[vol.Optional(f"{period}_{CONF_INITIAL_MAX}")] = vol.Coerce(float)
+        
+        # If no settings are relevant (e.g. only Delta selected), skip this step
+        if not schema:
+            return await self.async_step_optional_settings({})
 
         return self.async_show_form(
             step_id="optional_settings",
