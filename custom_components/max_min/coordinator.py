@@ -198,19 +198,9 @@ class MaxMinDataUpdateCoordinator(DataUpdateCoordinator):
                     data = self.tracked_data[period]
                     is_cumulative = new_state.attributes.get("state_class") in ["total", "total_increasing"]
 
-                    # 1. Late Reset Correction (Grace Period)
-                    # If the reset happened recently (within 5 minutes) and we detect a drop in a cumulative sensor,
-                    # it means the source sensor reset 'after' our scheduled reset. We should re-trigger.
-                    last_reset = data.get("last_reset")
-                    if is_cumulative and last_reset:
-                        # 5 minutes grace period
-                        if now <= last_reset + timedelta(minutes=5):
-                             if data["max"] is not None and value < data["max"]:
-                                _LOGGER.debug("Late reset detected for %s (Grace Period). Re-triggering reset.", period)
-                                self._handle_reset(now, period)
-                                return
-
-                    # 2. Early Reset Detection (Offset Window)
+                    # 1. Early Reset Detection (Offset Window)
+                    # If we are in the offset "dead zone" (waiting for reset) and the sensor drops,
+                    # we trigger the reset immediately instead of ignoring the data.
                     if period in self._next_resets and self.offset > 0:
                         reset_time = self._next_resets[period]
                         if (now >= reset_time - timedelta(seconds=self.offset) and 

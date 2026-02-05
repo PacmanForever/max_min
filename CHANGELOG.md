@@ -1,5 +1,9 @@
 
 
+# 0.3.11 - 2026-02-06
+## Changed
+- **Reverted Grace Period**: Validating user feedback, the "magic" 5-minute grace period has been removed. The integration now strictly follows the configured offset. Users must ensure their offset covers any sensor latency.
+
 # 0.3.10 - 2026-02-06
 ## Improved
 - **Late Reset Handling**: Added a 5-minute "grace period" after the scheduled reset. If a cumulative sensor (like rain) resets to 0 shortly *after* midnight (even if no offset is configured), the integration will now detect it and correct the Daily Max/Min values immediately.
