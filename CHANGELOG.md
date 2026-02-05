@@ -1,5 +1,9 @@
 
 
+# 0.3.6 - 2026-02-05
+## Fixed
+- Fix: Cumulative sensors (like rain gauges) that reset to 0 shortly after midnight (within the offset window) are now correctly detected. Previously, these were ignored as "dead zone" updates, causing the daily max to not reset until the next restart.
+
 # 0.3.5 - 2026-01-20
 ## Improvements
 - The min/max value is now updated immediately after the daily reset. The frontend now reflects the correct value at 00:00:00 without waiting for a new update from the source sensor.

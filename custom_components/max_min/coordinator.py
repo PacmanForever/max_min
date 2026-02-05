@@ -192,17 +192,30 @@ class MaxMinDataUpdateCoordinator(DataUpdateCoordinator):
                 now = dt_util.now()
 
                 for period in self.periods:
+                    if period not in self.tracked_data:
+                        self.tracked_data[period] = {"max": None, "min": None, "start": None, "end": None}
+
+                    data = self.tracked_data[period]
+
                     # Logic for offset: ignoring values near reset time
                     if period in self._next_resets and self.offset > 0:
                         reset_time = self._next_resets[period]
                         if (now >= reset_time - timedelta(seconds=self.offset) and 
                             now <= reset_time + timedelta(seconds=self.offset)):
+                            
+                            # If cumulative sensor drops during dead zone, it's a reset
+                            is_cumulative = new_state.attributes.get("state_class") in ["total", "total_increasing"]
+                            if is_cumulative and data["max"] is not None and value < data["max"]:
+                                _LOGGER.debug("Early reset detected for %s. Triggering reset now.", period)
+                                # Cancel scheduled reset
+                                if period in self._reset_listeners:
+                                    self._reset_listeners[period]()
+                                    del self._reset_listeners[period]
+                                self._handle_reset(now, period)
+                                return
+
                             continue
 
-                    if period not in self.tracked_data:
-                        self.tracked_data[period] = {"max": None, "min": None, "start": None, "end": None}
-
-                    data = self.tracked_data[period]
                     if data["max"] is None or value > data["max"]:
                         data["max"] = value
                         updated = True
@@ -281,7 +294,10 @@ class MaxMinDataUpdateCoordinator(DataUpdateCoordinator):
             # Delta support: reset start and end to current value
             self.tracked_data[period]["start"] = current_val
             self.tracked_data[period]["end"] = current_val
+            
+            # Notifica explícitament (redundant safety)
             self.async_set_updated_data({})
+
 
             # Notifica explícitament les entitats perquè actualitzin el seu estat
             for entity in getattr(self, "entities", []):
