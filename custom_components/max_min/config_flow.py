@@ -84,6 +84,7 @@ class MaxMinConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                         options=[
                             {"value": TYPE_MIN, "label": "Minimum"},
                             {"value": TYPE_MAX, "label": "Maximum"},
+                            {"value": TYPE_DELTA, "label": "Delta"},
                         ],
                         multiple=True,
                     )
@@ -222,6 +223,7 @@ class MaxMinOptionsFlow(config_entries.OptionsFlow):
                         options=[
                             {"value": TYPE_MIN, "label": "Minimum"},
                             {"value": TYPE_MAX, "label": "Maximum"},
+                            {"value": TYPE_DELTA, "label": "Delta"},
                         ],
                         multiple=True,
                     )

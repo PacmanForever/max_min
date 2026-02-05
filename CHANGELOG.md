@@ -1,5 +1,9 @@
 
 
+# 0.3.7 - 2026-02-05
+## Added
+- **Delta Sensor**: Enabled the "Delta" sensor option in the configuration flow. This sensor tracks the difference (end - start) over the configured period. Documentation added.
+
 # 0.3.6 - 2026-02-05
 ## Fixed
 - Fix: Cumulative sensors (like rain gauges) that reset to 0 shortly after midnight (within the offset window) are now correctly detected. Previously, these were ignored as "dead zone" updates, causing the daily max to not reset until the next restart.

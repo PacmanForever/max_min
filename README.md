@@ -16,10 +16,10 @@ A custom Home Assistant integration that creates max and min sensors based on a 
 
 ## Features
 
-- **Max/Min Sensors**: Creates sensors that maintain the maximum or minimum value of a source sensor during a specified period
+- **Max/Min/Delta Sensors**: Creates sensors that maintain the maximum, minimum or delta (change) value of a source sensor during a specified period
 - **Configurable Periods**: Daily, weekly, monthly, yearly or all time (never resets)
-- **Flexibility**: Create individual sensors (only max or only min) or in pairs
-- **Automatic Reset**: At the end of each period, sensors reset to the current value of the source sensor
+- **Flexibility**: Create individual sensors (only max, only min, or delta) or any combination
+- **Automatic Reset**: At the end of each period, sensors reset to the current value of the source sensor (Max/Min) or zero (Delta)
 - **Real-time Updates**: Sensors update immediately when the source sensor value changes
 
 ## Installation
