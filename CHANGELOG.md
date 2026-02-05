@@ -1,5 +1,9 @@
 
 
+# 0.3.10 - 2026-02-06
+## Improved
+- **Late Reset Handling**: Added a 5-minute "grace period" after the scheduled reset. If a cumulative sensor (like rain) resets to 0 shortly *after* midnight (even if no offset is configured), the integration will now detect it and correct the Daily Max/Min values immediately.
+
 # 0.3.9 - 2026-02-05
 ## Fixed
 - **UI**: Fixed an issue where creating a sensor with only "Delta" type selected would show an empty "Optional Settings" form. Now it skips this step automatically.

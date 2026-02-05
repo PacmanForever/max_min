@@ -196,15 +196,27 @@ class MaxMinDataUpdateCoordinator(DataUpdateCoordinator):
                         self.tracked_data[period] = {"max": None, "min": None, "start": None, "end": None}
 
                     data = self.tracked_data[period]
+                    is_cumulative = new_state.attributes.get("state_class") in ["total", "total_increasing"]
 
-                    # Logic for offset: ignoring values near reset time
+                    # 1. Late Reset Correction (Grace Period)
+                    # If the reset happened recently (within 5 minutes) and we detect a drop in a cumulative sensor,
+                    # it means the source sensor reset 'after' our scheduled reset. We should re-trigger.
+                    last_reset = data.get("last_reset")
+                    if is_cumulative and last_reset:
+                        # 5 minutes grace period
+                        if now <= last_reset + timedelta(minutes=5):
+                             if data["max"] is not None and value < data["max"]:
+                                _LOGGER.debug("Late reset detected for %s (Grace Period). Re-triggering reset.", period)
+                                self._handle_reset(now, period)
+                                return
+
+                    # 2. Early Reset Detection (Offset Window)
                     if period in self._next_resets and self.offset > 0:
                         reset_time = self._next_resets[period]
                         if (now >= reset_time - timedelta(seconds=self.offset) and 
                             now <= reset_time + timedelta(seconds=self.offset)):
                             
                             # If cumulative sensor drops during dead zone, it's a reset
-                            is_cumulative = new_state.attributes.get("state_class") in ["total", "total_increasing"]
                             if is_cumulative and data["max"] is not None and value < data["max"]:
                                 _LOGGER.debug("Early reset detected for %s. Triggering reset now.", period)
                                 # Cancel scheduled reset
@@ -215,7 +227,8 @@ class MaxMinDataUpdateCoordinator(DataUpdateCoordinator):
                                 return
 
                             continue
-
+                    
+                    # Normal update logic
                     if data["max"] is None or value > data["max"]:
                         data["max"] = value
                         updated = True
