@@ -1,5 +1,10 @@
 
 
+# 0.3.8 - 2026-02-05
+## Fixed
+- Fixed missing import for Delta sensor type in config flow which caused a crash.
+- Added comprehensive unit tests for Delta sensor logic and Config Flow.
+
 # 0.3.7 - 2026-02-05
 ## Added
 - **Delta Sensor**: Enabled the "Delta" sensor option in the configuration flow. This sensor tracks the difference (end - start) over the configured period. Documentation added.

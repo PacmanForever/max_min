@@ -15,6 +15,7 @@ from custom_components.max_min.const import (
     PERIOD_DAILY,
     TYPE_MAX,
     TYPE_MIN,
+    TYPE_DELTA,
 )
 
 
@@ -541,3 +542,27 @@ async def test_options_flow_validation_requirements(hass):
     assert result["type"] == FlowResultType.FORM
     assert result["errors"] == {CONF_TYPES: "types_required"}
 
+
+@pytest.mark.asyncio
+async def test_config_flow_delta_selection(hass):
+    """Test config flow allowing delta selection."""
+    flow = MaxMinConfigFlow()
+    flow.hass = Mock()
+    flow.async_set_unique_id = AsyncMock()
+    flow._abort_if_unique_id_configured = Mock(return_value=None)
+    
+    flow.hass.states.get.return_value = Mock(name="Test Sensor")
+
+    result = await flow.async_step_user({
+        CONF_SENSOR_ENTITY: "sensor.test",
+        CONF_PERIODS: [PERIOD_DAILY],
+        CONF_TYPES: [TYPE_DELTA],
+    })
+    
+    assert result["type"] == FlowResultType.FORM
+    assert result["step_id"] == "optional_settings"
+    
+    result = await flow.async_step_optional_settings({})
+    
+    assert result["type"] == FlowResultType.CREATE_ENTRY
+    assert result["data"][CONF_TYPES] == [TYPE_DELTA]

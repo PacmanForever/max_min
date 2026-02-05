@@ -21,6 +21,7 @@ from .const import (
     PERIOD_ALL_TIME,
     TYPE_MAX,
     TYPE_MIN,
+    TYPE_DELTA,
 )
 
 
