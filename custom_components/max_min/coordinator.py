@@ -47,6 +47,8 @@ class MaxMinDataUpdateCoordinator(DataUpdateCoordinator):
 
         # Data structure: {period: {"max": value, "min": value, "start": value, "end": value}}
         self.tracked_data = {}
+        # Store configured initial values so they can be enforced after restore
+        self._configured_initials = {}
 
         # Legacy global values (backward compatibility)
         global_initial_max = config_entry.options.get(CONF_INITIAL_MAX, config_entry.data.get(CONF_INITIAL_MAX))
@@ -65,6 +67,10 @@ class MaxMinDataUpdateCoordinator(DataUpdateCoordinator):
                 "min": p_initial_min,
                 "start": None,
                 "end": None
+            }
+            self._configured_initials[period] = {
+                "max": p_initial_max,
+                "min": p_initial_min,
             }
 
         self._reset_listeners = {}
@@ -92,7 +98,8 @@ class MaxMinDataUpdateCoordinator(DataUpdateCoordinator):
             return self.tracked_data[period].get(type_)
         return None
     
-    def _get_period_start(self, now, period):
+    @staticmethod
+    def _get_period_start(now, period):
         """Get the start time of the current period."""
         if period == PERIOD_DAILY:
             return now.replace(hour=0, minute=0, second=0, microsecond=0)
@@ -103,6 +110,24 @@ class MaxMinDataUpdateCoordinator(DataUpdateCoordinator):
             return now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
         elif period == PERIOD_YEARLY:
             return now.replace(month=1, day=1, hour=0, minute=0, second=0, microsecond=0)
+        return None
+
+    @staticmethod
+    def _compute_next_reset(now, period):
+        """Compute the next reset time for a given period."""
+        if period == PERIOD_DAILY:
+            return (now + timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0)
+        elif period == PERIOD_WEEKLY:
+            days_ahead = (7 - now.weekday()) % 7
+            if days_ahead == 0:
+                days_ahead = 7
+            return (now + timedelta(days=days_ahead)).replace(hour=0, minute=0, second=0, microsecond=0)
+        elif period == PERIOD_MONTHLY:
+            if now.month == 12:
+                return now.replace(year=now.year + 1, month=1, day=1, hour=0, minute=0, second=0, microsecond=0)
+            return now.replace(month=now.month + 1, day=1, hour=0, minute=0, second=0, microsecond=0)
+        elif period == PERIOD_YEARLY:
+            return now.replace(year=now.year + 1, month=1, day=1, hour=0, minute=0, second=0, microsecond=0)
         return None
 
     def update_restored_data(self, period, type_, value, last_reset=None):
@@ -131,6 +156,18 @@ class MaxMinDataUpdateCoordinator(DataUpdateCoordinator):
                 # If the restored last_reset is newer than what we have, take it
                 if data.get("last_reset") is None or last_reset > data["last_reset"]:
                     data["last_reset"] = last_reset
+        else:
+            # No last_reset info from restored state.
+            # If first_refresh already initialized the period (last_reset is set),
+            # we cannot verify whether the restored value is from the current
+            # period or a stale one. Be conservative and don't override.
+            if data.get("last_reset") is not None:
+                _LOGGER.debug(
+                    "Ignoring restored data for %s: no last_reset provided, "
+                    "coordinator already has period data",
+                    period,
+                )
+                return
 
         # Only update if the restored value extends the current range (or initializes it)
         # Note: stored data might have been initialized by current sensor state in first_refresh
@@ -141,11 +178,19 @@ class MaxMinDataUpdateCoordinator(DataUpdateCoordinator):
         if type_ == "max":
             if data["max"] is None or value > data["max"]:
                 data["max"] = value
+            # Enforce configured initial max as floor (user explicitly set it)
+            configured = self._configured_initials.get(period, {}).get("max")
+            if configured is not None and (data["max"] is None or data["max"] < configured):
+                data["max"] = configured
         
         # Case Min:
         if type_ == "min":
             if data["min"] is None or value < data["min"]:
                 data["min"] = value
+            # Enforce configured initial min as ceiling (user explicitly set it)
+            configured = self._configured_initials.get(period, {}).get("min")
+            if configured is not None and (data["min"] is None or data["min"] > configured):
+                data["min"] = configured
 
     async def async_config_entry_first_refresh(self) -> None:
         """Initialize values and listeners."""
@@ -198,6 +243,31 @@ class MaxMinDataUpdateCoordinator(DataUpdateCoordinator):
                     data = self.tracked_data[period]
                     is_cumulative = new_state.attributes.get("state_class") in ["total", "total_increasing"]
 
+                    # 0. Inline period-boundary reset detection
+                    # If a sensor update arrives after the period boundary but before the
+                    # scheduled async_track_point_in_time fires, we must reset first so
+                    # old max/min values don't bleed into the new period.
+                    # When offset > 0 (cumulative sensors), defer to the scheduled reset
+                    # unless the offset window has already passed.
+                    if period != PERIOD_ALL_TIME:
+                        period_start = self._get_period_start(now, period)
+                        last_reset = data.get("last_reset")
+                        if period_start and last_reset and last_reset < period_start and (
+                            self.offset == 0 or now >= period_start + timedelta(seconds=self.offset)
+                        ):
+                            _LOGGER.debug(
+                                "Inline reset for %s: last_reset %s < period_start %s",
+                                period, last_reset, period_start,
+                            )
+                            # Cancel the scheduled reset if pending
+                            if period in self._reset_listeners:
+                                self._reset_listeners[period]()
+                                del self._reset_listeners[period]
+                            self._handle_reset(now, period)
+                            # After reset, data has been re-initialised with current_val
+                            # from self.hass.states – refresh local reference
+                            data = self.tracked_data[period]
+
                     # 1. Early Reset Detection (Offset Window)
                     # If we are in the offset "dead zone" (waiting for reset) and the sensor drops,
                     # we trigger the reset immediately instead of ignoring the data.
@@ -214,7 +284,7 @@ class MaxMinDataUpdateCoordinator(DataUpdateCoordinator):
                                     self._reset_listeners[period]()
                                     del self._reset_listeners[period]
                                 self._handle_reset(now, period)
-                                return
+                                # This period is reset; continue to process remaining periods
 
                             continue
                     
@@ -243,39 +313,25 @@ class MaxMinDataUpdateCoordinator(DataUpdateCoordinator):
         self._reset_listeners = {}
         self._next_resets = {}
 
+        now = dt_util.now()
         for period in self.periods:
             if period == PERIOD_ALL_TIME:
                 continue
 
-            now = dt_util.now()
-            reset_time = None
-            
-            if period == PERIOD_DAILY:
-                reset_time = (now + timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0)
-            elif period == PERIOD_WEEKLY:
-                days_ahead = (7 - now.weekday()) % 7
-                if days_ahead == 0:
-                    days_ahead = 7
-                reset_time = (now + timedelta(days=days_ahead)).replace(hour=0, minute=0, second=0, microsecond=0)
-            elif period == PERIOD_MONTHLY:
-                if now.month == 12:
-                    reset_time = now.replace(year=now.year + 1, month=1, day=1, hour=0, minute=0, second=0, microsecond=0)
-                else:
-                    reset_time = now.replace(month=now.month + 1, day=1, hour=0, minute=0, second=0, microsecond=0)
-            elif period == PERIOD_YEARLY:
-                reset_time = now.replace(year=now.year + 1, month=1, day=1, hour=0, minute=0, second=0, microsecond=0)
-
+            reset_time = self._compute_next_reset(now, period)
             if reset_time:
-                self._next_resets[period] = reset_time
-                # apply offset to schedule time
-                schedule_time = reset_time + timedelta(seconds=self.offset)
-                
-                # Use a default argument in lambda to capture loop variable 'period' value 
-                self._reset_listeners[period] = async_track_point_in_time(
-                    self.hass, 
-                    lambda now, p=period: self._handle_reset(now, p), 
-                    schedule_time
-                )
+                self._schedule_single_reset(period, reset_time)
+
+    def _schedule_single_reset(self, period, reset_time):
+        """Schedule (or reschedule) the reset timer for a single period."""
+        self._next_resets[period] = reset_time
+        schedule_time = reset_time + timedelta(seconds=self.offset)
+        # Default arg p=period captures the loop variable by value
+        self._reset_listeners[period] = async_track_point_in_time(
+            self.hass,
+            lambda now, p=period: self._handle_reset(now, p),
+            schedule_time,
+        )
 
     @callback
     def _handle_reset(self, now, period):
@@ -294,45 +350,21 @@ class MaxMinDataUpdateCoordinator(DataUpdateCoordinator):
             self.tracked_data[period]["max"] = current_val
             self.tracked_data[period]["min"] = current_val
             self.tracked_data[period]["last_reset"] = now
-            # Delta support: reset start and end to current value
             self.tracked_data[period]["start"] = current_val
             self.tracked_data[period]["end"] = current_val
-            
-            # Notifica explícitament (redundant safety)
+
             self.async_set_updated_data({})
 
-
-            # Notifica explícitament les entitats perquè actualitzin el seu estat
+            # Notify entities so they refresh their HA state immediately
             for entity in getattr(self, "entities", []):
                 if hasattr(entity, "period") and entity.period == period:
                     entity.async_write_ha_state()
 
         # Reschedule only this period
-        now = dt_util.now()
-        next_reset = None
-        if period == PERIOD_DAILY:
-            next_reset = (now + timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0)
-        elif period == PERIOD_WEEKLY:
-            days_ahead = (7 - now.weekday()) % 7
-            if days_ahead == 0:
-                days_ahead = 7
-            next_reset = (now + timedelta(days=days_ahead)).replace(hour=0, minute=0, second=0, microsecond=0)
-        elif period == PERIOD_MONTHLY:
-            if now.month == 12:
-                next_reset = now.replace(year=now.year + 1, month=1, day=1, hour=0, minute=0, second=0, microsecond=0)
-            else:
-                next_reset = now.replace(month=now.month + 1, day=1, hour=0, minute=0, second=0, microsecond=0)
-        elif period == PERIOD_YEARLY:
-            next_reset = now.replace(year=now.year + 1, month=1, day=1, hour=0, minute=0, second=0, microsecond=0)
-
+        current_time = dt_util.now()
+        next_reset = self._compute_next_reset(current_time, period)
         if next_reset:
-            self._next_resets[period] = next_reset
-            schedule_time = next_reset + timedelta(seconds=self.offset)
-            self._reset_listeners[period] = async_track_point_in_time(
-                self.hass,
-                lambda now, p=period: self._handle_reset(now, p),
-                schedule_time
-            )
+            self._schedule_single_reset(period, next_reset)
 
     async def async_unload(self):
         """Unload the coordinator."""

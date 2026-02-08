@@ -1,5 +1,17 @@
 
 
+# 0.3.12 - 2026-02-08
+## Fixed
+- **Inline reset respects offset**: The inline period-boundary reset (safety net for missed scheduled resets) now correctly defers to the configured offset for cumulative sensors. Previously it would fire immediately at midnight, bypassing the offset delay.
+- **Early reset skipping other periods**: When a cumulative sensor triggered an early reset for one period, the code used `return` instead of `continue`, skipping all remaining periods in the loop.
+- **Delta entities deleted on reload**: Delta sensor entities were incorrectly removed on every reload/restart because `expected_unique_ids` didn't include the `_delta` suffix.
+
+## Improved
+- **Extracted base class**: `MaxSensor`, `MinSensor`, and `DeltaSensor` now inherit from `_BaseMaxMinSensor`, eliminating ~200 lines of duplicated code (sensor.py reduced from 382 to 179 lines).
+- **Extracted shared methods**: `_compute_next_reset()` and `_schedule_single_reset()` eliminate duplicated reset scheduling logic between `_schedule_resets` and `_handle_reset`.
+- **Configured initial enforcement**: Configured initial max/min values are now enforced as floor/ceiling after restore, preventing stale restored values from overriding user-configured bounds.
+- **Stale restore protection**: Restored data without `last_reset` is ignored when the coordinator has already initialized the period, preventing old values from bleeding into new periods.
+
 # 0.3.11 - 2026-02-06
 ## Changed
 - **Reverted Grace Period**: Validating user feedback, the "magic" 5-minute grace period has been removed. The integration now strictly follows the configured offset. Users must ensure their offset covers any sensor latency.

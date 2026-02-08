@@ -23,90 +23,6 @@ from .const import (
     TYPE_MIN,
     TYPE_DELTA,
 )
-class DeltaSensor(CoordinatorEntity, SensorEntity, RestoreEntity):
-    """Representation of a Delta sensor (end - start)."""
-
-    def __init__(self, coordinator: MaxMinDataUpdateCoordinator, config_entry: ConfigEntry, name: str, period: str) -> None:
-        super().__init__(coordinator)
-        self._config_entry = config_entry
-        self._attr_name = name
-        self.period = period
-        self._attr_unique_id = f"{config_entry.entry_id}_{period}_delta"
-        self._source_entity = config_entry.data[CONF_SENSOR_ENTITY]
-        self._attr_native_unit_of_measurement = None
-        self._attr_device_class = None
-        self._attr_state_class = None
-
-    async def async_added_to_hass(self) -> None:
-        await super().async_added_to_hass()
-        # No restore logic needed for delta, as coordinator manages start/end
-
-    @property
-    def extra_state_attributes(self):
-        attrs = {}
-        last_reset = self.coordinator.get_value(self.period, "last_reset")
-        if last_reset:
-            attrs["last_reset"] = last_reset.isoformat()
-        start = self.coordinator.get_value(self.period, "start")
-        end = self.coordinator.get_value(self.period, "end")
-        if start is not None:
-            attrs["start_value"] = start
-        if end is not None:
-            attrs["end_value"] = end
-        return attrs
-
-    @property
-    def native_unit_of_measurement(self):
-        if self.coordinator.hass:
-            state = self.coordinator.hass.states.get(self._source_entity)
-            if state and "unit_of_measurement" in state.attributes:
-                self._attr_native_unit_of_measurement = state.attributes.get("unit_of_measurement")
-        return self._attr_native_unit_of_measurement
-
-    @property
-    def device_class(self):
-        if self.coordinator.hass:
-            state = self.coordinator.hass.states.get(self._source_entity)
-            if state and "device_class" in state.attributes:
-                self._attr_device_class = state.attributes.get("device_class")
-        return self._attr_device_class
-
-    @property
-    def state_class(self):
-        if self.coordinator.hass:
-            state = self.coordinator.hass.states.get(self._source_entity)
-            if state and "state_class" in state.attributes:
-                self._attr_state_class = state.attributes.get("state_class")
-        return self._attr_state_class
-
-    @property
-    def device_info(self):
-        device_id = self._config_entry.options.get(CONF_DEVICE_ID, self._config_entry.data.get(CONF_DEVICE_ID))
-        if device_id and self.coordinator.hass:
-            device_registry = dr.async_get(self.coordinator.hass)
-            device = device_registry.async_get(device_id)
-            if device:
-                return {
-                    "identifiers": device.identifiers,
-                    "connections": device.connections,
-                }
-        return None
-
-    @property
-    def native_value(self):
-        start = self.coordinator.get_value(self.period, "start")
-        end = self.coordinator.get_value(self.period, "end")
-        if start is not None and end is not None:
-            return end - start
-        return None
-
-    @property
-    def available(self):
-        start = self.coordinator.get_value(self.period, "start")
-        end = self.coordinator.get_value(self.period, "end")
-        return start is not None and end is not None
-
-from .coordinator import MaxMinDataUpdateCoordinator
 
 
 async def async_setup_entry(
@@ -127,9 +43,6 @@ async def async_setup_entry(
     if not device_id:
         # Unlink entities from device
         ent_reg = er.async_get(hass)
-        # We need to find all entities related to this config entry
-        # The period is part of unique_id now, so we can't strict predict suffix easily without knowing old periods
-        # But we can iterate over registry entries
         entity_entries = er.async_entries_for_config_entry(ent_reg, config_entry.entry_id)
         for entity_entry in entity_entries:
             if entity_entry.device_id:
@@ -145,13 +58,14 @@ async def async_setup_entry(
             dev_reg.async_update_device(dev_id, remove_config_entry_id=config_entry.entry_id)
 
     # Identify and remove stale entities
-    # Calculate all expected unique IDs for the current configuration
     expected_unique_ids = set()
     for period in periods:
         if TYPE_MAX in types:
             expected_unique_ids.add(f"{config_entry.entry_id}_{period}_max")
         if TYPE_MIN in types:
             expected_unique_ids.add(f"{config_entry.entry_id}_{period}_min")
+        if TYPE_DELTA in types:
+            expected_unique_ids.add(f"{config_entry.entry_id}_{period}_delta")
 
     ent_reg = er.async_get(hass)
     entity_entries = er.async_entries_for_config_entry(ent_reg, config_entry.entry_id)
@@ -193,27 +107,94 @@ async def async_setup_entry(
     async_add_entities(entities)
 
 
-class MaxSensor(CoordinatorEntity, SensorEntity, RestoreEntity):
+# ---------------------------------------------------------------------------
+# Base class — shared logic for Max / Min / Delta sensors
+# ---------------------------------------------------------------------------
+
+class _BaseMaxMinSensor(CoordinatorEntity, SensorEntity, RestoreEntity):
+    """Base class with shared properties for Max/Min/Delta sensors."""
+
+    _value_key: str  # Subclasses set this to "max", "min", or override native_value
+
+    def __init__(self, coordinator: MaxMinDataUpdateCoordinator, config_entry: ConfigEntry, name: str, period: str) -> None:
+        """Initialize the sensor."""
+        super().__init__(coordinator)
+        self._config_entry = config_entry
+        self._attr_name = name
+        self.period = period
+        self._attr_unique_id = f"{config_entry.entry_id}_{period}_{self._value_key}"
+        self._source_entity = config_entry.data[CONF_SENSOR_ENTITY]
+        self._attr_native_unit_of_measurement = None
+        self._attr_device_class = None
+        self._attr_state_class = None
+
+    # -- Source-sensor mirrored properties ----------------------------------
+
+    @property
+    def native_unit_of_measurement(self):
+        """Return the unit of measurement mirrored from the source sensor."""
+        if self.coordinator.hass:
+            state = self.coordinator.hass.states.get(self._source_entity)
+            if state and "unit_of_measurement" in state.attributes:
+                self._attr_native_unit_of_measurement = state.attributes.get("unit_of_measurement")
+        return self._attr_native_unit_of_measurement
+
+    @property
+    def device_class(self):
+        """Return the device class mirrored from the source sensor."""
+        if self.coordinator.hass:
+            state = self.coordinator.hass.states.get(self._source_entity)
+            if state and "device_class" in state.attributes:
+                self._attr_device_class = state.attributes.get("device_class")
+        return self._attr_device_class
+
+    @property
+    def state_class(self):
+        """Return the state class mirrored from the source sensor."""
+        if self.coordinator.hass:
+            state = self.coordinator.hass.states.get(self._source_entity)
+            if state and "state_class" in state.attributes:
+                self._attr_state_class = state.attributes.get("state_class")
+        return self._attr_state_class
+
+    @property
+    def device_info(self):
+        """Return device info linking this entity to the configured device."""
+        device_id = self._config_entry.options.get(CONF_DEVICE_ID, self._config_entry.data.get(CONF_DEVICE_ID))
+        if device_id and self.coordinator.hass:
+            device_registry = dr.async_get(self.coordinator.hass)
+            device = device_registry.async_get(device_id)
+            if device:
+                return {
+                    "identifiers": device.identifiers,
+                    "connections": device.connections,
+                }
+        return None
+
+    @property
+    def extra_state_attributes(self):
+        """Return the state attributes including last_reset."""
+        attrs = {}
+        last_reset = self.coordinator.get_value(self.period, "last_reset")
+        if last_reset:
+            attrs["last_reset"] = last_reset.isoformat()
+        return attrs
+
+
+# ---------------------------------------------------------------------------
+# Concrete sensor classes
+# ---------------------------------------------------------------------------
+
+class MaxSensor(_BaseMaxMinSensor):
     """Representation of a Max sensor."""
 
-    def __init__(self, coordinator: MaxMinDataUpdateCoordinator, config_entry: ConfigEntry, name: str, period: str) -> None:
-        """Initialize the sensor."""
-        super().__init__(coordinator)
-        self._config_entry = config_entry
-        self._attr_name = name
-        self.period = period
-        self._attr_unique_id = f"{config_entry.entry_id}_{period}_max"
-        self._source_entity = config_entry.data[CONF_SENSOR_ENTITY]
-        self._attr_native_unit_of_measurement = None
-        self._attr_device_class = None
-        self._attr_state_class = None
+    _value_key = "max"
 
     async def async_added_to_hass(self) -> None:
-        """Handle entity which will be added."""
+        """Restore previous state on startup."""
         await super().async_added_to_hass()
         last_state = await self.async_get_last_state()
         if last_state:
-            # Restore attributes if available
             self._attr_native_unit_of_measurement = last_state.attributes.get("unit_of_measurement")
             self._attr_device_class = last_state.attributes.get("device_class")
             self._attr_state_class = last_state.attributes.get("state_class")
@@ -222,92 +203,31 @@ class MaxSensor(CoordinatorEntity, SensorEntity, RestoreEntity):
                 try:
                     value = float(last_state.state)
                     last_reset = last_state.attributes.get("last_reset")
-                    self.coordinator.update_restored_data(self.period, "max", value, last_reset)
+                    self.coordinator.update_restored_data(self.period, self._value_key, value, last_reset)
                 except ValueError:
                     pass
 
     @property
-    def extra_state_attributes(self):
-        """Return the state attributes."""
-        attrs = {}
-        last_reset = self.coordinator.get_value(self.period, "last_reset")
-        if last_reset:
-            attrs["last_reset"] = last_reset.isoformat()
-        return attrs
-
-    @property
-    def native_unit_of_measurement(self):
-        """Return the unit of measurement of the sensor."""
-        if self.coordinator.hass:
-            state = self.coordinator.hass.states.get(self._source_entity)
-            if state and "unit_of_measurement" in state.attributes:
-                self._attr_native_unit_of_measurement = state.attributes.get("unit_of_measurement")
-        return self._attr_native_unit_of_measurement
-
-    @property
-    def device_class(self):
-        """Return the device class of the sensor."""
-        if self.coordinator.hass:
-            state = self.coordinator.hass.states.get(self._source_entity)
-            if state and "device_class" in state.attributes:
-                self._attr_device_class = state.attributes.get("device_class")
-        return self._attr_device_class
-
-    @property
-    def state_class(self):
-        """Return the state class of the sensor."""
-        if self.coordinator.hass:
-            state = self.coordinator.hass.states.get(self._source_entity)
-            if state and "state_class" in state.attributes:
-                self._attr_state_class = state.attributes.get("state_class")
-        return self._attr_state_class
-
-    @property
-    def device_info(self):
-        """Return device info."""
-        device_id = self._config_entry.options.get(CONF_DEVICE_ID, self._config_entry.data.get(CONF_DEVICE_ID))
-        if device_id and self.coordinator.hass:
-            device_registry = dr.async_get(self.coordinator.hass)
-            device = device_registry.async_get(device_id)
-            if device:
-                return {
-                    "identifiers": device.identifiers,
-                    "connections": device.connections,
-                }
-        return None
-
-    @property
     def native_value(self):
-        """Return the state of the sensor."""
-        return self.coordinator.get_value(self.period, "max")
+        """Return the current maximum."""
+        return self.coordinator.get_value(self.period, self._value_key)
 
     @property
     def available(self):
-        """Return if the sensor is available."""
-        return self.coordinator.get_value(self.period, "max") is not None
+        """Return True when a max value has been recorded."""
+        return self.coordinator.get_value(self.period, self._value_key) is not None
 
 
-class MinSensor(CoordinatorEntity, SensorEntity, RestoreEntity):
+class MinSensor(_BaseMaxMinSensor):
     """Representation of a Min sensor."""
 
-    def __init__(self, coordinator: MaxMinDataUpdateCoordinator, config_entry: ConfigEntry, name: str, period: str) -> None:
-        """Initialize the sensor."""
-        super().__init__(coordinator)
-        self._config_entry = config_entry
-        self._attr_name = name
-        self.period = period
-        self._attr_unique_id = f"{config_entry.entry_id}_{period}_min"
-        self._source_entity = config_entry.data[CONF_SENSOR_ENTITY]
-        self._attr_native_unit_of_measurement = None
-        self._attr_device_class = None
-        self._attr_state_class = None
+    _value_key = "min"
 
     async def async_added_to_hass(self) -> None:
-        """Handle entity which will be added."""
+        """Restore previous state on startup."""
         await super().async_added_to_hass()
         last_state = await self.async_get_last_state()
         if last_state:
-            # Restore attributes if available
             self._attr_native_unit_of_measurement = last_state.attributes.get("unit_of_measurement")
             self._attr_device_class = last_state.attributes.get("device_class")
             self._attr_state_class = last_state.attributes.get("state_class")
@@ -316,66 +236,54 @@ class MinSensor(CoordinatorEntity, SensorEntity, RestoreEntity):
                 try:
                     value = float(last_state.state)
                     last_reset = last_state.attributes.get("last_reset")
-                    self.coordinator.update_restored_data(self.period, "min", value, last_reset)
+                    self.coordinator.update_restored_data(self.period, self._value_key, value, last_reset)
                 except ValueError:
                     pass
 
     @property
-    def extra_state_attributes(self):
-        """Return the state attributes."""
-        attrs = {}
-        last_reset = self.coordinator.get_value(self.period, "last_reset")
-        if last_reset:
-            attrs["last_reset"] = last_reset.isoformat()
-        return attrs
-
-    @property
-    def native_unit_of_measurement(self):
-        """Return the unit of measurement of the sensor."""
-        if self.coordinator.hass:
-            state = self.coordinator.hass.states.get(self._source_entity)
-            if state and "unit_of_measurement" in state.attributes:
-                self._attr_native_unit_of_measurement = state.attributes.get("unit_of_measurement")
-        return self._attr_native_unit_of_measurement
-
-    @property
-    def device_class(self):
-        """Return the device class of the sensor."""
-        if self.coordinator.hass:
-            state = self.coordinator.hass.states.get(self._source_entity)
-            if state and "device_class" in state.attributes:
-                self._attr_device_class = state.attributes.get("device_class")
-        return self._attr_device_class
-
-    @property
-    def state_class(self):
-        """Return the state class of the sensor."""
-        if self.coordinator.hass:
-            state = self.coordinator.hass.states.get(self._source_entity)
-            if state and "state_class" in state.attributes:
-                self._attr_state_class = state.attributes.get("state_class")
-        return self._attr_state_class
-
-    @property
-    def device_info(self):
-        """Return device info."""
-        device_id = self._config_entry.options.get(CONF_DEVICE_ID, self._config_entry.data.get(CONF_DEVICE_ID))
-        if device_id and self.coordinator.hass:
-            device_registry = dr.async_get(self.coordinator.hass)
-            device = device_registry.async_get(device_id)
-            if device:
-                return {
-                    "identifiers": device.identifiers,
-                    "connections": device.connections,
-                }
-        return None
-
-    @property
     def native_value(self):
-        """Return the state of the sensor."""
-        return self.coordinator.get_value(self.period, "min")
+        """Return the current minimum."""
+        return self.coordinator.get_value(self.period, self._value_key)
 
     @property
     def available(self):
-        """Return if the sensor is available."""
-        return self.coordinator.get_value(self.period, "min") is not None
+        """Return True when a min value has been recorded."""
+        return self.coordinator.get_value(self.period, self._value_key) is not None
+
+
+class DeltaSensor(_BaseMaxMinSensor):
+    """Representation of a Delta sensor (end - start)."""
+
+    _value_key = "delta"
+
+    async def async_added_to_hass(self) -> None:
+        """Delta values are managed by the coordinator; no restore needed."""
+        await super().async_added_to_hass()
+
+    @property
+    def extra_state_attributes(self):
+        """Return delta-specific attributes (start, end, last_reset)."""
+        attrs = super().extra_state_attributes
+        start = self.coordinator.get_value(self.period, "start")
+        end = self.coordinator.get_value(self.period, "end")
+        if start is not None:
+            attrs["start_value"] = start
+        if end is not None:
+            attrs["end_value"] = end
+        return attrs
+
+    @property
+    def native_value(self):
+        """Return end - start."""
+        start = self.coordinator.get_value(self.period, "start")
+        end = self.coordinator.get_value(self.period, "end")
+        if start is not None and end is not None:
+            return end - start
+        return None
+
+    @property
+    def available(self):
+        """Return True when both start and end values exist."""
+        start = self.coordinator.get_value(self.period, "start")
+        end = self.coordinator.get_value(self.period, "end")
+        return start is not None and end is not None
