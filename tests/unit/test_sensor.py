@@ -24,9 +24,9 @@ def test_delta_sensor_missing_start_end():
 
         config_entry = type("ConfigEntry", (), {"entry_id": "abc", "data": {"sensor_entity": "sensor.x"}})()
         sensor = DeltaSensor(DummyCoordinator(), config_entry, "Test Delta", "daily")
-        # No hass, should return None
+        # No hass, device_class is None; state_class always "measurement"
         assert sensor.device_class is None
-        assert sensor.state_class is None
+        assert sensor.state_class == "measurement"
 
         # Hass present, but state missing attributes
         class Hass:
@@ -41,7 +41,7 @@ def test_delta_sensor_missing_start_end():
         dummy.hass = Hass()
         sensor = DeltaSensor(dummy, config_entry, "Test Delta", "daily")
         assert sensor.device_class is None
-        assert sensor.state_class is None
+        assert sensor.state_class == "measurement"
     """Test DeltaSensor with missing start/end values."""
     class DummyCoordinator:
         def get_value(self, period, key):

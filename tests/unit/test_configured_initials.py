@@ -1,7 +1,7 @@
-"""Test that configured initial values are enforced after restore."""
+"""Test that configured initial values are enforced after restore and reset."""
 
 from datetime import datetime, timezone
-from unittest.mock import MagicMock, Mock
+from unittest.mock import MagicMock, Mock, patch
 
 import pytest
 
@@ -292,3 +292,164 @@ def test_restore_without_last_reset_applied_when_period_not_initialized(hass):
     coordinator.update_restored_data(PERIOD_DAILY, "max", 15.0, last_reset=None)
 
     assert coordinator.tracked_data[PERIOD_DAILY]["max"] == 15.0
+
+
+# ---------------------------------------------------------------------------
+# _handle_reset — enforce configured initial values
+# ---------------------------------------------------------------------------
+
+
+def test_handle_reset_enforces_initial_max(hass):
+    """Test that _handle_reset applies configured initial max as floor.
+
+    When sensor value (13.107) is below configured initial max (45.0),
+    the reset should use the configured initial instead.
+    """
+    config_entry = _make_config_entry(
+        periods=[PERIOD_YEARLY],
+        period_initials={PERIOD_YEARLY: {"max": 45.0}},
+    )
+    coordinator = MaxMinDataUpdateCoordinator(hass, config_entry)
+
+    # Set max to a high value (simulating pre-reset accumulated data)
+    coordinator.tracked_data[PERIOD_YEARLY]["max"] = 100.0
+
+    # Sensor currently reads 13.107 (below configured initial of 45)
+    hass.states.get.return_value = Mock(
+        state="13.107", attributes={"friendly_name": "Test"}
+    )
+
+    with patch("custom_components.max_min.coordinator.async_track_point_in_time"):
+        coordinator._handle_reset(
+            datetime(2026, 1, 1, 0, 0, 0, tzinfo=timezone.utc), PERIOD_YEARLY
+        )
+
+    # Max should be 45.0 (configured initial), not 13.107
+    assert coordinator.tracked_data[PERIOD_YEARLY]["max"] == 45.0
+    # start/end should be the actual sensor value
+    assert coordinator.tracked_data[PERIOD_YEARLY]["start"] == 13.107
+    assert coordinator.tracked_data[PERIOD_YEARLY]["end"] == 13.107
+
+
+def test_handle_reset_enforces_initial_min(hass):
+    """Test that _handle_reset applies configured initial min as ceiling.
+
+    When sensor value (10.0) is above configured initial min (-5.0),
+    the reset should use the configured initial instead.
+    """
+    config_entry = _make_config_entry(
+        periods=[PERIOD_YEARLY],
+        period_initials={PERIOD_YEARLY: {"min": -5.0}},
+    )
+    coordinator = MaxMinDataUpdateCoordinator(hass, config_entry)
+
+    # Sensor currently reads 10.0 (above configured initial min of -5.0)
+    hass.states.get.return_value = Mock(
+        state="10.0", attributes={"friendly_name": "Test"}
+    )
+
+    with patch("custom_components.max_min.coordinator.async_track_point_in_time"):
+        coordinator._handle_reset(
+            datetime(2026, 1, 1, 0, 0, 0, tzinfo=timezone.utc), PERIOD_YEARLY
+        )
+
+    # Min should be -5.0 (configured initial), not 10.0
+    assert coordinator.tracked_data[PERIOD_YEARLY]["min"] == -5.0
+
+
+def test_handle_reset_keeps_sensor_value_when_more_extreme_than_initial(hass):
+    """Test that _handle_reset keeps sensor value when it's more extreme than initial.
+
+    Max: sensor value (50.0) > initial max (45.0) → keep 50.0
+    Min: sensor value (-10.0) < initial min (-5.0) → keep -10.0
+    """
+    config_entry = _make_config_entry(
+        periods=[PERIOD_DAILY],
+        period_initials={PERIOD_DAILY: {"max": 45.0, "min": -5.0}},
+    )
+    coordinator = MaxMinDataUpdateCoordinator(hass, config_entry)
+
+    hass.states.get.return_value = Mock(
+        state="50.0", attributes={"friendly_name": "Test"}
+    )
+
+    with patch("custom_components.max_min.coordinator.async_track_point_in_time"):
+        coordinator._handle_reset(
+            datetime(2026, 2, 9, 0, 0, 0, tzinfo=timezone.utc), PERIOD_DAILY
+        )
+
+    assert coordinator.tracked_data[PERIOD_DAILY]["max"] == 50.0
+
+    # Now test with sensor value below initial min
+    hass.states.get.return_value = Mock(
+        state="-10.0", attributes={"friendly_name": "Test"}
+    )
+
+    with patch("custom_components.max_min.coordinator.async_track_point_in_time"):
+        coordinator._handle_reset(
+            datetime(2026, 2, 10, 0, 0, 0, tzinfo=timezone.utc), PERIOD_DAILY
+        )
+
+    assert coordinator.tracked_data[PERIOD_DAILY]["min"] == -10.0
+
+
+def test_handle_reset_with_sensor_unavailable_uses_initial(hass):
+    """Test that _handle_reset uses configured initial when sensor is unavailable."""
+    config_entry = _make_config_entry(
+        periods=[PERIOD_DAILY],
+        period_initials={PERIOD_DAILY: {"max": 45.0, "min": -5.0}},
+    )
+    coordinator = MaxMinDataUpdateCoordinator(hass, config_entry)
+
+    # Sensor unavailable → current_val = None
+    hass.states.get.return_value = Mock(state="unavailable", attributes={})
+
+    with patch("custom_components.max_min.coordinator.async_track_point_in_time"):
+        coordinator._handle_reset(
+            datetime(2026, 2, 9, 0, 0, 0, tzinfo=timezone.utc), PERIOD_DAILY
+        )
+
+    # With sensor unavailable, should still apply configured initials
+    assert coordinator.tracked_data[PERIOD_DAILY]["max"] == 45.0
+    assert coordinator.tracked_data[PERIOD_DAILY]["min"] == -5.0
+
+
+def test_handle_reset_without_initials_uses_sensor_value(hass):
+    """Test that _handle_reset works normally when no initials are configured."""
+    config_entry = _make_config_entry(periods=[PERIOD_DAILY])
+    coordinator = MaxMinDataUpdateCoordinator(hass, config_entry)
+
+    hass.states.get.return_value = Mock(
+        state="13.107", attributes={"friendly_name": "Test"}
+    )
+
+    with patch("custom_components.max_min.coordinator.async_track_point_in_time"):
+        coordinator._handle_reset(
+            datetime(2026, 2, 9, 0, 0, 0, tzinfo=timezone.utc), PERIOD_DAILY
+        )
+
+    # Without initials, should use sensor value directly
+    assert coordinator.tracked_data[PERIOD_DAILY]["max"] == 13.107
+    assert coordinator.tracked_data[PERIOD_DAILY]["min"] == 13.107
+
+
+def test_handle_reset_initial_max_zero_is_enforced(hass):
+    """Test that configured initial max of 0.0 is correctly enforced after reset."""
+    config_entry = _make_config_entry(
+        periods=[PERIOD_DAILY],
+        period_initials={PERIOD_DAILY: {"max": 0.0}},
+    )
+    coordinator = MaxMinDataUpdateCoordinator(hass, config_entry)
+
+    # Sensor reads a negative value
+    hass.states.get.return_value = Mock(
+        state="-3.5", attributes={"friendly_name": "Test"}
+    )
+
+    with patch("custom_components.max_min.coordinator.async_track_point_in_time"):
+        coordinator._handle_reset(
+            datetime(2026, 2, 9, 0, 0, 0, tzinfo=timezone.utc), PERIOD_DAILY
+        )
+
+    # Max should be 0.0 (configured floor), not -3.5
+    assert coordinator.tracked_data[PERIOD_DAILY]["max"] == 0.0

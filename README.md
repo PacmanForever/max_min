@@ -63,31 +63,31 @@ You can configure an **offset** (in seconds) to handle synchronization delays or
 - **Dead Zone**: Updates received during the window `[Reset Time - Offset]` to `[Reset Time + Offset]` will be ignored.
 - **Why use it?**: This prevents data from the previous period (arriving late) from counting towards the new period, and prevents values from near-instantaneous restarts just before midnight from overwriting the day's true min/max.
 
+## Use Case Examples
+
+- **Max Daily Temperature**: Shows the maximum temperature value from 00:00 to 23:59 of the current day.
+- **Min Weekly Humidity**: Shows the minimum humidity value from Monday 00:00 to Sunday 23:59.
+- **Max Monthly Pressure**: Shows the maximum pressure value from day 1 00:00 to the last day of the month 23:59.
+- **Delta Daily Rain**: Shows the accumulated rain (end − start) during the current day.
+- **Min All-time Voltage**: Shows the absolute minimum voltage ever recorded (never resets).
+
 ## Initial Values
 
 You can set initial values for the max and min sensors when configuring the integration. This is useful for migrating from other integrations or when you want to start with known baseline values.
 
-- **Max Daily Temperature**: Shows the maximum temperature value from 00:00 to 23:59 of the current day
-- **Min Weekly Humidity**: Shows the minimum humidity value from Monday 00:00 to Sunday 23:59
-- **Max Monthly Pressure**: Shows the maximum pressure value from day 1 00:00 to the last day of the month 23:59
-- **Min Annual Voltage**: Shows the minimum voltage value from January 1 00:00 to December 31 23:59
-
-## Initial Values
-
-You can set initial values for the max and min sensors when configuring the integration. This is useful for migrating from other integrations or when you want to start with known baseline values.
-
-- **Initial Max**: Set a starting maximum value. The sensor will only update if the source sensor exceeds this value.
-- **Initial Min**: Set a starting minimum value. The sensor will only update if the source sensor goes below this value.
+- **Initial Max**: Set a starting maximum value. The sensor will only update if the source sensor exceeds this value. This value is enforced as a floor — restored values below it will be raised back to the configured initial.
+- **Initial Min**: Set a starting minimum value. The sensor will only update if the source sensor goes below this value. This value is enforced as a ceiling — restored values above it will be lowered back to the configured initial.
 
 If no initial values are set, the sensors will start with the first value received from the source sensor.
 
 ## How it works
 
 1. **Sensor Selection**: The user chooses an existing numeric sensor in Home Assistant.
-2. **Period Configuration**: The time cycle is defined (daily, weekly, etc.).
-3. **Sensor Creation**: Max and/or min sensors are created with descriptive names.
-4. **Value Accumulation**: During the period, sensors maintain the observed max/min.
-5. **Automatic Reset**: At the end of the period, sensors reset to the current value of the source sensor and a new cycle begins.
+2. **Period Configuration**: The time cycle is defined (daily, weekly, monthly, yearly, or all time).
+3. **Type Selection**: Max, Min, Delta, or any combination.
+4. **Sensor Creation**: Sensors are created with descriptive names (e.g., "Temperature Daily Max").
+5. **Value Accumulation**: During the period, Max/Min sensors maintain the observed extremes; Delta tracks end − start.
+6. **Automatic Reset**: At the end of the period, sensors reset to the current value of the source sensor and a new cycle begins. "All time" sensors never reset.
 
 ### Detailed Periods
 
@@ -95,6 +95,13 @@ If no initial values are set, the sensors will start with the first value receiv
 - **Weekly**: From Monday 00:00 to Sunday 23:59. Reset at Monday 00:00 of the next week.
 - **Monthly**: From day 1 00:00 to the last day of the month 23:59. Reset at day 1 00:00 of the next month.
 - **Yearly**: From January 1 00:00 to December 31 23:59. Reset at January 1 00:00 of the next year.
+- **All time**: Never resets. Tracks the absolute max/min/delta since the sensor was created.
+
+### Sensor Types
+
+- **Max**: Tracks the highest value observed during the period.
+- **Min**: Tracks the lowest value observed during the period.
+- **Delta**: Tracks the change (end − start) during the period. Useful for cumulative sensors like rain gauges or energy meters.
 
 ## Automations
 
@@ -106,14 +113,14 @@ You can use these sensors in automations, for example:
 
 ## Behavior with Home Assistant restarts
 
-When Home Assistant restarts, the Max Min integration behaves as follows:
+When Home Assistant restarts, the Max Min integration restores its state:
 
-- **Accumulated values are lost**: The max and min values accumulated during the current period are completely lost
-- **Current value is preserved**: Only the current value of the source sensor at restart time is maintained
-- **Reset is reprogrammed**: The reset timer is recalculated based on the current time
-- **Sensors unavailable**: If the source sensor is not available during restart, sensors will show "Unavailable"
-
-**Important note**: This integration does not save historical values to disk, by design. If you need data persistence, consider using Home Assistant's native history functionality or external databases.
+- **State restoration**: Max and Min sensors use Home Assistant's `RestoreEntity` to recover the last known value and `last_reset` timestamp on startup.
+- **Stale data protection**: If the restored data belongs to a previous period (based on `last_reset`), it is discarded and the sensor starts fresh with the current source value.
+- **Reset is reprogrammed**: The reset timer is recalculated based on the current time.
+- **Inline reset safety net**: If a sensor update arrives after a period boundary but before the scheduled reset fires, the integration detects the stale `last_reset` and resets inline.
+- **Sensors unavailable**: If the source sensor is not available during restart, sensors will show "Unavailable".
+- **Delta sensors**: Delta values (start/end) are not restored; they reinitialize from the current source value after restart.
 
 ## Troubleshooting
 

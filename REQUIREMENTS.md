@@ -6,16 +6,17 @@ This document outlines the specific requirements for the Max Min Home Assistant 
 
 - **Name**: Max Min
 - **Domain**: max_min
-- **Version**: 0.1.0
-- **Home Assistant**: 2024.1.0
+- **Version**: 0.3.12
+- **Home Assistant**: 2024.4.0
 
 ## Functional Requirements
 
 ### Core Features
-- Create max and min sensors based on a user-selected numeric sensor
-- Support for periods: daily, weekly, monthly, yearly
-- Ability to create individual sensors (max only or min only) or pairs (max and min)
-- Sensors maintain the max/min value during the period and reset to the current source sensor value at the end of the period
+- Create max, min, and delta sensors based on a user-selected numeric sensor
+- Support for periods: daily, weekly, monthly, yearly, and all time
+- Ability to create individual sensors (max only, min only, delta only) or any combination
+- Max/Min sensors maintain the observed extremes during the period and reset at the end
+- Delta sensor tracks the change (end − start) during the period
 - Real-time updates when the source sensor changes
 - Dynamic sensor names: "Max [Source Sensor Name] [Period]", "Min [Source Sensor Name] [Period]"
 
@@ -32,7 +33,8 @@ This document outlines the specific requirements for the Max Min Home Assistant 
   - Weekly (Monday 00:00 - Sunday 23:59)
   - Monthly (Day 1 00:00 - last day of month 23:59)
   - Yearly (January 1 00:00 - December 31 23:59)
-- **Types**: Max, min, or both (multiple selector)
+  - All time (never resets)
+- **Types**: Max, Min, Delta, or any combination (multiple selector)
 - **Initial Values** (optional):
   - Initial Max: Starting value for maximum sensor
   - Initial Min: Starting value for minimum sensor
@@ -43,7 +45,7 @@ This document outlines the specific requirements for the Max Min Home Assistant 
 ### Data Collection
 - **Update**: Real-time when the source sensor state changes
 - **Reset**: Automatic at the end of the period (exact time calculated for HA time zone)
-- **Persistence**: Values maintained during the period, not persisted between restarts
+- **Persistence**: Max/Min values restored via `RestoreEntity` on restart; Delta values reinitialize from current source value
 - **Validation**: Only valid numeric values (float), ignore strings or non-numeric values
 
 ### Edge Cases
@@ -57,12 +59,12 @@ This document outlines the specific requirements for the Max Min Home Assistant 
 
 ### Dependencies
 - **Required Packages**: None (HA core only)
-- **Python Version**: 3.11, 3.12
+- **Python Version**: 3.12, 3.13
 - **Platform Requirements**: Any HA supported platform
 
 ### Configuration
 - **Required Parameters**: Source sensor, period, types
-- **Optional Parameters**: None
+- **Optional Parameters**: Offset/Margin, Initial Max, Initial Min, Device link
 - **Validation**:
   - Sensor exists and is numeric
   - Period is valid
@@ -196,23 +198,24 @@ This document outlines the specific requirements for the Max Min Home Assistant 
 ## Comprehensive List of All Documented Requirements
 
 ### Functional Requirements
-1. **Sensor Creation**: The integration must be able to create max and min sensors based on a user-selected numeric sensor.
+1. **Sensor Creation**: The integration must be able to create max, min, and delta sensors based on a user-selected numeric sensor.
 2. **Supported Periods**:
    - Daily: From 00:00 to 23:59 of the same day, reset at 00:00 of the next day.
    - Weekly: From Monday 00:00 to Sunday 23:59, reset at Monday 00:00 of the next week.
    - Monthly: From day 1 00:00 to last day of month 23:59, reset at day 1 00:00 of the next month.
    - Yearly: From January 1 00:00 to December 31 23:59, reset at January 1 00:00 of the next year.
-3. **Sensor Types**: Ability to create individual sensors (max only or min only) or pairs (max and min).
+   - All time: Never resets.
+3. **Sensor Types**: Ability to create individual sensors (max only, min only, delta only) or any combination.
 4. **Multiple Configurations**: Support for multiple entries using the same sensor with different periods (e.g., daily and weekly tracking for the same source sensor).
-5. **Behavior During Period**: Sensors maintain the accumulated max/min value during the period.
+5. **Behavior During Period**: Max/Min sensors maintain the observed extremes; Delta tracks end − start.
 5. **Reset at Period End**: At the end of the period, sensors reset to the current source sensor value.
-6. **Real-time Updates**: When the source sensor changes, max/min sensors update if necessary.
-7. **Sensor Names**: "Max [Source Sensor Name] [Period]" and "Min [Source Sensor Name] [Period]".
+6. **Real-time Updates**: When the source sensor changes, sensors update if necessary.
+7. **Sensor Names**: "[Source Sensor Name] [Period] Max/Min/Delta".
 8. **Error Handling**: If source sensor does not exist or has no value, sensors show "unavailable".
 
 ### Technical Requirements
-9. **Platform**: Home Assistant 2024.1.0+.
-10. **Python**: Versions 3.11 and 3.12.
+9. **Platform**: Home Assistant 2024.4.0+.
+10. **Python**: Versions 3.12 and 3.13.
 11. **Dependencies**: None (HA core only).
 12. **Configuration**: Via HA UI with selectors for sensor, period, and types.
 13. **Validation**: Source sensor must exist and be numeric.

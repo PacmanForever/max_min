@@ -347,8 +347,27 @@ class MaxMinDataUpdateCoordinator(DataUpdateCoordinator):
                 pass
 
         if period in self.tracked_data:
-            self.tracked_data[period]["max"] = current_val
-            self.tracked_data[period]["min"] = current_val
+            # Apply configured initial values as floor/ceiling after reset
+            initials = self._configured_initials.get(period, {})
+            initial_max = initials.get("max")
+            initial_min = initials.get("min")
+
+            # Max: use whichever is higher between current value and configured initial
+            if current_val is not None and initial_max is not None:
+                self.tracked_data[period]["max"] = max(current_val, initial_max)
+            elif initial_max is not None:
+                self.tracked_data[period]["max"] = initial_max
+            else:
+                self.tracked_data[period]["max"] = current_val
+
+            # Min: use whichever is lower between current value and configured initial
+            if current_val is not None and initial_min is not None:
+                self.tracked_data[period]["min"] = min(current_val, initial_min)
+            elif initial_min is not None:
+                self.tracked_data[period]["min"] = initial_min
+            else:
+                self.tracked_data[period]["min"] = current_val
+
             self.tracked_data[period]["last_reset"] = now
             self.tracked_data[period]["start"] = current_val
             self.tracked_data[period]["end"] = current_val

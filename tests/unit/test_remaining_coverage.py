@@ -243,16 +243,17 @@ def test_delta_sensor_device_class_with_attributes(hass):
 
 
 # ---------------------------------------------------------------------------
-# sensor.py — DeltaSensor.state_class with hass + state_class attr (L76-80)
+# sensor.py — DeltaSensor.state_class always returns "measurement" (override)
 # ---------------------------------------------------------------------------
 
-def test_delta_sensor_state_class_with_attributes(hass):
-    """DeltaSensor.state_class reads from source entity attributes."""
+def test_delta_sensor_state_class_always_measurement(hass):
+    """DeltaSensor.state_class always returns 'measurement' regardless of source."""
     entry = _entry()
     coordinator = MaxMinDataUpdateCoordinator(hass, entry)
+    # Even with total_increasing source, DeltaSensor returns "measurement"
     hass.states.get.return_value = Mock(
         state="10.0",
-        attributes={"state_class": "measurement"},
+        attributes={"state_class": "total_increasing"},
     )
     sensor = DeltaSensor(coordinator, entry, "Test Delta", PERIOD_DAILY)
     assert sensor.state_class == "measurement"

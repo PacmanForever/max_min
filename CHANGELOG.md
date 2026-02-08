@@ -1,5 +1,10 @@
 
 
+# 0.3.13 - 2026-02-08
+## Fixed
+- **Delta sensors showing error on cumulative sources**: `DeltaSensor.state_class` now always returns `"measurement"` instead of mirroring the source sensor's `state_class`. Previously, Delta sensors for `total_increasing` sources (e.g. rain accumulation) inherited that class, causing HA to flag them as inconsistent when the delta reset to 0 at period boundaries.
+- **Initial values ignored after period reset**: `_handle_reset` now enforces configured initial max/min values as floor/ceiling. Previously, period resets (daily/weekly/monthly/yearly) would set max/min to the current sensor value, completely ignoring the user-configured initial values.
+
 # 0.3.12 - 2026-02-08
 ## Fixed
 - **Inline reset respects offset**: The inline period-boundary reset (safety net for missed scheduled resets) now correctly defers to the configured offset for cumulative sensors. Previously it would fire immediately at midnight, bypassing the offset delay.

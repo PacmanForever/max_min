@@ -261,6 +261,11 @@ class DeltaSensor(_BaseMaxMinSensor):
         await super().async_added_to_hass()
 
     @property
+    def state_class(self):
+        """Delta is a computed measurement, never total_increasing."""
+        return "measurement"
+
+    @property
     def extra_state_attributes(self):
         """Return delta-specific attributes (start, end, last_reset)."""
         attrs = super().extra_state_attributes
