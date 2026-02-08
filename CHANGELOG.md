@@ -1,5 +1,9 @@
 
 
+# 0.3.14 - 2026-02-09
+## Fixed
+- **Initial values not applied on integration reload**: `async_config_entry_first_refresh` now enforces configured initial values after initialization. Previously, when modifying initial values via Options and reloading the integration, the current sensor value would override the configured initial, making it impossible to set a floor/ceiling without waiting for a period reset.
+
 # 0.3.13 - 2026-02-08
 ## Fixed
 - **Delta sensors showing error on cumulative sources**: `DeltaSensor.state_class` now always returns `"measurement"` instead of mirroring the source sensor's `state_class`. Previously, Delta sensors for `total_increasing` sources (e.g. rain accumulation) inherited that class, causing HA to flag them as inconsistent when the delta reset to 0 at period boundaries.

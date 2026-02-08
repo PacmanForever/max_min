@@ -213,6 +213,15 @@ class MaxMinDataUpdateCoordinator(DataUpdateCoordinator):
                         data["start"] = current_value
                     if data.get("end") is None:
                         data["end"] = current_value
+                    
+                    # Enforce configured initial values as floor/ceiling
+                    initials = self._configured_initials.get(period, {})
+                    initial_max = initials.get("max")
+                    initial_min = initials.get("min")
+                    if initial_max is not None and (data["max"] is None or data["max"] < initial_max):
+                        data["max"] = initial_max
+                    if initial_min is not None and (data["min"] is None or data["min"] > initial_min):
+                        data["min"] = initial_min
             except ValueError:
                 _LOGGER.warning("Sensor %s has non-numeric state: %s", self.sensor_entity, state.state)
         else:

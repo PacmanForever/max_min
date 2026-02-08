@@ -453,3 +453,94 @@ def test_handle_reset_initial_max_zero_is_enforced(hass):
 
     # Max should be 0.0 (configured floor), not -3.5
     assert coordinator.tracked_data[PERIOD_DAILY]["max"] == 0.0
+
+
+# ---------------------------------------------------------------------------
+# first_refresh — enforce configured initial values
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_first_refresh_enforces_initial_max(hass):
+    """Test that first_refresh applies configured initial max as floor.
+    
+    When sensor value (13.107) is below configured initial max (45.0),
+    first refresh should enforce the configured initial.
+    """
+    config_entry = _make_config_entry(
+        periods=[PERIOD_YEARLY],
+        period_initials={PERIOD_YEARLY: {"max": 45.0}},
+    )
+    
+    # Sensor reads 13.107 (below configured initial of 45)
+    hass.states.get.return_value = Mock(
+        state="13.107", attributes={"friendly_name": "Test"}
+    )
+    
+    coordinator = MaxMinDataUpdateCoordinator(hass, config_entry)
+    
+    with patch("custom_components.max_min.coordinator.async_track_state_change_event"), \
+         patch("custom_components.max_min.coordinator.async_track_point_in_time"):
+        await coordinator.async_config_entry_first_refresh()
+    
+    # Max should be 45.0 (configured floor), not 13.107
+    assert coordinator.tracked_data[PERIOD_YEARLY]["max"] == 45.0
+
+
+@pytest.mark.asyncio
+async def test_first_refresh_enforces_initial_min(hass):
+    """Test that first_refresh applies configured initial min as ceiling."""
+    config_entry = _make_config_entry(
+        periods=[PERIOD_YEARLY],
+        period_initials={PERIOD_YEARLY: {"min": -5.0}},
+    )
+    
+    # Sensor reads 10.0 (above configured initial min of -5.0)
+    hass.states.get.return_value = Mock(
+        state="10.0", attributes={"friendly_name": "Test"}
+    )
+    
+    coordinator = MaxMinDataUpdateCoordinator(hass, config_entry)
+    
+    with patch("custom_components.max_min.coordinator.async_track_state_change_event"), \
+         patch("custom_components.max_min.coordinator.async_track_point_in_time"):
+        await coordinator.async_config_entry_first_refresh()
+    
+    # Min should be -5.0 (configured ceiling), not 10.0
+    assert coordinator.tracked_data[PERIOD_YEARLY]["min"] == -5.0
+
+
+@pytest.mark.asyncio
+async def test_first_refresh_keeps_sensor_value_when_more_extreme(hass):
+    """Test that first_refresh keeps sensor value when it's more extreme than initial."""
+    config_entry = _make_config_entry(
+        periods=[PERIOD_DAILY],
+        period_initials={PERIOD_DAILY: {"max": 45.0, "min": -5.0}},
+    )
+    
+    # Sensor reads 50.0 (above initial max of 45.0)
+    hass.states.get.return_value = Mock(
+        state="50.0", attributes={"friendly_name": "Test"}
+    )
+    
+    coordinator = MaxMinDataUpdateCoordinator(hass, config_entry)
+    
+    with patch("custom_components.max_min.coordinator.async_track_state_change_event"), \
+         patch("custom_components.max_min.coordinator.async_track_point_in_time"):
+        await coordinator.async_config_entry_first_refresh()
+    
+    # Should keep the more extreme sensor value
+    assert coordinator.tracked_data[PERIOD_DAILY]["max"] == 50.0
+    
+    # Now test with sensor value below initial min
+    hass.states.get.return_value = Mock(
+        state="-10.0", attributes={"friendly_name": "Test"}
+    )
+    
+    coordinator = MaxMinDataUpdateCoordinator(hass, config_entry)
+    
+    with patch("custom_components.max_min.coordinator.async_track_state_change_event"), \
+         patch("custom_components.max_min.coordinator.async_track_point_in_time"):
+        await coordinator.async_config_entry_first_refresh()
+    
+    assert coordinator.tracked_data[PERIOD_DAILY]["min"] == -10.0
