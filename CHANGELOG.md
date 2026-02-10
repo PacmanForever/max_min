@@ -4,6 +4,11 @@
 ## Fixed
 - **Record Enforcement**: Hardened the logic that ensures user-configured initial values (floors/ceilings) are always respected. Added defensive checks in both data processing and state reporting to prevent calculated or restored values from overriding explicitly set boundaries.
 
+# 0.3.24 - 2026-02-10
+## Fixed
+- **History Preservation**: Removed conservative checks that could ignore restored historical data during integration updates or reloads.
+- **Robust Restoration**: Ensured that historical values are recovered even if reset metadata is missing, as long as they represent more extreme values than the current state.
+
 # 0.3.23 - 2026-02-10
 ## Fixed
 - **Floating Point Precision**: Added rounding (4 decimal places) to all sensor inputs to eliminate insignificant variations caused by floating point noise (e.g., 45.999999999999999).

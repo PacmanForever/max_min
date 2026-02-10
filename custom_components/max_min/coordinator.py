@@ -209,16 +209,9 @@ class MaxMinDataUpdateCoordinator(DataUpdateCoordinator):
                     data["last_reset"] = last_reset
         else:
             # No last_reset info from restored state.
-            # If first_refresh already initialized the period (last_reset is set),
-            # we cannot verify whether the restored value is from the current
-            # period or a stale one. Be conservative and don't override.
-            if data.get("last_reset") is not None:
-                _LOGGER.debug(
-                    "Ignoring restored data for %s: no last_reset provided, "
-                    "coordinator already has period data",
-                    period,
-                )
-                return
+            # We used to be conservative here, but that caused data loss during updates.
+            # Now we allow restoration if the value is more extreme or data is empty.
+            _LOGGER.debug("[%s] Restoring %s %s without last_reset info", self.config_entry.title, period, type_)
 
         # Only update if the restored value extends the current range (or initializes it)
         # Note: stored data might have been initialized by current sensor state in first_refresh
