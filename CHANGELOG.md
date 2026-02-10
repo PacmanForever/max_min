@@ -4,6 +4,12 @@
 ## Fixed
 - **Record Enforcement**: Hardened the logic that ensures user-configured initial values (floors/ceilings) are always respected. Added defensive checks in both data processing and state reporting to prevent calculated or restored values from overriding explicitly set boundaries.
 
+# 0.3.22 - 2026-02-10
+## Added
+- **Surgical History Reset**: Changed the history reset logic to be automatic and precise. If you change an initial value (floor/ceiling) for a specific sensor, only that sensor's history will be cleared. Other sensors in the same configuration remain untouched.
+## Changed
+- **Automatic Reset Management**: Removed the manual "Reset historical records" checkbox as the integration now detects changes and handles resets intelligently.
+
 # 0.3.21 - 2026-02-10
 ## Added
 - **Reset History Option**: Added a new "Reset historical records" checkbox in the options flow. Checking this will wipe internal memory (max/min/delta) on the next restart, allowing a fresh start with new initial values.

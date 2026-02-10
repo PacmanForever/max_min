@@ -44,7 +44,12 @@ class MaxMinDataUpdateCoordinator(DataUpdateCoordinator):
             
         self.types = config_entry.options.get(CONF_TYPES, config_entry.data.get(CONF_TYPES, [TYPE_MAX, TYPE_MIN]))
         self.offset = config_entry.options.get(CONF_OFFSET, config_entry.data.get(CONF_OFFSET, 0))
-        self.reset_history = config_entry.options.get(CONF_RESET_HISTORY, False)
+        
+        # Surgical reset list: list of "period_type" to ignore during restore
+        self.reset_history = config_entry.options.get(CONF_RESET_HISTORY, [])
+        if isinstance(self.reset_history, bool):
+            # Backward compatibility with v0.3.21 global flag
+            self.reset_history = ["all"] if self.reset_history else []
 
 
         # Data structure: {period: {"max": value, "min": value, "start": value, "end": value}}
@@ -173,9 +178,9 @@ class MaxMinDataUpdateCoordinator(DataUpdateCoordinator):
 
     def update_restored_data(self, period, type_, value, last_reset=None):
         """Update data from restored state."""
-        if self.reset_history:
-            # If user explicitly asked for a reset, we ignore historical data
-            _LOGGER.debug("Ignoring restore for %s %s due to reset_history flag", period, type_)
+        # Check if this specific sensor or all sensors should skip history restore
+        if "all" in self.reset_history or f"{period}_{type_}" in self.reset_history:
+            _LOGGER.debug("[%s] Skipping restore for %s %s (surgical reset triggered by config change)", self.config_entry.title, period, type_)
             return
 
         if period not in self.tracked_data:

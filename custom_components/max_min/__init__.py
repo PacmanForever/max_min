@@ -4,7 +4,7 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import config_validation as cv
 
-from .const import DOMAIN
+from .const import DOMAIN, CONF_RESET_HISTORY
 from .coordinator import MaxMinDataUpdateCoordinator
 
 
@@ -28,6 +28,15 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     # Register update listener
     entry.async_on_unload(entry.add_update_listener(async_reload_entry))
+
+    # Surgical Reset Cleanup:
+    # If the entry was reloaded with a reset list, clear it now so it doesn't
+    # reset again on the next HA restart. 
+    # This will trigger ONE more reload, but it's the only way to persist the clear.
+    if entry.options.get(CONF_RESET_HISTORY):
+        new_options = dict(entry.options)
+        new_options.pop(CONF_RESET_HISTORY)
+        hass.config_entries.async_update_entry(entry, options=new_options)
 
     return True
 

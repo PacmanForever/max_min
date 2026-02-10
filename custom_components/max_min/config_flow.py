@@ -249,10 +249,6 @@ class MaxMinOptionsFlow(config_entries.OptionsFlow):
                         unit_of_measurement="seconds",
                     )
                 ),
-                vol.Optional(
-                    CONF_RESET_HISTORY,
-                    default=False,
-                ): selector.BooleanSelector(),
             }),
             errors=errors,
         )
@@ -275,9 +271,32 @@ class MaxMinOptionsFlow(config_entries.OptionsFlow):
                     errors[f"{period}_{CONF_INITIAL_MIN}"] = "min_greater_than_max"
             
             if not errors:
+                # Detect changes in initial values to trigger surgical history resets
+                reset_list = []
+                for period in periods:
+                    for type_ in [TYPE_MIN, TYPE_MAX]:
+                        key = f"{period}_initial_{type_}"
+                        if key in user_input:
+                            new_val = user_input[key]
+                            old_val = self.options.get(key, self._config_entry.options.get(key, self._config_entry.data.get(key)))
+                            
+                            # Normalize for comparison
+                            try:
+                                n_val = float(new_val) if new_val is not None else None
+                                o_val = float(old_val) if old_val is not None else None
+                                if n_val != o_val:
+                                    reset_list.append(f"{period}_{type_}")
+                            except (ValueError, TypeError):
+                                if new_val != old_val:
+                                    reset_list.append(f"{period}_{type_}")
+
                 # Filter out None/empty values so they don't overwrite existing settings
                 filtered_input = {k: v for k, v in user_input.items() if v is not None}
                 self.options.update(filtered_input)
+                
+                if reset_list:
+                    self.options[CONF_RESET_HISTORY] = reset_list
+
                 # Ensure device_id is captured as None if cleared/missing to override data
                 if CONF_DEVICE_ID not in self.options:
                     # It should be in options based on prev step, but if not we might inherit it or set to None

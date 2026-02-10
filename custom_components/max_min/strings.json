@@ -48,8 +48,7 @@
           "periods": "Periods",
           "types": "Sensors",
           "device_id": "Device to link",
-          "offset": "Offset/Margin (seconds)",
-          "reset_history": "Reset historical records (clear Max/Min values)"
+          "offset": "Offset/Margin (seconds)"
         }
       },
       "optional_settings": {
