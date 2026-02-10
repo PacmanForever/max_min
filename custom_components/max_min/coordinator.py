@@ -14,6 +14,7 @@ from .const import (
     CONF_INITIAL_MAX,
     CONF_INITIAL_MIN,
     CONF_OFFSET,
+    CONF_RESET_HISTORY,
     CONF_PERIODS,
     CONF_SENSOR_ENTITY,
     CONF_TYPES,
@@ -43,6 +44,7 @@ class MaxMinDataUpdateCoordinator(DataUpdateCoordinator):
             
         self.types = config_entry.options.get(CONF_TYPES, config_entry.data.get(CONF_TYPES, [TYPE_MAX, TYPE_MIN]))
         self.offset = config_entry.options.get(CONF_OFFSET, config_entry.data.get(CONF_OFFSET, 0))
+        self.reset_history = config_entry.options.get(CONF_RESET_HISTORY, False)
 
 
         # Data structure: {period: {"max": value, "min": value, "start": value, "end": value}}
@@ -105,24 +107,30 @@ class MaxMinDataUpdateCoordinator(DataUpdateCoordinator):
         super().__init__(**kwargs)
         # Ensure config_entry is set (some HA versions might overwrite it with None if not in kwargs)
         self.config_entry = config_entry
+        _LOGGER.debug("[%s] Coordinator initialized. Reset history: %s. Options: %s", config_entry.title, self.reset_history, config_entry.options)
 
     def get_value(self, period, type_):
         """Get value for specific period and type."""
         # Force a look at the latest config entry data/options to be absolutely sure
-        # this helps if for some reason the internal cache _configured_initials is out of sync
         if self.config_entry:
             key = f"{period}_initial_{type_}"
             # Check options first (from OptionsFlow), then data (from ConfigFlow)
-            init_val = self.config_entry.options.get(key, self.config_entry.data.get(key))
+            # Use explicit None check to handle potential empty dict entry properly
+            init_val = self.config_entry.options.get(key)
+            if init_val is None:
+                init_val = self.config_entry.data.get(key)
+                
             if init_val is not None:
                 try:
                     init_val = float(init_val)
                     current_val = self.tracked_data.get(period, {}).get(type_)
                     if type_ == "max":
                         if current_val is None or current_val < init_val:
+                            _LOGGER.debug("get_value(%s, %s) returning initial %s over current %s", period, type_, init_val, current_val)
                             return init_val
                     elif type_ == "min":
                         if current_val is None or current_val > init_val:
+                            _LOGGER.debug("get_value(%s, %s) returning initial %s over current %s", period, type_, init_val, current_val)
                             return init_val
                 except (ValueError, TypeError):
                     pass
@@ -165,6 +173,11 @@ class MaxMinDataUpdateCoordinator(DataUpdateCoordinator):
 
     def update_restored_data(self, period, type_, value, last_reset=None):
         """Update data from restored state."""
+        if self.reset_history:
+            # If user explicitly asked for a reset, we ignore historical data
+            _LOGGER.debug("Ignoring restore for %s %s due to reset_history flag", period, type_)
+            return
+
         if period not in self.tracked_data:
             self.tracked_data[period] = {"max": None, "min": None, "last_reset": None}
             

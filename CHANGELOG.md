@@ -4,6 +4,13 @@
 ## Fixed
 - **Record Enforcement**: Hardened the logic that ensures user-configured initial values (floors/ceilings) are always respected. Added defensive checks in both data processing and state reporting to prevent calculated or restored values from overriding explicitly set boundaries.
 
+# 0.3.21 - 2026-02-10
+## Added
+- **Reset History Option**: Added a new "Reset historical records" checkbox in the options flow. Checking this will wipe internal memory (max/min/delta) on the next restart, allowing a fresh start with new initial values.
+## Fixed
+- **Improved Initial Value Fallback**: Refined how initial values are retrieved from config to ensure total priority of options (UI) over original configuration.
+- **Enhanced Debug Logging**: Added detailed logs to trace configuration application and potential value overrides in real-time.
+
 # 0.3.20 - 2026-02-10
 ## Fixed
 - **Ultimate Record Protection**: Rewrote the logic for initial values to be absolutely bulletproof. The sensors now check the configuration directly on every single state read, making it virtually impossible for any internal logic or external data restoration to override a user-configured floor/ceiling.

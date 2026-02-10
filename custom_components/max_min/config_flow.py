@@ -10,6 +10,7 @@ from .const import (
     CONF_INITIAL_MAX,
     CONF_INITIAL_MIN,
     CONF_OFFSET,
+    CONF_RESET_HISTORY,
     CONF_PERIODS,
     CONF_SENSOR_ENTITY,
     CONF_TYPES,
@@ -248,6 +249,10 @@ class MaxMinOptionsFlow(config_entries.OptionsFlow):
                         unit_of_measurement="seconds",
                     )
                 ),
+                vol.Optional(
+                    CONF_RESET_HISTORY,
+                    default=False,
+                ): selector.BooleanSelector(),
             }),
             errors=errors,
         )
