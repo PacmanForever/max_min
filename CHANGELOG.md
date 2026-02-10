@@ -1,5 +1,17 @@
 
 
+# 0.3.15 - 2026-02-10
+## Changed
+- **Implemented `runtime_data`**: Transitioned from `hass.data[DOMAIN]` to the modern `entry.runtime_data` pattern for better performance and alignment with Home Assistant best practices.
+- **Improved Source Mirroring**: All sensors (Max, Min, and Delta) now force `state_class: measurement`. This prevents Home Assistant from flagging "decrease detected" errors when periods reset, especially for cumulative sensors like rain.
+- **Filtered Device Classes**: Problematic device classes (energy, water, gas) that enforce specific statistics behavior are now filtered out when mirroring, while keeping their units of measurement.
+- **Integration Metadata**: Corrected `integration_type` to `"helper"` and fixed repository URLs in `manifest.json`.
+- **Translations Validation**: Fixed strings.json and en.json missing required step descriptions, resolving HACS validation errors.
+
+## Fixed
+- **Daily Compatibility CI**: Updated GitHub workflows to use Python 3.13, resolving failures in the nightly compatibility checks with Home Assistant beta.
+- **Test Suite Modernization**: All 151 unit and component tests updated to support the `runtime_data` architecture.
+
 # 0.3.14 - 2026-02-09
 ## Fixed
 - **Initial values not applied on integration reload**: `async_config_entry_first_refresh` now enforces configured initial values after initialization. Previously, when modifying initial values via Options and reloading the integration, the current sensor value would override the configured initial, making it impossible to set a floor/ceiling without waiting for a period reset.

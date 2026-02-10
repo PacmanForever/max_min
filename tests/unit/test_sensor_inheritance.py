@@ -68,5 +68,5 @@ def test_sensor_defaults_if_source_missing(coordinator, config_entry, hass):
     max_sensor = MaxSensor(coordinator, config_entry, "Max Test", PERIOD_DAILY)
     
     # Should use defaults or None
-    assert max_sensor.device_class is None # Previously "measurement"
-    assert max_sensor.state_class is None  # Previously "measurement"
+    assert max_sensor.device_class is None
+    assert max_sensor.state_class == "measurement"

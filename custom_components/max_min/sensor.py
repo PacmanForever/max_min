@@ -31,7 +31,7 @@ async def async_setup_entry(
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     """Set up the sensor platform."""
-    coordinator = hass.data["max_min"][config_entry.entry_id]
+    coordinator = config_entry.runtime_data
     types = config_entry.options.get(CONF_TYPES, config_entry.data.get(CONF_TYPES, [TYPE_MAX, TYPE_MIN]))
     periods = config_entry.options.get(CONF_PERIODS, config_entry.data.get(CONF_PERIODS, [PERIOD_DAILY]))
     # Fallback to verify single list
@@ -141,21 +141,24 @@ class _BaseMaxMinSensor(CoordinatorEntity, SensorEntity, RestoreEntity):
 
     @property
     def device_class(self):
-        """Return the device class mirrored from the source sensor."""
+        """Return the device class mirrored from the source sensor.
+        
+        We avoid mirroring classes that enforce state_class: total/total_increasing
+        because our sensors are all snapshots/measurements of periods.
+        """
         if self.coordinator.hass:
             state = self.coordinator.hass.states.get(self._source_entity)
             if state and "device_class" in state.attributes:
-                self._attr_device_class = state.attributes.get("device_class")
+                dev_cls = state.attributes.get("device_class")
+                if dev_cls in ("energy", "gas", "water", "monetary", "data_size", "data_rate"):
+                    return None
+                return dev_cls
         return self._attr_device_class
 
     @property
     def state_class(self):
-        """Return the state class mirrored from the source sensor."""
-        if self.coordinator.hass:
-            state = self.coordinator.hass.states.get(self._source_entity)
-            if state and "state_class" in state.attributes:
-                self._attr_state_class = state.attributes.get("state_class")
-        return self._attr_state_class
+        """Return the state class. Always measurement to avoid reset issues with statistics."""
+        return "measurement"
 
     @property
     def device_info(self):
@@ -197,7 +200,6 @@ class MaxSensor(_BaseMaxMinSensor):
         if last_state:
             self._attr_native_unit_of_measurement = last_state.attributes.get("unit_of_measurement")
             self._attr_device_class = last_state.attributes.get("device_class")
-            self._attr_state_class = last_state.attributes.get("state_class")
 
             if last_state.state not in (None, "unknown", "unavailable"):
                 try:
@@ -230,7 +232,6 @@ class MinSensor(_BaseMaxMinSensor):
         if last_state:
             self._attr_native_unit_of_measurement = last_state.attributes.get("unit_of_measurement")
             self._attr_device_class = last_state.attributes.get("device_class")
-            self._attr_state_class = last_state.attributes.get("state_class")
 
             if last_state.state not in (None, "unknown", "unavailable"):
                 try:
@@ -259,11 +260,6 @@ class DeltaSensor(_BaseMaxMinSensor):
     async def async_added_to_hass(self) -> None:
         """Delta values are managed by the coordinator; no restore needed."""
         await super().async_added_to_hass()
-
-    @property
-    def state_class(self):
-        """Delta is a computed measurement, never total_increasing."""
-        return "measurement"
 
     @property
     def extra_state_attributes(self):

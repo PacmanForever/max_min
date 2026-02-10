@@ -3,6 +3,7 @@
     "step": {
       "user": {
         "title": "Add new Max/Min sensor/s",
+        "description": "Configure a new sensor to track maximum, minimum, and delta values over specific time periods.",
         "data": {
           "sensor_entity": "Source sensor",
           "periods": "Periods",
@@ -13,6 +14,7 @@
       },
       "optional_settings": {
         "title": "Optional settings",
+        "description": "Optionally configure initial values for each selected period. For Max sensors, the initial value acts as a floor; for Min sensors, it acts as a ceiling.",
         "data": {
           "daily_initial_min": "Daily: Initial Min Value",
           "daily_initial_max": "Daily: Initial Max Value",
@@ -41,6 +43,7 @@
     "step": {
       "init": {
         "title": "Max/Min sensor/s options",
+        "description": "Adjust the periods and types of tracking for this entity.",
         "data": {
           "periods": "Periods",
           "types": "Sensors",
@@ -50,6 +53,7 @@
       },
       "optional_settings": {
         "title": "Optional settings",
+        "description": "Update the initial values for your tracked periods.",
         "data": {
           "daily_initial_min": "Daily: Initial Min Value",
           "daily_initial_max": "Daily: Initial Max Value",

@@ -223,7 +223,7 @@ def test_no_configured_initial_does_not_enforce(hass):
     # Restore sets the value normally
     coordinator.update_restored_data(
         PERIOD_DAILY, "max", 13.107,
-        last_reset=datetime(2026, 2, 8, 0, 0, 0, tzinfo=timezone.utc),
+        last_reset=datetime.now(timezone.utc),
     )
     assert coordinator.tracked_data[PERIOD_DAILY]["max"] == 13.107
 

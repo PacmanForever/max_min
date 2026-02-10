@@ -30,9 +30,8 @@ def mock_registry_entry():
 @pytest.mark.asyncio
 async def test_sensor_cleanup_on_options_update(hass, mock_registry_entry):
     """Test that stale entities are removed when options change."""
-    hass.data = {"max_min": {"test_entry": Mock()}}
-    
     config_entry = Mock()
+    config_entry.runtime_data = Mock()
     config_entry.entry_id = "test_entry"
     config_entry.data = {
         CONF_SENSOR_ENTITY: "sensor.source",
@@ -97,9 +96,8 @@ async def test_sensor_cleanup_on_options_update(hass, mock_registry_entry):
 @pytest.mark.asyncio
 async def test_sensor_cleanup_on_period_change(hass, mock_registry_entry):
     """Test that stale entities are removed when periods change."""
-    hass.data = {"max_min": {"test_entry": Mock()}}
-    
     config_entry = Mock()
+    config_entry.runtime_data = Mock()
     config_entry.entry_id = "test_entry"
     config_entry.data = {
         CONF_SENSOR_ENTITY: "sensor.source",

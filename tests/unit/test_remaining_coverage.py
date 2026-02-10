@@ -461,7 +461,7 @@ async def test_sensor_async_setup_entry_periods_string(hass):
     coordinator = Mock(spec=MaxMinDataUpdateCoordinator)
     coordinator.get_value.return_value = 10.0
     coordinator.hass = hass
-    hass.data = {DOMAIN: {entry.entry_id: coordinator}}
+    entry.runtime_data = coordinator
 
     async_add_entities = Mock()
 
@@ -499,7 +499,7 @@ async def test_sensor_async_setup_entry_friendly_name_fallback(hass):
     coordinator = Mock(spec=MaxMinDataUpdateCoordinator)
     coordinator.get_value.return_value = 10.0
     coordinator.hass = hass
-    hass.data = {DOMAIN: {entry.entry_id: coordinator}}
+    entry.runtime_data = coordinator
 
     # State machine returns friendly_name
     hass.states.get.return_value = Mock(
@@ -544,7 +544,7 @@ async def test_sensor_async_setup_entry_delta_type(hass):
     coordinator = Mock(spec=MaxMinDataUpdateCoordinator)
     coordinator.get_value.return_value = 0.0
     coordinator.hass = hass
-    hass.data = {DOMAIN: {entry.entry_id: coordinator}}
+    entry.runtime_data = coordinator
 
     async_add_entities = Mock()
 
