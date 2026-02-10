@@ -6,8 +6,9 @@
 
 # 0.3.18 - 2026-02-10
 ## Fixed
-- **UI Safety**: Optional setting fields (Initial values) now appear empty by default. Sending an empty field will no longer overwrite or clear existing values, preventing accidental data loss if the form is submitted without changes.
-- **Immediate Value Application**: Fixed a bug where configured initial values were not immediately reflected in the sensor state until the next source sensor update.
+- **Hardened Record Enforcement**: Added defensive checks to ensure user-configured initial values (floors/ceilings) are always respected, even against cross-period consistency propagation.
+- **UI Safety**: Optional setting fields (Initial values) now appear empty by default. Sending an empty field will no longer overwrite or clear existing values, preventing accidental data loss.
+- **Immediate Value Application**: Configured initial values are now applied immediately to the sensor state without waiting for the next source update.
 
 # 0.3.17 - 2026-02-10
 ## Fixed
