@@ -192,6 +192,8 @@ class MaxMinDataUpdateCoordinator(DataUpdateCoordinator):
             if configured is not None and (data["min"] is None or data["min"] > configured):
                 data["min"] = configured
 
+        self._check_consistency()
+
     async def async_config_entry_first_refresh(self) -> None:
         """Initialize values and listeners."""
         # Get initial value
@@ -222,6 +224,8 @@ class MaxMinDataUpdateCoordinator(DataUpdateCoordinator):
                         data["max"] = initial_max
                     if initial_min is not None and (data["min"] is None or data["min"] > initial_min):
                         data["min"] = initial_min
+
+                self._check_consistency()
             except ValueError:
                 _LOGGER.warning("Sensor %s has non-numeric state: %s", self.sensor_entity, state.state)
         else:
@@ -304,11 +308,14 @@ class MaxMinDataUpdateCoordinator(DataUpdateCoordinator):
                     if data["min"] is None or value < data["min"]:
                         data["min"] = value
                         updated = True
+
                     # Delta support: update end value
-                    data["end"] = value
-                    updated = True
+                    if data.get("end") != value:
+                        data["end"] = value
+                        updated = True
 
                 if updated:
+                    self._check_consistency()
                     _LOGGER.debug("Sensor updated: %s. Data: %s", value, self.tracked_data)
                     self.async_set_updated_data({})
             except ValueError:
@@ -403,3 +410,43 @@ class MaxMinDataUpdateCoordinator(DataUpdateCoordinator):
         if self._unsub_sensor_state_listener:
             self._unsub_sensor_state_listener()
             self._unsub_sensor_state_listener = None
+
+    def _check_consistency(self):
+        """Ensure broader periods encapsulate more extreme values from narrower ones.
+        
+        This propagates extreme values 'outwards' (e.g. if Daily Min is -5, 
+        then Weekly, Monthly, Yearly and All-time must be at least -5).
+        """
+        # Hierarchy: indices allow relative comparison
+        hierarchy = [
+            PERIOD_DAILY,
+            PERIOD_WEEKLY,
+            PERIOD_MONTHLY,
+            PERIOD_YEARLY,
+            PERIOD_ALL_TIME
+        ]
+        
+        # We process from narrowest to broadest to propagate extremes outwards
+        for i in range(len(hierarchy) - 1):
+            narrower_p = hierarchy[i]
+            if narrower_p not in self.tracked_data:
+                continue
+                
+            n_max = self.tracked_data[narrower_p].get("max")
+            n_min = self.tracked_data[narrower_p].get("min")
+            
+            # Compare with all broader periods
+            for j in range(i + 1, len(hierarchy)):
+                broader_p = hierarchy[j]
+                if broader_p not in self.tracked_data:
+                    continue
+                
+                b_data = self.tracked_data[broader_p]
+                
+                if n_max is not None:
+                    if b_data["max"] is None or n_max > b_data["max"]:
+                        b_data["max"] = n_max
+                        
+                if n_min is not None:
+                    if b_data["min"] is None or n_min < b_data["min"]:
+                        b_data["min"] = n_min

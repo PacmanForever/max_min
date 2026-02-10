@@ -1,5 +1,10 @@
 
 
+# 0.3.16 - 2026-02-10
+## Fixed
+- **Record inconsistencies between periods**: Added a cross-period consistency check. Broad periods (like All-time) now automatically inherit more extreme records from narrower ones (like Yearly/Monthly). This ensures that if Yearly Min is -1.3, All-time Min is also at least -1.3, even if the All-time sensor was added later or had a less extreme initial value.
+- **Sensor update optimization**: The integration now only triggers a Home Assistant state update if a value actually changes, reducing unnecessary database writes for Delta sensors.
+
 # 0.3.15 - 2026-02-10
 ## Changed
 - **Implemented `runtime_data`**: Transitioned from `hass.data[DOMAIN]` to the modern `entry.runtime_data` pattern for better performance and alignment with Home Assistant best practices.
