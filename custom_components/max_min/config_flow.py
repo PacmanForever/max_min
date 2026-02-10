@@ -122,7 +122,9 @@ class MaxMinConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     errors[f"{period}_{CONF_INITIAL_MIN}"] = "min_greater_than_max"
 
             if not errors:
-                final_data = {**self.data, **user_input}
+                # Filter out None/empty values so they don't overwrite if not intentional
+                # But for ConfigFlow (new entry), we just merge everything
+                final_data = {**self.data, **{k: v for k, v in user_input.items() if v is not None}}
                 
                 # Create a better title
                 sensor_entity = self.data[CONF_SENSOR_ENTITY]
@@ -151,12 +153,10 @@ class MaxMinConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         for period in periods:
             if TYPE_MIN in types:
                 key = f"{period}_{CONF_INITIAL_MIN}"
-                suggested = user_input.get(key) if user_input else self.data.get(key)
-                schema[vol.Optional(key, description={"suggested_value": suggested})] = vol.Coerce(float)
+                schema[vol.Optional(key)] = vol.Coerce(float)
             if TYPE_MAX in types:
                 key = f"{period}_{CONF_INITIAL_MAX}"
-                suggested = user_input.get(key) if user_input else self.data.get(key)
-                schema[vol.Optional(key, description={"suggested_value": suggested})] = vol.Coerce(float)
+                schema[vol.Optional(key)] = vol.Coerce(float)
         
         # If no settings are relevant (e.g. only Delta selected), skip this step
         if not schema:
@@ -270,7 +270,9 @@ class MaxMinOptionsFlow(config_entries.OptionsFlow):
                     errors[f"{period}_{CONF_INITIAL_MIN}"] = "min_greater_than_max"
             
             if not errors:
-                self.options.update(user_input)
+                # Filter out None/empty values so they don't overwrite existing settings
+                filtered_input = {k: v for k, v in user_input.items() if v is not None}
+                self.options.update(filtered_input)
                 # Ensure device_id is captured as None if cleared/missing to override data
                 if CONF_DEVICE_ID not in self.options:
                     # It should be in options based on prev step, but if not we might inherit it or set to None
@@ -309,13 +311,11 @@ class MaxMinOptionsFlow(config_entries.OptionsFlow):
             # Try to find specific value, fallback to global legacy value
             if TYPE_MIN in types:
                 key = f"{period}_{CONF_INITIAL_MIN}"
-                current_val = self.options.get(key, self._config_entry.data.get(key))
-                schema[vol.Optional(key, description={"suggested_value": current_val})] = vol.Coerce(float)
+                schema[vol.Optional(key)] = vol.Coerce(float)
                 
             if TYPE_MAX in types:
                 key = f"{period}_{CONF_INITIAL_MAX}"
-                current_val = self.options.get(key, self._config_entry.data.get(key))
-                schema[vol.Optional(key, description={"suggested_value": current_val})] = vol.Coerce(float)
+                schema[vol.Optional(key)] = vol.Coerce(float)
 
         return self.async_show_form(
             step_id="optional_settings",

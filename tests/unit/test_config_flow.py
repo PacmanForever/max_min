@@ -11,6 +11,8 @@ from custom_components.max_min.const import (
     CONF_PERIODS,
     CONF_SENSOR_ENTITY,
     CONF_TYPES,
+    CONF_INITIAL_MAX,
+    CONF_INITIAL_MIN,
     DOMAIN,
     PERIOD_DAILY,
     TYPE_MAX,
@@ -565,3 +567,66 @@ async def test_config_flow_delta_selection(hass):
     assert result["type"] == FlowResultType.CREATE_ENTRY
     assert result["data"][CONF_TYPES] == [TYPE_DELTA]
     assert result["title"] == "Test Sensor (Delta)"
+
+
+@pytest.mark.asyncio
+async def test_options_flow_safe_empty_update(hass):
+    """Test that sending an empty optional settings form doesn't overwrite existing settings."""
+    config_entry = Mock()
+    config_entry.data = {
+        CONF_SENSOR_ENTITY: "sensor.test",
+        CONF_PERIODS: [PERIOD_DAILY],
+        CONF_TYPES: [TYPE_MAX],
+    }
+    config_entry.options = {
+        f"{PERIOD_DAILY}_{CONF_INITIAL_MAX}": 45.0,
+    }
+    config_entry.title = "Test Sensor"
+
+    flow = MaxMinOptionsFlow(config_entry)
+    flow.hass = hass
+
+    # Step init
+    await flow.async_step_init()
+    
+    # Step optional_settings with EMPTY input (user clicks 'Send' without typing)
+    result = await flow.async_step_optional_settings({})
+    
+    assert result["type"] == FlowResultType.CREATE_ENTRY
+    # The value 45.0 MUST still be there
+    assert result.get("data", {}).get(f"{PERIOD_DAILY}_{CONF_INITIAL_MAX}") == 45.0
+
+    # Step optional_settings with None values (simulated blank fields)
+    flow = MaxMinOptionsFlow(config_entry)
+    flow.hass = hass
+    await flow.async_step_init()
+    result = await flow.async_step_optional_settings({f"{PERIOD_DAILY}_{CONF_INITIAL_MAX}": None})
+    
+    assert result["type"] == FlowResultType.CREATE_ENTRY
+    # The value 45.0 MUST STILL be there (filtering None values)
+    assert result.get("data", {}).get(f"{PERIOD_DAILY}_{CONF_INITIAL_MAX}") == 45.0
+
+
+@pytest.mark.asyncio
+async def test_options_flow_overwrite_with_new_value(hass):
+    """Test that sending a new value correctly overwrites the old one."""
+    config_entry = Mock()
+    config_entry.data = {
+        CONF_SENSOR_ENTITY: "sensor.test",
+        CONF_PERIODS: [PERIOD_DAILY],
+        CONF_TYPES: [TYPE_MAX],
+    }
+    config_entry.options = {
+        f"{PERIOD_DAILY}_{CONF_INITIAL_MAX}": 45.0,
+    }
+    config_entry.title = "Test Sensor"
+
+    flow = MaxMinOptionsFlow(config_entry)
+    flow.hass = hass
+
+    await flow.async_step_init()
+    result = await flow.async_step_optional_settings({f"{PERIOD_DAILY}_{CONF_INITIAL_MAX}": 50.0})
+    
+    assert result["type"] == FlowResultType.CREATE_ENTRY
+    assert result.get("data", {}).get(f"{PERIOD_DAILY}_{CONF_INITIAL_MAX}") == 50.0
+

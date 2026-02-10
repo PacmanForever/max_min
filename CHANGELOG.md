@@ -1,5 +1,10 @@
 
 
+# 0.3.18 - 2026-02-10
+## Fixed
+- **UI Safety**: Optional setting fields (Initial values) now appear empty by default. Sending an empty field will no longer overwrite or clear existing values, preventing accidental data loss if the form is submitted without changes.
+- **Immediate Value Application**: Fixed a bug where configured initial values were not immediately reflected in the sensor state until the next source sensor update.
+
 # 0.3.17 - 2026-02-10
 ## Fixed
 - **Initial values lost on settings update**: Fixed a bug where opening the Options Flow would clear existing initial values because the form fields appeared empty. The UI now correctly remembers and suggests currently configured values.
