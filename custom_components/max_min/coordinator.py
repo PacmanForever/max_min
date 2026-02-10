@@ -62,6 +62,20 @@ class MaxMinDataUpdateCoordinator(DataUpdateCoordinator):
             p_initial_max = config_entry.options.get(specific_max_key, config_entry.data.get(specific_max_key, global_initial_max))
             p_initial_min = config_entry.options.get(specific_min_key, config_entry.data.get(specific_min_key, global_initial_min))
 
+            # Ensure we coerce to float if they came from somewhere weird
+            if p_initial_max is not None:
+                try:
+                    p_initial_max = float(p_initial_max)
+                except (ValueError, TypeError):
+                    p_initial_max = None
+            if p_initial_min is not None:
+                try:
+                    p_initial_min = float(p_initial_min)
+                except (ValueError, TypeError):
+                    p_initial_min = None
+
+            _LOGGER.debug("Period %s: Initial Max=%s, Min=%s", period, p_initial_max, p_initial_min)
+
             self.tracked_data[period] = {
                 "max": p_initial_max,
                 "min": p_initial_min,
@@ -94,24 +108,28 @@ class MaxMinDataUpdateCoordinator(DataUpdateCoordinator):
 
     def get_value(self, period, type_):
         """Get value for specific period and type."""
-        if period not in self.tracked_data:
-            return None
-            
-        data = self.tracked_data[period]
-        val = data.get(type_)
-        
-        # Defensive check against initial values
-        initials = self._configured_initials.get(period, {})
-        if type_ == "max":
-            init_max = initials.get("max")
-            if init_max is not None and (val is None or val < init_max):
-                return init_max
-        elif type_ == "min":
-            init_min = initials.get("min")
-            if init_min is not None and (val is None or val > init_min):
-                return init_min
-                
-        return val
+        # Force a look at the latest config entry data/options to be absolutely sure
+        # this helps if for some reason the internal cache _configured_initials is out of sync
+        if self.config_entry:
+            key = f"{period}_initial_{type_}"
+            # Check options first (from OptionsFlow), then data (from ConfigFlow)
+            init_val = self.config_entry.options.get(key, self.config_entry.data.get(key))
+            if init_val is not None:
+                try:
+                    init_val = float(init_val)
+                    current_val = self.tracked_data.get(period, {}).get(type_)
+                    if type_ == "max":
+                        if current_val is None or current_val < init_val:
+                            return init_val
+                    elif type_ == "min":
+                        if current_val is None or current_val > init_val:
+                            return init_val
+                except (ValueError, TypeError):
+                    pass
+
+        if period in self.tracked_data:
+            return self.tracked_data[period].get(type_)
+        return None
     
     @staticmethod
     def _get_period_start(now, period):

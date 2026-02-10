@@ -4,6 +4,10 @@
 ## Fixed
 - **Record Enforcement**: Hardened the logic that ensures user-configured initial values (floors/ceilings) are always respected. Added defensive checks in both data processing and state reporting to prevent calculated or restored values from overriding explicitly set boundaries.
 
+# 0.3.20 - 2026-02-10
+## Fixed
+- **Ultimate Record Protection**: Rewrote the logic for initial values to be absolutely bulletproof. The sensors now check the configuration directly on every single state read, making it virtually impossible for any internal logic or external data restoration to override a user-configured floor/ceiling.
+
 # 0.3.18 - 2026-02-10
 ## Fixed
 - **Hardened Record Enforcement**: Added defensive checks to ensure user-configured initial values (floors/ceilings) are always respected, even against cross-period consistency propagation.
