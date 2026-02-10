@@ -1,5 +1,10 @@
 
 
+# 0.3.17 - 2026-02-10
+## Fixed
+- **Initial values lost on settings update**: Fixed a bug where opening the Options Flow would clear existing initial values because the form fields appeared empty. The UI now correctly remembers and suggests currently configured values.
+- **Consistency vs Initial values conflict**: Improved the cross-period consistency check. Now, even if a narrower period (like Daily) has a value, it cannot override a user-configured floor/ceiling in a broader period (like Yearly). User-configured initials now have absolute priority.
+
 # 0.3.16 - 2026-02-10
 ## Fixed
 - **Record inconsistencies between periods**: Added a cross-period consistency check. Broad periods (like All-time) now automatically inherit more extreme records from narrower ones (like Yearly/Monthly). This ensures that if Yearly Min is -1.3, All-time Min is also at least -1.3, even if the All-time sensor was added later or had a less extreme initial value.

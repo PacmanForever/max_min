@@ -450,3 +450,20 @@ class MaxMinDataUpdateCoordinator(DataUpdateCoordinator):
                 if n_min is not None:
                     if b_data["min"] is None or n_min < b_data["min"]:
                         b_data["min"] = n_min
+
+        # After applying consistency, re-enforce configured initial values as absolute floors/ceilings.
+        # This prevents consistency propagation from Daily (e.g. 13.0) overriding 
+        # a user-configured Yearly Initial (e.g. 45.0).
+        for period, initials in self._configured_initials.items():
+            if period not in self.tracked_data:
+                continue
+            data = self.tracked_data[period]
+            initial_max = initials.get("max")
+            initial_min = initials.get("min")
+
+            if initial_max is not None and (data["max"] is None or data["max"] < initial_max):
+                data["max"] = initial_max
+                _LOGGER.debug("Consistency fix: Re-enforcing %s Max floor to %s", period, initial_max)
+            if initial_min is not None and (data["min"] is None or data["min"] > initial_min):
+                data["min"] = initial_min
+                _LOGGER.debug("Consistency fix: Re-enforcing %s Min ceiling to %s", period, initial_min)

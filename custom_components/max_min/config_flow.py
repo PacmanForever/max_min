@@ -119,7 +119,6 @@ class MaxMinConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
                 if initial_min is not None and initial_max is not None and initial_min > initial_max:
                     errors["base"] = "min_greater_than_max"
-                    # Also mark the specific fields if supported by frontend, ensuring they turn red
                     errors[f"{period}_{CONF_INITIAL_MIN}"] = "min_greater_than_max"
 
             if not errors:
@@ -147,16 +146,17 @@ class MaxMinConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 
                 return self.async_create_entry(title=title, data=final_data)
         
-        # Build strict schema dynamically based on selected periods/types
+        # Build schema
         schema = {}
         for period in periods:
-            # We rely on dynamic keys. Translations for these would need to be handled carefully,
-            # but for now we assume the label will be derived from the key in a readable way or we need explicit translation placeholders
-            # ideally. For this iteration, we keep it simple.
             if TYPE_MIN in types:
-                schema[vol.Optional(f"{period}_{CONF_INITIAL_MIN}")] = vol.Coerce(float)
+                key = f"{period}_{CONF_INITIAL_MIN}"
+                suggested = user_input.get(key) if user_input else self.data.get(key)
+                schema[vol.Optional(key, description={"suggested_value": suggested})] = vol.Coerce(float)
             if TYPE_MAX in types:
-                schema[vol.Optional(f"{period}_{CONF_INITIAL_MAX}")] = vol.Coerce(float)
+                key = f"{period}_{CONF_INITIAL_MAX}"
+                suggested = user_input.get(key) if user_input else self.data.get(key)
+                schema[vol.Optional(key, description={"suggested_value": suggested})] = vol.Coerce(float)
         
         # If no settings are relevant (e.g. only Delta selected), skip this step
         if not schema:
@@ -181,7 +181,7 @@ class MaxMinOptionsFlow(config_entries.OptionsFlow):
     def __init__(self, config_entry):
         """Initialize options flow."""
         self._config_entry = config_entry
-        self.options = {}
+        self.options = dict(config_entry.options)
 
     async def async_step_init(self, user_input=None):
         """Manage the options."""
@@ -298,31 +298,24 @@ class MaxMinOptionsFlow(config_entries.OptionsFlow):
                             suffix = "Max/Min"
                         
                         new_title = f"{sensor_name} ({suffix})"
-                        self.hass.config_entries.async_update_entry(self._config_entry, title=new_title)
+                        if new_title != self._config_entry.title:
+                            self.hass.config_entries.async_update_entry(self._config_entry, title=new_title)
 
                 return self.async_create_entry(title="", data=self.options)
 
         # Build schema
         schema = {}
-        # We don't want to load saved options for initial values in Options Flow
-        # to avoid re-applying old initial values/overwriting history accidentally.
-        # saved_options = self._config_entry.options if self._config_entry.options else self._config_entry.data
-        
         for period in periods:
             # Try to find specific value, fallback to global legacy value
             if TYPE_MIN in types:
                 key = f"{period}_{CONF_INITIAL_MIN}"
-                description = {}
-                if user_input is not None:
-                    description = {"suggested_value": user_input.get(key)}
-                schema[vol.Optional(key, description=description)] = vol.Coerce(float)
+                current_val = self.options.get(key, self._config_entry.data.get(key))
+                schema[vol.Optional(key, description={"suggested_value": current_val})] = vol.Coerce(float)
                 
             if TYPE_MAX in types:
                 key = f"{period}_{CONF_INITIAL_MAX}"
-                description = {}
-                if user_input is not None:
-                    description = {"suggested_value": user_input.get(key)}
-                schema[vol.Optional(key, description=description)] = vol.Coerce(float)
+                current_val = self.options.get(key, self._config_entry.data.get(key))
+                schema[vol.Optional(key, description={"suggested_value": current_val})] = vol.Coerce(float)
 
         return self.async_show_form(
             step_id="optional_settings",

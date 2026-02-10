@@ -72,3 +72,19 @@ def test_no_backwards_propagation(hass):
     assert coordinator.get_value(PERIOD_DAILY, "min") == 0.0
     # All-time stays -10.0
     assert coordinator.get_value(PERIOD_ALL_TIME, "min") == -10.0
+
+def test_max_consistency_propagation(hass):
+    # Setup for Max
+    periods = [PERIOD_DAILY, PERIOD_WEEKLY]
+    entry = _make_entry(periods)
+    coordinator = MaxMinDataUpdateCoordinator(hass, entry)
+    
+    # Daily hits a very high value (e.g. 40)
+    coordinator.tracked_data[PERIOD_DAILY]["max"] = 40.0
+    # Weekly was sitting at 35
+    coordinator.tracked_data[PERIOD_WEEKLY]["max"] = 35.0
+    
+    coordinator._check_consistency()
+    
+    # Weekly must be at least 40
+    assert coordinator.get_value(PERIOD_WEEKLY, "max") == 40.0
