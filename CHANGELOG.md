@@ -8,6 +8,9 @@
 ## Fixed
 - **Delta Sensor Persistence**: Fixed a major bug where Delta sensors (Daily, Weekly, Monthly, Yearly, All-time) became "Unavailable" after a Home Assistant restart. Start and end values are now correctly restored from entity attributes to ensure continuity.
 - **Data Structure Consistency**: Unified the internal data skeleton to prevent missing keys during early state restoration.
+- **Surgical Reset Bypass**: Fixed a critical bug where `_check_consistency()` was propagating values to periods marked for surgical reset, effectively bypassing the reset mechanism. Consistency checks now respect `reset_history` and will not overwrite sensors undergoing targeted reset.
+## Added
+- **Comprehensive Test Coverage**: Added 16 new regression tests covering all fixes from v0.3.22-v0.3.25 (surgical reset, floating point rounding, Delta persistence, history preservation, and initial value enforcement). Total test count: 175 tests with 97% code coverage.
 
 # 0.3.24 - 2026-02-10
 ## Fixed

@@ -248,11 +248,10 @@ def test_configured_initial_zero_is_enforced(hass):
 
 
 def test_restore_without_last_reset_ignored_when_period_initialized(hass):
-    """Test that restored data without last_reset is ignored when coordinator
-    already has period data initialized (from first_refresh).
+    """Test that restored data without last_reset is applied if more extreme (v0.3.24+).
 
-    This prevents stale values from a previous day bleeding into the new period
-    when the restored state doesn't carry last_reset info.
+    Since v0.3.24, we allow restoration without last_reset metadata to prevent
+    data loss during integration updates/reloads. The more extreme value wins.
     """
     config_entry = _make_config_entry(periods=[PERIOD_DAILY])
     coordinator = MaxMinDataUpdateCoordinator(hass, config_entry)
@@ -266,11 +265,11 @@ def test_restore_without_last_reset_ignored_when_period_initialized(hass):
         "last_reset": datetime(2026, 2, 8, 0, 0, 0, tzinfo=timezone.utc),
     }
 
-    # Restore a stale max value (2.18 from yesterday) WITHOUT last_reset
+    # Restore a higher max value (2.18) WITHOUT last_reset
     coordinator.update_restored_data(PERIOD_DAILY, "max", 2.18, last_reset=None)
 
-    # Should NOT override — no last_reset means we can't verify it's current
-    assert coordinator.tracked_data[PERIOD_DAILY]["max"] == 0.0
+    # SHOULD apply because it's more extreme (v0.3.24 change to prevent data loss)
+    assert coordinator.tracked_data[PERIOD_DAILY]["max"] == 2.18
 
 
 def test_restore_without_last_reset_applied_when_period_not_initialized(hass):

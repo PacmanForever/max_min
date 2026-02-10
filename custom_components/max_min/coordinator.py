@@ -476,6 +476,8 @@ class MaxMinDataUpdateCoordinator(DataUpdateCoordinator):
         
         This propagates extreme values 'outwards' (e.g. if Daily Min is -5, 
         then Weekly, Monthly, Yearly and All-time must be at least -5).
+        
+        NOTE: Respects surgical reset - will not propagate to periods in reset_history.
         """
         # Hierarchy: indices allow relative comparison
         hierarchy = [
@@ -501,15 +503,28 @@ class MaxMinDataUpdateCoordinator(DataUpdateCoordinator):
                 if broader_p not in self.tracked_data:
                     continue
                 
+                # Skip propagation to periods undergoing surgical reset
+                if "all" in self.reset_history or f"{broader_p}_max" in self.reset_history:
+                    # Don't propagate max to this period
+                    n_max_propagate = None
+                else:
+                    n_max_propagate = n_max
+                    
+                if "all" in self.reset_history or f"{broader_p}_min" in self.reset_history:
+                    # Don't propagate min to this period
+                    n_min_propagate = None
+                else:
+                    n_min_propagate = n_min
+                
                 b_data = self.tracked_data[broader_p]
                 
-                if n_max is not None:
-                    if b_data.get("max") is None or n_max > b_data["max"]:
-                        b_data["max"] = n_max
+                if n_max_propagate is not None:
+                    if b_data.get("max") is None or n_max_propagate > b_data["max"]:
+                        b_data["max"] = n_max_propagate
                         
-                if n_min is not None:
-                    if b_data.get("min") is None or n_min < b_data["min"]:
-                        b_data["min"] = n_min
+                if n_min_propagate is not None:
+                    if b_data.get("min") is None or n_min_propagate < b_data["min"]:
+                        b_data["min"] = n_min_propagate
 
         # After applying consistency, re-enforce configured initial values as absolute floors/ceilings.
         # This prevents consistency propagation from Daily (e.g. 13.0) overriding 
