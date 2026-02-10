@@ -1,5 +1,9 @@
 
 
+# 0.3.19 - 2026-02-10
+## Fixed
+- **Record Enforcement**: Hardened the logic that ensures user-configured initial values (floors/ceilings) are always respected. Added defensive checks in both data processing and state reporting to prevent calculated or restored values from overriding explicitly set boundaries.
+
 # 0.3.18 - 2026-02-10
 ## Fixed
 - **UI Safety**: Optional setting fields (Initial values) now appear empty by default. Sending an empty field will no longer overwrite or clear existing values, preventing accidental data loss if the form is submitted without changes.

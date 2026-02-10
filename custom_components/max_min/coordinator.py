@@ -94,9 +94,24 @@ class MaxMinDataUpdateCoordinator(DataUpdateCoordinator):
 
     def get_value(self, period, type_):
         """Get value for specific period and type."""
-        if period in self.tracked_data:
-            return self.tracked_data[period].get(type_)
-        return None
+        if period not in self.tracked_data:
+            return None
+            
+        data = self.tracked_data[period]
+        val = data.get(type_)
+        
+        # Defensive check against initial values
+        initials = self._configured_initials.get(period, {})
+        if type_ == "max":
+            init_max = initials.get("max")
+            if init_max is not None and (val is None or val < init_max):
+                return init_max
+        elif type_ == "min":
+            init_min = initials.get("min")
+            if init_min is not None and (val is None or val > init_min):
+                return init_min
+                
+        return val
     
     @staticmethod
     def _get_period_start(now, period):
@@ -444,16 +459,17 @@ class MaxMinDataUpdateCoordinator(DataUpdateCoordinator):
                 b_data = self.tracked_data[broader_p]
                 
                 if n_max is not None:
-                    if b_data["max"] is None or n_max > b_data["max"]:
+                    if b_data.get("max") is None or n_max > b_data["max"]:
                         b_data["max"] = n_max
                         
                 if n_min is not None:
-                    if b_data["min"] is None or n_min < b_data["min"]:
+                    if b_data.get("min") is None or n_min < b_data["min"]:
                         b_data["min"] = n_min
 
         # After applying consistency, re-enforce configured initial values as absolute floors/ceilings.
         # This prevents consistency propagation from Daily (e.g. 13.0) overriding 
         # a user-configured Yearly Initial (e.g. 45.0).
+        updated_any = False
         for period, initials in self._configured_initials.items():
             if period not in self.tracked_data:
                 continue
@@ -461,9 +477,14 @@ class MaxMinDataUpdateCoordinator(DataUpdateCoordinator):
             initial_max = initials.get("max")
             initial_min = initials.get("min")
 
-            if initial_max is not None and (data["max"] is None or data["max"] < initial_max):
+            if initial_max is not None and (data.get("max") is None or data["max"] < initial_max):
                 data["max"] = initial_max
-                _LOGGER.debug("Consistency fix: Re-enforcing %s Max floor to %s", period, initial_max)
-            if initial_min is not None and (data["min"] is None or data["min"] > initial_min):
+                updated_any = True
+                _LOGGER.info("Initial value enforcement: %s Max floor set to %s (current was %s)", period, initial_max, data.get("max"))
+            if initial_min is not None and (data.get("min") is None or data["min"] > initial_min):
                 data["min"] = initial_min
-                _LOGGER.debug("Consistency fix: Re-enforcing %s Min ceiling to %s", period, initial_min)
+                updated_any = True
+                _LOGGER.info("Initial value enforcement: %s Min ceiling set to %s (current was %s)", period, initial_min, data.get("min"))
+        
+        if updated_any:
+            self.async_set_updated_data({})
