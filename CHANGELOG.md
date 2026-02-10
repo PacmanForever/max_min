@@ -4,6 +4,10 @@
 ## Fixed
 - **Record Enforcement**: Hardened the logic that ensures user-configured initial values (floors/ceilings) are always respected. Added defensive checks in both data processing and state reporting to prevent calculated or restored values from overriding explicitly set boundaries.
 
+# 0.3.23 - 2026-02-10
+## Fixed
+- **Floating Point Precision**: Added rounding (4 decimal places) to all sensor inputs to eliminate insignificant variations caused by floating point noise (e.g., 45.999999999999999).
+
 # 0.3.22 - 2026-02-10
 ## Added
 - **Surgical History Reset**: Changed the history reset logic to be automatic and precise. If you change an initial value (floor/ceiling) for a specific sensor, only that sensor's history will be cleared. Other sensors in the same configuration remain untouched.

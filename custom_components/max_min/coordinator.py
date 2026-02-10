@@ -251,7 +251,10 @@ class MaxMinDataUpdateCoordinator(DataUpdateCoordinator):
         state = self.hass.states.get(self.sensor_entity)
         if state and state.state not in (None, "unknown", "unavailable"):
             try:
-                current_value = float(state.state)
+                raw_value = float(state.state)
+                # Avoid float precision noise by rounding to 4 decimals
+                # but we'll try to be more surgical in the update loop
+                current_value = round(raw_value, 4)
                 now = dt_util.now()
                 # Initialize info for all periods
                 for period, data in self.tracked_data.items():
@@ -296,7 +299,8 @@ class MaxMinDataUpdateCoordinator(DataUpdateCoordinator):
         new_state = event.data.get("new_state")
         if new_state and new_state.state not in (None, "unknown", "unavailable"):
             try:
-                value = float(new_state.state)
+                # Round to 4 decimals to avoid float precision noise (0.9999999999998)
+                value = round(float(new_state.state), 4)
                 updated = False
                 now = dt_util.now()
 
