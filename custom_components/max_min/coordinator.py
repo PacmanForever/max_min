@@ -184,7 +184,13 @@ class MaxMinDataUpdateCoordinator(DataUpdateCoordinator):
             return
 
         if period not in self.tracked_data:
-            self.tracked_data[period] = {"max": None, "min": None, "last_reset": None}
+            self.tracked_data[period] = {
+                "max": None, 
+                "min": None, 
+                "start": None, 
+                "end": None, 
+                "last_reset": None
+            }
             
         data = self.tracked_data[period]
         
@@ -235,6 +241,12 @@ class MaxMinDataUpdateCoordinator(DataUpdateCoordinator):
             configured = self._configured_initials.get(period, {}).get("min")
             if configured is not None and (data["min"] is None or data["min"] > configured):
                 data["min"] = configured
+
+        # Case Start/End (Delta support):
+        if type_ in ("start", "end"):
+            # We always trust restored start/end values if they passed the staleness check
+            # because they represent the true period boundaries from before the restart.
+            data[type_] = value
 
         self._check_consistency()
 

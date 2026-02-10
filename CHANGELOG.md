@@ -4,6 +4,11 @@
 ## Fixed
 - **Record Enforcement**: Hardened the logic that ensures user-configured initial values (floors/ceilings) are always respected. Added defensive checks in both data processing and state reporting to prevent calculated or restored values from overriding explicitly set boundaries.
 
+# 0.3.25 - 2026-02-10
+## Fixed
+- **Delta Sensor Persistence**: Fixed a major bug where Delta sensors (Daily, Weekly, Monthly, Yearly, All-time) became "Unavailable" after a Home Assistant restart. Start and end values are now correctly restored from entity attributes to ensure continuity.
+- **Data Structure Consistency**: Unified the internal data skeleton to prevent missing keys during early state restoration.
+
 # 0.3.24 - 2026-02-10
 ## Fixed
 - **History Preservation**: Removed conservative checks that could ignore restored historical data during integration updates or reloads.

@@ -258,8 +258,25 @@ class DeltaSensor(_BaseMaxMinSensor):
     _value_key = "delta"
 
     async def async_added_to_hass(self) -> None:
-        """Delta values are managed by the coordinator; no restore needed."""
+        """Restore previous state on startup."""
         await super().async_added_to_hass()
+        last_state = await self.async_get_last_state()
+        if last_state:
+            # Restore start/end from attributes
+            start = last_state.attributes.get("start_value")
+            end = last_state.attributes.get("end_value")
+            last_reset = last_state.attributes.get("last_reset")
+            
+            if start is not None:
+                try:
+                    self.coordinator.update_restored_data(self.period, "start", float(start), last_reset)
+                except ValueError:
+                    pass
+            if end is not None:
+                try:
+                    self.coordinator.update_restored_data(self.period, "end", float(end), last_reset)
+                except ValueError:
+                    pass
 
     @property
     def extra_state_attributes(self):
