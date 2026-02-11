@@ -4,6 +4,12 @@
 ## Fixed
 - **Record Enforcement**: Hardened the logic that ensures user-configured initial values (floors/ceilings) are always respected. Added defensive checks in both data processing and state reporting to prevent calculated or restored values from overriding explicitly set boundaries.
 
+# 0.3.26 - 2026-02-11
+## Fixed
+- **Reset Scheduling Accuracy**: Fixed an issue where daily and weekly resets could occur at the wrong time (e.g., 2:00 AM instead of 00:00) due to timezone miscalculations. Now uses Home Assistant's `start_of_local_day` to guarantee resets happen exactly at local midnight.
+## Changed
+- **Integration Visibility**: Changed integration type to "hub" so it appears in the main integrations list instead of being hidden under Helpers.
+
 # 0.3.25 - 2026-02-10
 ## Fixed
 - **Delta Sensor Persistence**: Fixed a major bug where Delta sensors (Daily, Weekly, Monthly, Yearly, All-time) became "Unavailable" after a Home Assistant restart. Start and end values are now correctly restored from entity attributes to ensure continuity.

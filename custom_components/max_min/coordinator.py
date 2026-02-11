@@ -148,10 +148,10 @@ class MaxMinDataUpdateCoordinator(DataUpdateCoordinator):
     def _get_period_start(now, period):
         """Get the start time of the current period."""
         if period == PERIOD_DAILY:
-            return now.replace(hour=0, minute=0, second=0, microsecond=0)
+            return dt_util.start_of_local_day(now)
         elif period == PERIOD_WEEKLY:
             start_of_week = now - timedelta(days=now.weekday())
-            return start_of_week.replace(hour=0, minute=0, second=0, microsecond=0)
+            return dt_util.start_of_local_day(start_of_week)
         elif period == PERIOD_MONTHLY:
             return now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
         elif period == PERIOD_YEARLY:
@@ -162,12 +162,12 @@ class MaxMinDataUpdateCoordinator(DataUpdateCoordinator):
     def _compute_next_reset(now, period):
         """Compute the next reset time for a given period."""
         if period == PERIOD_DAILY:
-            return (now + timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0)
+            return dt_util.start_of_local_day(now + timedelta(days=1))
         elif period == PERIOD_WEEKLY:
             days_ahead = (7 - now.weekday()) % 7
             if days_ahead == 0:
                 days_ahead = 7
-            return (now + timedelta(days=days_ahead)).replace(hour=0, minute=0, second=0, microsecond=0)
+            return dt_util.start_of_local_day(now + timedelta(days=days_ahead))
         elif period == PERIOD_MONTHLY:
             if now.month == 12:
                 return now.replace(year=now.year + 1, month=1, day=1, hour=0, minute=0, second=0, microsecond=0)
@@ -402,6 +402,12 @@ class MaxMinDataUpdateCoordinator(DataUpdateCoordinator):
         """Schedule (or reschedule) the reset timer for a single period."""
         self._next_resets[period] = reset_time
         schedule_time = reset_time + timedelta(seconds=self.offset)
+        
+        _LOGGER.debug(
+            "Scheduling %s reset for %s (Offset: %ss). Target: %s", 
+            period, self.config_entry.title, self.offset, schedule_time
+        )
+
         # Default arg p=period captures the loop variable by value
         self._reset_listeners[period] = async_track_point_in_time(
             self.hass,
