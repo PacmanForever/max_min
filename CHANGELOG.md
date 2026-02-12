@@ -1,8 +1,10 @@
 
 
-# 0.3.19 - 2026-02-10
+# 0.3.27 - 2026-02-12
+## Improved
+- **Timezone Robustness**: Implemented strict `start_of_local_day` logic for monthly and yearly resets. This ensures resets happen precisely at user's local midnight regardless of DST transitions or timezone offsets, robustly handling the edge cases where simple time replacements could fail.
 ## Fixed
-- **Record Enforcement**: Hardened the logic that ensures user-configured initial values (floors/ceilings) are always respected. Added defensive checks in both data processing and state reporting to prevent calculated or restored values from overriding explicitly set boundaries.
+- **Monthly/Yearly Reset Logic**: Fixed potential offset errors in monthly and yearly reset calculations by deriving the reset time from the local calendar date rather than preserving the previous timestamp's offset.
 
 # 0.3.26 - 2026-02-11
 ## Fixed

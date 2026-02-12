@@ -153,9 +153,9 @@ class MaxMinDataUpdateCoordinator(DataUpdateCoordinator):
             start_of_week = now - timedelta(days=now.weekday())
             return dt_util.start_of_local_day(start_of_week)
         elif period == PERIOD_MONTHLY:
-            return now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+            return dt_util.start_of_local_day(now.replace(day=1))
         elif period == PERIOD_YEARLY:
-            return now.replace(month=1, day=1, hour=0, minute=0, second=0, microsecond=0)
+            return dt_util.start_of_local_day(now.replace(month=1, day=1))
         return None
 
     @staticmethod
@@ -169,11 +169,14 @@ class MaxMinDataUpdateCoordinator(DataUpdateCoordinator):
                 days_ahead = 7
             return dt_util.start_of_local_day(now + timedelta(days=days_ahead))
         elif period == PERIOD_MONTHLY:
+            # Safely compute next month start using local time boundaries
             if now.month == 12:
-                return now.replace(year=now.year + 1, month=1, day=1, hour=0, minute=0, second=0, microsecond=0)
-            return now.replace(month=now.month + 1, day=1, hour=0, minute=0, second=0, microsecond=0)
+                next_check = now.replace(year=now.year + 1, month=1, day=1)
+            else:
+                next_check = now.replace(month=now.month + 1, day=1)
+            return dt_util.start_of_local_day(next_check)
         elif period == PERIOD_YEARLY:
-            return now.replace(year=now.year + 1, month=1, day=1, hour=0, minute=0, second=0, microsecond=0)
+            return dt_util.start_of_local_day(now.replace(year=now.year + 1, month=1, day=1))
         return None
 
     def update_restored_data(self, period, type_, value, last_reset=None):
