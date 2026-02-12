@@ -1,5 +1,9 @@
 
 
+# 0.3.28 - 2026-02-12
+## Fixed
+- **Manifest Syntax**: Fixed a JSON syntax error (trailing comma) in `manifest.json` that caused validation failures.
+
 # 0.3.27 - 2026-02-12
 ## Improved
 - **Timezone Robustness**: Implemented strict `start_of_local_day` logic for monthly and yearly resets. This ensures resets happen precisely at user's local midnight regardless of DST transitions or timezone offsets, robustly handling the edge cases where simple time replacements could fail.
