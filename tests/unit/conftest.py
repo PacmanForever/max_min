@@ -1,7 +1,13 @@
 import pytest
-from unittest.mock import Mock, MagicMock
+from unittest.mock import Mock, MagicMock, patch
 from homeassistant.util import dt as dt_util
 from datetime import timezone
+
+@pytest.fixture(autouse=True)
+def mock_track_time_interval():
+    """Mock async_track_time_interval normally used in coordinator init."""
+    with patch("custom_components.max_min.coordinator.async_track_time_interval") as mock_track:
+        yield mock_track
 
 @pytest.fixture(autouse=True)
 def set_utc_timezone():

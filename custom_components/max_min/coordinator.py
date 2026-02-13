@@ -7,7 +7,7 @@ import logging
 from homeassistant.util import dt as dt_util
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, callback
-from homeassistant.helpers.event import async_track_state_change_event, async_track_point_in_time
+from homeassistant.helpers.event import async_track_state_change_event, async_track_point_in_time, async_track_time_interval
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 
 from .const import (
@@ -35,6 +35,13 @@ class MaxMinDataUpdateCoordinator(DataUpdateCoordinator):
 
     def __init__(self, hass: HomeAssistant, config_entry: ConfigEntry) -> None:
         """Initialize."""
+        super().__init__(
+            hass,
+            _LOGGER,
+            name=f"MaxMin {config_entry.data[CONF_SENSOR_ENTITY]}",
+            update_interval=None,
+            config_entry=config_entry,
+        )
         self.config_entry = config_entry
         self.sensor_entity = config_entry.data[CONF_SENSOR_ENTITY]
         self.periods = config_entry.options.get(CONF_PERIODS, config_entry.data.get(CONF_PERIODS, [PERIOD_DAILY]))
@@ -97,22 +104,45 @@ class MaxMinDataUpdateCoordinator(DataUpdateCoordinator):
         self._reset_listeners = {}
         self._next_resets = {} # Keep track of next reset times for offset logic
         self._unsub_sensor_state_listener = None
+        self._watchdog_unsub = None
+        
+        # Start Watchdog (every 10 minutes)
+        # It ensures that if a reset timer failed or was missed, we catch up eventually.
+        self._watchdog_unsub = async_track_time_interval(
+            self.hass, self._check_watchdog, timedelta(minutes=10)
+        )
 
-        # Check if DataUpdateCoordinator accepts config_entry (HA 2024.2+)
-        sig = inspect.signature(DataUpdateCoordinator.__init__)
-        kwargs = {
-            'hass': hass,
-            'logger': _LOGGER,
-            'name': f"{config_entry.title} Coordinator",
-            'update_interval': None,  # Manual updates
-        }
-        if 'config_entry' in sig.parameters:
-            kwargs['config_entry'] = config_entry
-
-        super().__init__(**kwargs)
-        # Ensure config_entry is set (some HA versions might overwrite it with None if not in kwargs)
-        self.config_entry = config_entry
-        _LOGGER.debug("[%s] Coordinator initialized. Reset history: %s. Options: %s", config_entry.title, self.reset_history, config_entry.options)
+    @callback
+    def _check_watchdog(self, now):
+        """Periodic check to ensure no resets were missed."""
+        _LOGGER.debug("Watchdog checking for missed resets...")
+        changes = False
+        for period in self.periods:
+            if period == PERIOD_ALL_TIME:
+                continue
+                
+            period_start = self._get_period_start(now, period)
+            data = self.tracked_data.get(period)
+            
+            if not data or not period_start:
+                continue
+                
+            last_reset = data.get("last_reset")
+            
+            # If last_reset is missing, or it's from before the current period start
+            # AND the offset window has passed -> TRIGGER RESET
+            if (not last_reset or last_reset < period_start) and (
+                self.offset == 0 or now >= period_start + timedelta(seconds=self.offset)
+            ):
+                _LOGGER.warning(
+                    "Watchdog detected missed reset for %s! Last reset: %s, Should be >= %s", 
+                    period, last_reset, period_start
+                )
+                self._handle_reset(now, period)
+                changes = True
+                
+        if changes:
+            _LOGGER.info("Watchdog forced missed resets successfully.")
 
     def get_value(self, period, type_):
         """Get value for specific period and type."""
@@ -423,52 +453,57 @@ class MaxMinDataUpdateCoordinator(DataUpdateCoordinator):
         """Handle period reset."""
         _LOGGER.debug("Handling period reset for %s - %s", self.config_entry.title, period)
 
-        current_val = None
-        state = self.hass.states.get(self.sensor_entity)
-        if state and state.state not in (None, "unknown", "unavailable"):
-            try:
-                current_val = float(state.state)
-            except ValueError:
-                pass
+        try:
+            current_val = None
+            state = self.hass.states.get(self.sensor_entity)
+            if state and state.state not in (None, "unknown", "unavailable"):
+                try:
+                    current_val = float(state.state)
+                except ValueError:
+                    pass
 
-        if period in self.tracked_data:
-            # Apply configured initial values as floor/ceiling after reset
-            initials = self._configured_initials.get(period, {})
-            initial_max = initials.get("max")
-            initial_min = initials.get("min")
+            if period in self.tracked_data:
+                # Apply configured initial values as floor/ceiling after reset
+                initials = self._configured_initials.get(period, {})
+                initial_max = initials.get("max")
+                initial_min = initials.get("min")
 
-            # Max: use whichever is higher between current value and configured initial
-            if current_val is not None and initial_max is not None:
-                self.tracked_data[period]["max"] = max(current_val, initial_max)
-            elif initial_max is not None:
-                self.tracked_data[period]["max"] = initial_max
-            else:
-                self.tracked_data[period]["max"] = current_val
+                # Max: use whichever is higher between current value and configured initial
+                if current_val is not None and initial_max is not None:
+                    self.tracked_data[period]["max"] = max(current_val, initial_max)
+                elif initial_max is not None:
+                    self.tracked_data[period]["max"] = initial_max
+                else:
+                    self.tracked_data[period]["max"] = current_val
 
-            # Min: use whichever is lower between current value and configured initial
-            if current_val is not None and initial_min is not None:
-                self.tracked_data[period]["min"] = min(current_val, initial_min)
-            elif initial_min is not None:
-                self.tracked_data[period]["min"] = initial_min
-            else:
-                self.tracked_data[period]["min"] = current_val
+                # Min: use whichever is lower between current value and configured initial
+                if current_val is not None and initial_min is not None:
+                    self.tracked_data[period]["min"] = min(current_val, initial_min)
+                elif initial_min is not None:
+                    self.tracked_data[period]["min"] = initial_min
+                else:
+                    self.tracked_data[period]["min"] = current_val
 
-            self.tracked_data[period]["last_reset"] = now
-            self.tracked_data[period]["start"] = current_val
-            self.tracked_data[period]["end"] = current_val
+                self.tracked_data[period]["last_reset"] = now
+                self.tracked_data[period]["start"] = current_val
+                self.tracked_data[period]["end"] = current_val
 
-            self.async_set_updated_data({})
+                self.async_set_updated_data({})
 
-            # Notify entities so they refresh their HA state immediately
-            for entity in getattr(self, "entities", []):
-                if hasattr(entity, "period") and entity.period == period:
-                    entity.async_write_ha_state()
+                # Notify entities so they refresh their HA state immediately
+                for entity in getattr(self, "entities", []):
+                    if hasattr(entity, "period") and entity.period == period:
+                        entity.async_write_ha_state()
 
-        # Reschedule only this period
-        current_time = dt_util.now()
-        next_reset = self._compute_next_reset(current_time, period)
-        if next_reset:
-            self._schedule_single_reset(period, next_reset)
+        except Exception as e:
+            _LOGGER.exception("Error during reset for %s: %s", period, e)
+        finally:
+            # Reschedule only this period - GUARANTEED
+            # We use try/finally to ensure that even if the reset logic crashes,
+            # the next reset is still scheduled. This prevents "broken chains".
+            next_reset = self._compute_next_reset(now, period)
+            if next_reset:
+                self._schedule_single_reset(period, next_reset)
 
     async def async_unload(self):
         """Unload the coordinator."""

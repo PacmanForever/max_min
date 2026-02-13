@@ -1,5 +1,13 @@
 
 
+
+# 0.3.29 - 2026-02-13
+## Added
+- **Reset Watchdog**: New failsafe mechanism that checks every 10 minutes for missed resets (due to HA restart, high load, or errors) and triggers them automatically.
+- **Chain Break Protection**: Ensures that the next reset is *always* scheduled, even if the current reset logic encounters an unexpected error (like an unavailable sensor), preventing the integration from stopping forever.
+## Improved
+- **Coordinator Initialization**: Cleaned up initialization logic and standardized `hass` object usage for better stability.
+
 # 0.3.28 - 2026-02-12
 ## Fixed
 - **Manifest Syntax**: Fixed a JSON syntax error (trailing comma) in `manifest.json` that caused validation failures.

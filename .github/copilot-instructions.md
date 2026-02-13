@@ -77,6 +77,8 @@ Integració custom de Home Assistant per rastrejar valors màxims, mínims i del
 - Inline reset ha de respectar l'offset per sensors cumulatius
 - Dades restaurades sense `last_reset` s'han d'ignorar si el període ja està inicialitzat
 - Valors inicials configurats s'han d'enforçar com a floor/ceiling després del restore
+- **Chain Break Protection**: En callbacks temporitzats (`async_track_point_in_time`), la reprogramació del següent event ha d'anar SEMPRE en un bloc `finally`. Si la lògica falla (ex: sensor unavailable), la cadena de resets no es pot trencar mai.
+- **Patró Watchdog**: No confiar cegament en un sol timer per events crítics (com resets de mitjanit). Implementar un Watchdog periòdic (ex: cada 10 min) que verifiqui `last_reset < periode_start` i forci el reset si s'ha perdut, respectant offsets.
 
 ## Preferències
 

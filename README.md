@@ -63,6 +63,14 @@ You can configure an **offset** (in seconds) to handle synchronization delays or
 - **Dead Zone**: Updates received during the window `[Reset Time - Offset]` to `[Reset Time + Offset]` will be ignored.
 - **Why use it?**: This prevents data from the previous period (arriving late) from counting towards the new period, and prevents values from near-instantaneous restarts just before midnight from overwriting the day's true min/max.
 
+## Reliability
+
+To ensure data consistency even in edge cases, Max Min implements several fail-safe mechanisms:
+
+- **Watchdog**: A background monitoring system runs every 10 minutes to verify that resets occurred correctly. If Home Assistant was down or restarting exactly at 00:00 (or the reset time), the watchdog detects the missed reset and enforces it immediately.
+- **Chain Break Protection**: The scheduling logic is designed to be "unbreakable". Even if an error occurs (e.g., source sensor is unavailable/unknown exactly at the reset moment), the scheduler guarantees that the *next* reset is programmed, ensuring the sensor never gets stuck.
+- **Timezone Precision**: Resets use Home Assistant's local timezone logic (`start_of_local_day`) to handle Daylight Saving Time (DST) transitions flawlessly.
+
 ## Use Case Examples
 
 - **Max Daily Temperature**: Shows the maximum temperature value from 00:00 to 23:59 of the current day.
