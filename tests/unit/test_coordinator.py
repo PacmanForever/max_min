@@ -248,15 +248,15 @@ async def test_weekly_reset_scheduling(hass, config_entry):
         with patch("custom_components.max_min.coordinator.async_track_point_in_time") as mock_track:
             coordinator._schedule_resets()
 
-            mock_track.assert_called_once()
-            args = mock_track.call_args[0]
-            reset_time = args[2]
+            assert mock_track.call_count == 2
+            primary_call = mock_track.call_args_list[0][0]
+            reset_time = primary_call[2]
 
             # Expect reset next Monday: 2023-01-09 00:00:00
             assert reset_time == datetime(2023, 1, 9, 0, 0, 0).replace(tzinfo=timezone.utc)
         
         # Verify call to _handle_reset matches signature
-        callback = mock_track.call_args[0][1]
+        callback = mock_track.call_args_list[0][0][1]
         # Simulate firing callback
         with patch.object(coordinator, '_handle_reset') as mock_handle_reset:
             callback(datetime.now())

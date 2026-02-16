@@ -58,10 +58,10 @@ async def test_offset_schedule(hass, config_entry):
             expected_reset_base = datetime(2023, 1, 2, 0, 0, 0, tzinfo=timezone.utc)
             expected_schedule = expected_reset_base + timedelta(seconds=10)
             
-            assert mock_track.call_count == 1
-            call_args = mock_track.call_args
-            # arg 2 is the time
-            scheduled_time = call_args[0][2]
+            assert mock_track.call_count == 2
+            primary_call_args = mock_track.call_args_list[0]
+            # arg 2 is the time for the primary reset timer
+            scheduled_time = primary_call_args[0][2]
             assert scheduled_time == expected_schedule
 
             # Check if internal helper stored the base reset time correctly

@@ -135,7 +135,9 @@ class _BaseMaxMinSensor(CoordinatorEntity, SensorEntity, RestoreEntity):
         """Return the unit of measurement mirrored from the source sensor."""
         if self.coordinator.hass:
             state = self.coordinator.hass.states.get(self._source_entity)
-            if state and "unit_of_measurement" in state.attributes:
+            # Only update if source is available and has a unit.
+            # If source is unavailable (e.g. startup), keep the restored/last known unit.
+            if state and state.state not in (None, "unknown", "unavailable") and "unit_of_measurement" in state.attributes:
                 self._attr_native_unit_of_measurement = state.attributes.get("unit_of_measurement")
         return self._attr_native_unit_of_measurement
 
@@ -262,6 +264,9 @@ class DeltaSensor(_BaseMaxMinSensor):
         await super().async_added_to_hass()
         last_state = await self.async_get_last_state()
         if last_state:
+            self._attr_native_unit_of_measurement = last_state.attributes.get("unit_of_measurement")
+            self._attr_device_class = last_state.attributes.get("device_class")
+
             # Restore start/end from attributes
             start = last_state.attributes.get("start_value")
             end = last_state.attributes.get("end_value")

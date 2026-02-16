@@ -1,6 +1,14 @@
 
 
 
+# 0.3.30 - 2026-02-16
+## Fixed
+- **Midnight Reset Reliability**: Refactored reset decision logic into a single shared path to avoid divergent behavior between scheduler, watchdog, inline and backup flows.
+- **Missed Reset Recovery Latency**: Added per-period backup reset verification shortly after the scheduled reset to prevent 10-15 minute late recoveries when a timer is missed.
+- **Delta Unit Restore**: Fixed Delta sensor startup restore to preserve unit and device class from last state, avoiding recurring unit-change warnings after HA restart.
+## Improved
+- **Reset Traceability**: Added explicit reset source tracking (`scheduler`, `watchdog`, `backup`, `inline`, `early_offset`) to simplify diagnostics in real deployments.
+
 # 0.3.29 - 2026-02-13
 ## Added
 - **Reset Watchdog**: New failsafe mechanism that checks every 10 minutes for missed resets (due to HA restart, high load, or errors) and triggers them automatically.

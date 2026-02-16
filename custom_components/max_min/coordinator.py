@@ -102,6 +102,7 @@ class MaxMinDataUpdateCoordinator(DataUpdateCoordinator):
             }
 
         self._reset_listeners = {}
+        self._backup_reset_listeners = {}
         self._next_resets = {} # Keep track of next reset times for offset logic
         self._unsub_sensor_state_listener = None
         self._watchdog_unsub = None
@@ -118,27 +119,7 @@ class MaxMinDataUpdateCoordinator(DataUpdateCoordinator):
         _LOGGER.debug("Watchdog checking for missed resets...")
         changes = False
         for period in self.periods:
-            if period == PERIOD_ALL_TIME:
-                continue
-                
-            period_start = self._get_period_start(now, period)
-            data = self.tracked_data.get(period)
-            
-            if not data or not period_start:
-                continue
-                
-            last_reset = data.get("last_reset")
-            
-            # If last_reset is missing, or it's from before the current period start
-            # AND the offset window has passed -> TRIGGER RESET
-            if (not last_reset or last_reset < period_start) and (
-                self.offset == 0 or now >= period_start + timedelta(seconds=self.offset)
-            ):
-                _LOGGER.warning(
-                    "Watchdog detected missed reset for %s! Last reset: %s, Should be >= %s", 
-                    period, last_reset, period_start
-                )
-                self._handle_reset(now, period)
+            if self._trigger_reset_if_due(now, period, reason="watchdog", require_offset_window=True):
                 changes = True
                 
         if changes:
@@ -208,6 +189,49 @@ class MaxMinDataUpdateCoordinator(DataUpdateCoordinator):
         elif period == PERIOD_YEARLY:
             return dt_util.start_of_local_day(now.replace(year=now.year + 1, month=1, day=1))
         return None
+
+    def _is_reset_due(self, now, period, require_offset_window=True, expected_reset_time=None, allow_missing_last_reset=True):
+        """Check if a period reset is due based on last_reset and period boundaries."""
+        if period == PERIOD_ALL_TIME:
+            return False
+
+        data = self.tracked_data.get(period)
+        if not data:
+            return False
+
+        period_start = self._get_period_start(now, period)
+        if not period_start:
+            return False
+
+        last_reset = data.get("last_reset")
+        if not allow_missing_last_reset and last_reset is None:
+            return False
+        if last_reset and last_reset >= period_start:
+            return False
+
+        if require_offset_window and self.offset > 0:
+            if now < period_start + timedelta(seconds=self.offset):
+                return False
+
+        if expected_reset_time and now < expected_reset_time:
+            return False
+
+        return True
+
+    def _trigger_reset_if_due(self, now, period, reason, require_offset_window=True, expected_reset_time=None, allow_missing_last_reset=True):
+        """Run reset only when due, and log source for traceability."""
+        if not self._is_reset_due(
+            now,
+            period,
+            require_offset_window=require_offset_window,
+            expected_reset_time=expected_reset_time,
+            allow_missing_last_reset=allow_missing_last_reset,
+        ):
+            return False
+
+        _LOGGER.warning("Reset triggered by %s for %s at %s", reason, period, now)
+        self._handle_reset(now, period, reason=reason)
+        return True
 
     def update_restored_data(self, period, type_, value, last_reset=None):
         """Update data from restored state."""
@@ -358,8 +382,11 @@ class MaxMinDataUpdateCoordinator(DataUpdateCoordinator):
                     if period != PERIOD_ALL_TIME:
                         period_start = self._get_period_start(now, period)
                         last_reset = data.get("last_reset")
-                        if period_start and last_reset and last_reset < period_start and (
-                            self.offset == 0 or now >= period_start + timedelta(seconds=self.offset)
+                        if self._is_reset_due(
+                            now,
+                            period,
+                            require_offset_window=True,
+                            allow_missing_last_reset=False,
                         ):
                             _LOGGER.debug(
                                 "Inline reset for %s: last_reset %s < period_start %s",
@@ -369,7 +396,7 @@ class MaxMinDataUpdateCoordinator(DataUpdateCoordinator):
                             if period in self._reset_listeners:
                                 self._reset_listeners[period]()
                                 del self._reset_listeners[period]
-                            self._handle_reset(now, period)
+                            self._handle_reset(now, period, reason="inline")
                             # After reset, data has been re-initialised with current_val
                             # from self.hass.states – refresh local reference
                             data = self.tracked_data[period]
@@ -389,7 +416,7 @@ class MaxMinDataUpdateCoordinator(DataUpdateCoordinator):
                                 if period in self._reset_listeners:
                                     self._reset_listeners[period]()
                                     del self._reset_listeners[period]
-                                self._handle_reset(now, period)
+                                self._handle_reset(now, period, reason="early_offset")
                                 # This period is reset; continue to process remaining periods
 
                             continue
@@ -419,7 +446,10 @@ class MaxMinDataUpdateCoordinator(DataUpdateCoordinator):
         # Cancel previous listeners
         for unsub in self._reset_listeners.values():
             unsub()
+        for unsub in self._backup_reset_listeners.values():
+            unsub()
         self._reset_listeners = {}
+        self._backup_reset_listeners = {}
         self._next_resets = {}
 
         now = dt_util.now()
@@ -433,6 +463,12 @@ class MaxMinDataUpdateCoordinator(DataUpdateCoordinator):
 
     def _schedule_single_reset(self, period, reset_time):
         """Schedule (or reschedule) the reset timer for a single period."""
+        # Cancel previous listeners for this period before re-scheduling
+        if period in self._reset_listeners:
+            self._reset_listeners[period]()
+        if period in self._backup_reset_listeners:
+            self._backup_reset_listeners[period]()
+
         self._next_resets[period] = reset_time
         schedule_time = reset_time + timedelta(seconds=self.offset)
         
@@ -444,14 +480,33 @@ class MaxMinDataUpdateCoordinator(DataUpdateCoordinator):
         # Default arg p=period captures the loop variable by value
         self._reset_listeners[period] = async_track_point_in_time(
             self.hass,
-            lambda now, p=period: self._handle_reset(now, p),
+            lambda now, p=period: self._handle_reset(now, p, reason="scheduler"),
             schedule_time,
         )
 
+        # Backup guard: if the main timer is missed, force verification shortly after.
+        backup_time = schedule_time + timedelta(minutes=2)
+        self._backup_reset_listeners[period] = async_track_point_in_time(
+            self.hass,
+            lambda now, p=period, expected=schedule_time: self._ensure_backup_reset(now, p, expected),
+            backup_time,
+        )
+
     @callback
-    def _handle_reset(self, now, period):
+    def _ensure_backup_reset(self, now, period, expected_reset_time):
+        """Force reset if main timer did not execute as expected."""
+        self._trigger_reset_if_due(
+            now,
+            period,
+            reason="backup",
+            require_offset_window=False,
+            expected_reset_time=expected_reset_time,
+        )
+
+    @callback
+    def _handle_reset(self, now, period, reason="scheduler"):
         """Handle period reset."""
-        _LOGGER.debug("Handling period reset for %s - %s", self.config_entry.title, period)
+        _LOGGER.debug("Handling period reset for %s - %s (source=%s)", self.config_entry.title, period, reason)
 
         try:
             current_val = None
@@ -509,7 +564,10 @@ class MaxMinDataUpdateCoordinator(DataUpdateCoordinator):
         """Unload the coordinator."""
         for unsub in self._reset_listeners.values():
             unsub()
+        for unsub in self._backup_reset_listeners.values():
+            unsub()
         self._reset_listeners = {}
+        self._backup_reset_listeners = {}
             
         if self._unsub_sensor_state_listener:
             self._unsub_sensor_state_listener()

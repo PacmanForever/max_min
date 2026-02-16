@@ -55,10 +55,9 @@ def test_chain_break_protection(mock_hass, config_entry):
         
         # Verify rescheduling happened ("The Chain remains unbroken")
         assert mock_schedule.called
-        args = mock_schedule.call_args[0]
-        # Should continuously schedule next reset
-        scheduled_time = args[2]
-        assert scheduled_time == datetime(2023, 1, 2, 0, 0, 0, tzinfo=timezone.utc)
+        # Primary reset timer should target next day's midnight.
+        primary_schedule_time = mock_schedule.call_args_list[0][0][2]
+        assert primary_schedule_time == datetime(2023, 1, 2, 0, 0, 0, tzinfo=timezone.utc)
 
 def test_watchdog_detects_missed_reset(mock_hass, config_entry):
     """Test standard watchdog detection."""
@@ -83,7 +82,7 @@ def test_watchdog_detects_missed_reset(mock_hass, config_entry):
         coordinator._check_watchdog(now)
         
         # Watchdog should scream and force reset
-        mock_reset.assert_called_once_with(now, PERIOD_DAILY)
+        mock_reset.assert_called_once_with(now, PERIOD_DAILY, reason="watchdog")
 
 def test_watchdog_respects_offset(mock_hass, config_entry):
     """Test watchdog waits for offset."""
@@ -111,7 +110,7 @@ def test_watchdog_respects_offset(mock_hass, config_entry):
         # Should TRIGGER now
         time_late = day_start + timedelta(minutes=20)
         coordinator._check_watchdog(time_late)
-        mock_reset.assert_called_once_with(time_late, PERIOD_DAILY)
+        mock_reset.assert_called_once_with(time_late, PERIOD_DAILY, reason="watchdog")
 
 def test_watchdog_ignores_fresh_resets(mock_hass, config_entry):
     """Test watchdog sleeps if everything is fine."""
