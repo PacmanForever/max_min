@@ -40,7 +40,10 @@ def hass():
     hass = Mock()
     hass.config.time_zone = timezone.utc
     hass.data = {"custom_components": {}}
-    hass.states.get.return_value = Mock(state="10.0", attributes={"friendly_name": "Test Sensor"})
+    hass.states.get.return_value = Mock(
+        state="10.0",
+        attributes={"friendly_name": "Test Sensor", "state_class": "total_increasing"},
+    )
     return hass
 
 @pytest.mark.asyncio

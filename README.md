@@ -50,7 +50,7 @@ After installation, add the integration via the Home Assistant UI:
 4. Choose the period: Daily, Weekly, Monthly, Yearly or All time.
 5. Select sensor types: Max, Min, or both.
 6. (Optional) Select a device to link the new sensors to.
-7. (Optional) Set an Offset/Margin in seconds (default 0).
+7. (Optional) Set an Offset/Margin in seconds (default 0, for cumulative sources).
 8. (Optional) Set initial values for max and/or min to start with existing values.
 
 **Note**: When you link sensors to a device, Home Assistant will show a screen at the end of the setup asking you to assign an area. This is standard Home Assistant behavior; if the device already has an area, it will be pre-selected.
@@ -59,8 +59,11 @@ After installation, add the integration via the Home Assistant UI:
 
 You can configure an **offset** (in seconds) to handle synchronization delays or sensor restarts near the end of a period.
 
-- **How it works**: If you set an offset of e.g. 10 seconds, the period reset will be delayed by 10 seconds (e.g., at 00:00:10).
-- **Dead Zone**: Updates received during the window `[Reset Time - Offset]` to `[Reset Time + Offset]` will be ignored.
+This offset/dead-zone behavior is applied to **cumulative sources** (`state_class: total` / `total_increasing`).
+For standard measurement sensors, resets happen at the exact period boundary.
+
+- **How it works (cumulative only)**: If you set an offset of e.g. 10 seconds, the period reset for cumulative sources will be delayed by 10 seconds (e.g., at 00:00:10).
+- **Dead Zone (cumulative only)**: Updates received during the window `[Reset Time - Offset]` to `[Reset Time + Offset]` will be ignored.
 - **Why use it?**: This prevents data from the previous period (arriving late) from counting towards the new period, and prevents values from near-instantaneous restarts just before midnight from overwriting the day's true min/max.
 
 ## Reliability

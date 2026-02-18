@@ -106,6 +106,7 @@ class MaxMinDataUpdateCoordinator(DataUpdateCoordinator):
         self._next_resets = {} # Keep track of next reset times for offset logic
         self._unsub_sensor_state_listener = None
         self._watchdog_unsub = None
+        self._source_is_cumulative = False
         
         # Start Watchdog (every 10 minutes)
         # It ensures that if a reset timer failed or was missed, we catch up eventually.
@@ -154,6 +155,28 @@ class MaxMinDataUpdateCoordinator(DataUpdateCoordinator):
         if period in self.tracked_data:
             return self.tracked_data[period].get(type_)
         return None
+
+    @staticmethod
+    def _is_cumulative_state(state) -> bool:
+        """Return True when the source state uses a cumulative class."""
+        if not state:
+            return False
+        state_class = state.attributes.get("state_class") if hasattr(state, "attributes") else None
+        return state_class in ("total", "total_increasing")
+
+    def _sync_source_cumulative_mode(self, state) -> None:
+        """Update cumulative mode and reschedule when it changes."""
+        is_cumulative = self._is_cumulative_state(state)
+        if is_cumulative == self._source_is_cumulative:
+            return
+
+        self._source_is_cumulative = is_cumulative
+        _LOGGER.debug(
+            "Source %s cumulative mode changed to %s; rescheduling resets",
+            self.sensor_entity,
+            is_cumulative,
+        )
+        self._schedule_resets()
     
     @staticmethod
     def _get_period_start(now, period):
@@ -209,7 +232,7 @@ class MaxMinDataUpdateCoordinator(DataUpdateCoordinator):
         if last_reset and last_reset >= period_start:
             return False
 
-        if require_offset_window and self.offset > 0:
+        if require_offset_window and self.offset > 0 and self._source_is_cumulative:
             if now < period_start + timedelta(seconds=self.offset):
                 return False
 
@@ -311,6 +334,7 @@ class MaxMinDataUpdateCoordinator(DataUpdateCoordinator):
         """Initialize values and listeners."""
         # Get initial value
         state = self.hass.states.get(self.sensor_entity)
+        self._sync_source_cumulative_mode(state)
         if state and state.state not in (None, "unknown", "unavailable"):
             try:
                 raw_value = float(state.state)
@@ -359,6 +383,7 @@ class MaxMinDataUpdateCoordinator(DataUpdateCoordinator):
     def _handle_sensor_change(self, event):
         """Handle sensor state change."""
         new_state = event.data.get("new_state")
+        self._sync_source_cumulative_mode(new_state)
         if new_state and new_state.state not in (None, "unknown", "unavailable"):
             try:
                 # Round to 4 decimals to avoid float precision noise (0.9999999999998)
@@ -371,7 +396,7 @@ class MaxMinDataUpdateCoordinator(DataUpdateCoordinator):
                         self.tracked_data[period] = {"max": None, "min": None, "start": None, "end": None}
 
                     data = self.tracked_data[period]
-                    is_cumulative = new_state.attributes.get("state_class") in ["total", "total_increasing"]
+                    is_cumulative = self._source_is_cumulative
 
                     # 0. Inline period-boundary reset detection
                     # If a sensor update arrives after the period boundary but before the
@@ -404,7 +429,7 @@ class MaxMinDataUpdateCoordinator(DataUpdateCoordinator):
                     # 1. Early Reset Detection (Offset Window)
                     # If we are in the offset "dead zone" (waiting for reset) and the sensor drops,
                     # we trigger the reset immediately instead of ignoring the data.
-                    if period in self._next_resets and self.offset > 0:
+                    if period in self._next_resets and self.offset > 0 and is_cumulative:
                         reset_time = self._next_resets[period]
                         if (now >= reset_time - timedelta(seconds=self.offset) and 
                             now <= reset_time + timedelta(seconds=self.offset)):
@@ -470,11 +495,12 @@ class MaxMinDataUpdateCoordinator(DataUpdateCoordinator):
             self._backup_reset_listeners[period]()
 
         self._next_resets[period] = reset_time
-        schedule_time = reset_time + timedelta(seconds=self.offset)
+        effective_offset = self.offset if self._source_is_cumulative else 0
+        schedule_time = reset_time + timedelta(seconds=effective_offset)
         
         _LOGGER.debug(
             "Scheduling %s reset for %s (Offset: %ss). Target: %s", 
-            period, self.config_entry.title, self.offset, schedule_time
+            period, self.config_entry.title, effective_offset, schedule_time
         )
 
         # Default arg p=period captures the loop variable by value

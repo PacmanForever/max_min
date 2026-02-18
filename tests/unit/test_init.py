@@ -71,7 +71,7 @@ async def test_async_unload_entry_success(hass):
     config_entry = Mock()
     config_entry.entry_id = "test_entry"
 
-    hass.config_entries.async_forward_entry_unload = AsyncMock(return_value=True)
+    hass.config_entries.async_unload_platforms = AsyncMock(return_value=True)
     mock_coordinator = Mock()
     mock_coordinator.async_unload = AsyncMock()
     config_entry.runtime_data = mock_coordinator
@@ -87,7 +87,7 @@ async def test_async_unload_entry_forward_failure(hass):
     config_entry = Mock()
     config_entry.entry_id = "test_entry"
 
-    hass.config_entries.async_forward_entry_unload = AsyncMock(return_value=False)
+    hass.config_entries.async_unload_platforms = AsyncMock(return_value=False)
     mock_coordinator = Mock()
     config_entry.runtime_data = mock_coordinator
 

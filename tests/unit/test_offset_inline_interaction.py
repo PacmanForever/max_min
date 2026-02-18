@@ -24,7 +24,7 @@ from custom_components.max_min.const import (
 
 @pytest.fixture
 def config_entry_offset():
-    """Config entry with offset=300 (5 minutes)."""
+    """Config entry with offset=300 (5 minutes) for cumulative source."""
     entry = MagicMock()
     entry.data = {
         CONF_SENSOR_ENTITY: "sensor.energy",
@@ -52,6 +52,7 @@ def hass():
 def _make_coordinator(hass, config_entry, last_reset_dt):
     """Create a coordinator with realistic tracked_data including last_reset."""
     coordinator = MaxMinDataUpdateCoordinator(hass, config_entry)
+    coordinator._source_is_cumulative = True
     coordinator.tracked_data[PERIOD_DAILY] = {
         "max": 100.0,
         "min": 5.0,
@@ -83,9 +84,10 @@ async def test_inline_reset_blocked_within_offset_window(hass, config_entry_offs
     coordinator, cancel_mock = _make_coordinator(hass, config_entry_offset, yesterday)
 
     event = Mock()
-    event.data = {"new_state": Mock(state="55.0", attributes={"state_class": "measurement"})}
+    event.data = {"new_state": Mock(state="105.0", attributes={"state_class": "total_increasing"})}
 
-    coordinator._handle_sensor_change(event)
+    with patch("custom_components.max_min.coordinator.async_track_point_in_time"):
+        coordinator._handle_sensor_change(event)
 
     # Inline reset must NOT have fired — the scheduled listener must remain
     cancel_mock.assert_not_called()
@@ -103,9 +105,10 @@ async def test_inline_reset_blocked_at_offset_boundary(hass, config_entry_offset
     coordinator, cancel_mock = _make_coordinator(hass, config_entry_offset, yesterday)
 
     event = Mock()
-    event.data = {"new_state": Mock(state="55.0", attributes={"state_class": "measurement"})}
+    event.data = {"new_state": Mock(state="105.0", attributes={"state_class": "total_increasing"})}
 
-    coordinator._handle_sensor_change(event)
+    with patch("custom_components.max_min.coordinator.async_track_point_in_time"):
+        coordinator._handle_sensor_change(event)
 
     cancel_mock.assert_not_called()
     # Dead zone still active → values unchanged
@@ -131,7 +134,7 @@ async def test_inline_reset_fires_after_offset_window(hass, config_entry_offset)
         state="12.0", attributes={"friendly_name": "Energy"}
     )
     event = Mock()
-    event.data = {"new_state": Mock(state="12.0", attributes={"state_class": "measurement"})}
+    event.data = {"new_state": Mock(state="12.0", attributes={"state_class": "total_increasing"})}
 
     with patch("custom_components.max_min.coordinator.async_track_point_in_time"):
         coordinator._handle_sensor_change(event)
@@ -189,15 +192,16 @@ async def test_offset_dead_zone_with_realistic_last_reset(hass, config_entry_off
     """Dead zone ignores updates even with last_reset properly set.
 
     This validates that with the inline-reset-offset guard, the dead zone
-    logic is still reached and works correctly for non-cumulative sensors.
+    logic is still reached and works correctly for cumulative sensors.
     """
     yesterday = datetime(2026, 2, 8, 0, 0, 0, tzinfo=timezone.utc)
     coordinator, _ = _make_coordinator(hass, config_entry_offset, yesterday)
 
     event = Mock()
-    event.data = {"new_state": Mock(state="200.0", attributes={"state_class": "measurement"})}
+    event.data = {"new_state": Mock(state="200.0", attributes={"state_class": "total_increasing"})}
 
-    coordinator._handle_sensor_change(event)
+    with patch("custom_components.max_min.coordinator.async_track_point_in_time"):
+        coordinator._handle_sensor_change(event)
 
     # Value must NOT have changed — dead zone is active
     assert coordinator.tracked_data[PERIOD_DAILY]["max"] == 100.0

@@ -83,3 +83,22 @@ if unload_ok:
         await coordinator.async_unload()
         hass.data[DOMAIN].pop(entry.entry_id)
 ```
+
+## 5. Offset Scope (Critical)
+
+### The Trap: Applying offset to all sensor classes
+Offset/dead-zone protection was introduced to absorb latency and restart artifacts from cumulative sensors near period boundaries.
+If this logic is applied to normal measurement sensors (temperature/humidity/pressure), period resets are artificially delayed and can look "broken" at midnight.
+
+### The Rule
+Apply offset/dead-zone only when source `state_class` is cumulative:
+- `total`
+- `total_increasing`
+
+For measurement sensors (or missing `state_class`), reset exactly at boundary time (00:00 for daily) with no offset delay.
+
+### Where this must stay consistent
+- Scheduling (`_schedule_single_reset`)
+- Inline reset due-check (`_is_reset_due` path)
+- Watchdog due-check
+- Early reset dead-zone handling

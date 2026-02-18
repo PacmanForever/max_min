@@ -90,6 +90,7 @@ def test_watchdog_respects_offset(mock_hass, config_entry):
     with patch("custom_components.max_min.coordinator.async_track_time_interval"):
         coordinator = MaxMinDataUpdateCoordinator(mock_hass, config_entry)
         coordinator.offset = 900 
+        coordinator._source_is_cumulative = True
     
     day_start = datetime(2023, 1, 1, 0, 0, 0, tzinfo=timezone.utc)
     old_reset = datetime(2022, 12, 31, 0, 0, 0, tzinfo=timezone.utc)
@@ -111,6 +112,27 @@ def test_watchdog_respects_offset(mock_hass, config_entry):
         time_late = day_start + timedelta(minutes=20)
         coordinator._check_watchdog(time_late)
         mock_reset.assert_called_once_with(time_late, PERIOD_DAILY, reason="watchdog")
+
+def test_watchdog_ignores_offset_for_non_cumulative(mock_hass, config_entry):
+    """Test watchdog does not wait for offset on non-cumulative sensors."""
+    with patch("custom_components.max_min.coordinator.async_track_time_interval"):
+        coordinator = MaxMinDataUpdateCoordinator(mock_hass, config_entry)
+        coordinator.offset = 900
+        coordinator._source_is_cumulative = False
+
+    day_start = datetime(2023, 1, 1, 0, 0, 0, tzinfo=timezone.utc)
+    old_reset = datetime(2022, 12, 31, 0, 0, 0, tzinfo=timezone.utc)
+
+    coordinator.tracked_data[PERIOD_DAILY] = {
+        "max": 10.0,
+        "last_reset": old_reset
+    }
+
+    with patch.object(coordinator, "_handle_reset") as mock_reset:
+        # Should trigger immediately after period start despite offset configuration
+        time_early = day_start + timedelta(minutes=1)
+        coordinator._check_watchdog(time_early)
+        mock_reset.assert_called_once_with(time_early, PERIOD_DAILY, reason="watchdog")
 
 def test_watchdog_ignores_fresh_resets(mock_hass, config_entry):
     """Test watchdog sleeps if everything is fine."""

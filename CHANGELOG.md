@@ -1,6 +1,12 @@
 
 
 
+# 0.3.31 - 2026-02-18
+## Fixed
+- **Midnight Reset Drift on Measurement Sensors**: Offset/dead-zone logic now applies only to cumulative sources (`state_class: total` / `total_increasing`). Measurement sensors (temperature, humidity, pressure, etc.) now reset exactly at period boundaries.
+## Changed
+- **Offset Scope Clarification**: Coordinator scheduling, inline reset gating, and watchdog offset checks now use the source sensor class to decide whether offset protection must be applied.
+
 # 0.3.30 - 2026-02-16
 ## Fixed
 - **Midnight Reset Reliability**: Refactored reset decision logic into a single shared path to avoid divergent behavior between scheduler, watchdog, inline and backup flows.

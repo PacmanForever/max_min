@@ -355,6 +355,40 @@ class TestDeltaPersistence:
         assert sensor.available is False
         assert sensor.native_value is None  # No valid start/end = no delta
 
+    @pytest.mark.asyncio
+    async def test_delta_sensor_restores_unit_and_keeps_it_if_source_unavailable(self):
+        """Regression: Delta should keep restored unit during startup unavailability."""
+        ha = Mock()
+        # Source sensor unavailable at startup (common HA restart race)
+        ha.states.get.return_value = Mock(state="unavailable", attributes={})
+
+        entry = Mock()
+        entry.entry_id = "test"
+        entry.data = {
+            CONF_SENSOR_ENTITY: "sensor.test",
+            CONF_PERIODS: [PERIOD_DAILY],
+            CONF_TYPES: [TYPE_DELTA],
+        }
+        entry.options = {}
+
+        coordinator = MaxMinDataUpdateCoordinator(ha, entry)
+        sensor = DeltaSensor(coordinator, entry, "Test Delta", PERIOD_DAILY)
+
+        last_state = Mock()
+        last_state.state = "5.0"
+        last_state.attributes = {
+            "unit_of_measurement": "kWh",
+            "device_class": "energy",
+            "start_value": 10.0,
+            "end_value": 15.0,
+        }
+        sensor.async_get_last_state = AsyncMock(return_value=last_state)
+
+        await sensor.async_added_to_hass()
+
+        # Must keep restored unit (no temporary empty unit)
+        assert sensor.native_unit_of_measurement == "kWh"
+
 
 class TestHistoryPreservation:
     """Test history preservation across reloads (v0.3.24)."""

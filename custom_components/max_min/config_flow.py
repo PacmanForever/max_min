@@ -30,6 +30,7 @@ class MaxMinConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     """Handle a config flow for Max Min."""
 
     VERSION = 1
+    MINOR_VERSION = 1
 
     def __init__(self):
         """Initialize the config flow."""
