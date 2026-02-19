@@ -91,6 +91,31 @@ async def test_coordinator_initialization_invalid_value(hass, config_entry):
 
 
 @pytest.mark.asyncio
+@freeze_time("2026-02-19 09:00:00")
+async def test_first_refresh_forces_missed_reset_catchup(hass, config_entry):
+    """First refresh should immediately force overdue resets."""
+    hass.states.get.return_value = Mock(state="unavailable", attributes={})
+
+    coordinator = MaxMinDataUpdateCoordinator(hass, config_entry)
+    coordinator.tracked_data[PERIOD_DAILY] = {
+        "max": 2.7,
+        "min": 0.0,
+        "start": 0.0,
+        "end": 0.0,
+        "last_reset": datetime(2026, 2, 18, 0, 0, 0, tzinfo=timezone.utc),
+    }
+
+    with patch("custom_components.max_min.coordinator.async_track_point_in_time"), \
+         patch.object(coordinator, "_handle_reset") as mock_reset:
+        await coordinator.async_config_entry_first_refresh()
+
+    mock_reset.assert_called_once()
+    args, kwargs = mock_reset.call_args
+    assert args[1] == PERIOD_DAILY
+    assert kwargs["reason"] == "watchdog"
+
+
+@pytest.mark.asyncio
 async def test_sensor_change_updates_values(hass, config_entry):
     """Test sensor change updates max/min."""
     coordinator = MaxMinDataUpdateCoordinator(hass, config_entry)
@@ -231,8 +256,9 @@ async def test_reset_with_no_current_value(hass, config_entry):
 
     with patch("custom_components.max_min.coordinator.async_track_point_in_time") as mock_track:
         coordinator._handle_reset(datetime(2023, 1, 2, 0, 0, 0), PERIOD_DAILY)
-        assert coordinator.get_value(PERIOD_DAILY, TYPE_MAX) is None
-        assert coordinator.get_value(PERIOD_DAILY, TYPE_MIN) is None
+        # Falls back to last known end value from previous period
+        assert coordinator.get_value(PERIOD_DAILY, TYPE_MAX) == 10.0
+        assert coordinator.get_value(PERIOD_DAILY, TYPE_MIN) == 10.0
 
 
 @pytest.mark.asyncio

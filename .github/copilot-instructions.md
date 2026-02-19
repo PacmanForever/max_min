@@ -61,8 +61,8 @@ Integració custom de Home Assistant per rastrejar valors màxims, mínims i del
 
 ## Patrons HA recomanats (referència del core)
 
-- **`runtime_data`**: Patró modern per emmagatzemar dades runtime. Canviar `hass.data[DOMAIN][entry_id]` → `entry.runtime_data` (pendent d'implementar)
-- **`integration_type`**: Hauria de ser `"helper"` (no `"hub"`) — processa dades d'altres entitats, no connecta a dispositius
+- **`runtime_data`**: Implementat. Mantenir `entry.runtime_data` (no tornar a `hass.data[DOMAIN][entry_id]`).
+- **`integration_type`**: **Decisió de producte: mantenir `"hub"`** per visibilitat al llistat principal d'integracions de HA. No canviar a `"helper"` sense validar impacte UX amb l'usuari.
 - **`PLATFORMS` constant**: Definir `PLATFORMS = ["sensor"]` i usar `async_unload_platforms(entry, PLATFORMS)` en lloc de `async_forward_entry_unload(entry, "sensor")`
 - **`MINOR_VERSION`**: Afegir `MINOR_VERSION = 1` al config flow
 - **`config_entry` al coordinator**: Passar `config_entry=config_entry` al `super().__init__()` de `DataUpdateCoordinator`

@@ -84,3 +84,31 @@ async def test_reset_with_unavailable_source(hass, config_entry):
     # self.tracked_data[period]["max"] = current_val (None)
     assert coordinator.tracked_data[PERIOD_DAILY]["max"] is None
 
+
+@pytest.mark.asyncio
+async def test_reset_with_unavailable_source_uses_last_end_fallback(hass, config_entry):
+    """Reset uses last end value when source is unavailable at boundary."""
+    coordinator = MaxMinDataUpdateCoordinator(hass, config_entry)
+
+    hass.states.get.return_value = Mock(state="unavailable")
+
+    # Simulate previous period state where latest reading was 0.0
+    coordinator.tracked_data[PERIOD_DAILY] = {
+        "max": 2.7,
+        "min": 0.0,
+        "start": 0.0,
+        "end": 0.0,
+        "last_reset": datetime(2023, 1, 1, 0, 0, 0, tzinfo=timezone.utc),
+    }
+
+    now = datetime(2023, 1, 2, 0, 0, 0, tzinfo=timezone.utc)
+
+    with patch("custom_components.max_min.coordinator.async_track_point_in_time"):
+        coordinator._handle_reset(now, PERIOD_DAILY)
+
+    # Daily period starts from last known source value, not previous-day max
+    assert coordinator.tracked_data[PERIOD_DAILY]["max"] == 0.0
+    assert coordinator.tracked_data[PERIOD_DAILY]["min"] == 0.0
+    assert coordinator.tracked_data[PERIOD_DAILY]["start"] == 0.0
+    assert coordinator.tracked_data[PERIOD_DAILY]["end"] == 0.0
+

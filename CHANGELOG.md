@@ -1,6 +1,14 @@
 
 
 
+# 0.3.32 - 2026-02-20
+## Fixed
+- **Missed Midnight Reset Catch-up**: Added an immediate startup/reload catch-up check so overdue period resets are enforced without waiting for the next sensor update.
+- **Reset Seed Robustness**: When source state is unavailable/unknown/non-numeric at reset time, the coordinator now seeds the new period from the last valid `end` value instead of leaving max/min empty.
+- **Integration Visibility**: Reverted `integration_type` to `hub` so Max Min appears in the main integrations list.
+## Added
+- **Regression Coverage**: Added tests for startup catch-up and unavailable-source reset fallback behavior to prevent recurrence of delayed morning corrections.
+
 # 0.3.31 - 2026-02-18
 ## Fixed
 - **Midnight Reset Drift on Measurement Sensors**: Offset/dead-zone logic now applies only to cumulative sources (`state_class: total` / `total_increasing`). Measurement sensors (temperature, humidity, pressure, etc.) now reset exactly at period boundaries.

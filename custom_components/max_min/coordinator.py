@@ -374,6 +374,11 @@ class MaxMinDataUpdateCoordinator(DataUpdateCoordinator):
         # Schedule resets
         self._schedule_resets()
 
+        # Startup catch-up: if a period reset was missed while HA/integration
+        # was down, enforce it immediately without waiting for the next
+        # watchdog tick or source state change.
+        self._check_watchdog(dt_util.now())
+
         # Listen to sensor changes
         self._unsub_sensor_state_listener = async_track_state_change_event(
             self.hass, [self.sensor_entity], self._handle_sensor_change
@@ -544,30 +549,48 @@ class MaxMinDataUpdateCoordinator(DataUpdateCoordinator):
                     pass
 
             if period in self.tracked_data:
+                reset_seed = current_val
+                if reset_seed is None:
+                    end_val = self.tracked_data[period].get("end")
+                    if isinstance(end_val, (int, float)):
+                        reset_seed = float(end_val)
+                    elif isinstance(end_val, str):
+                        try:
+                            reset_seed = float(end_val)
+                        except ValueError:
+                            reset_seed = None
+
+                if current_val is None and reset_seed is not None:
+                    _LOGGER.debug(
+                        "Reset fallback for %s: source unavailable/non-numeric, using last end value %s",
+                        period,
+                        reset_seed,
+                    )
+
                 # Apply configured initial values as floor/ceiling after reset
                 initials = self._configured_initials.get(period, {})
                 initial_max = initials.get("max")
                 initial_min = initials.get("min")
 
                 # Max: use whichever is higher between current value and configured initial
-                if current_val is not None and initial_max is not None:
-                    self.tracked_data[period]["max"] = max(current_val, initial_max)
+                if reset_seed is not None and initial_max is not None:
+                    self.tracked_data[period]["max"] = max(reset_seed, initial_max)
                 elif initial_max is not None:
                     self.tracked_data[period]["max"] = initial_max
                 else:
-                    self.tracked_data[period]["max"] = current_val
+                    self.tracked_data[period]["max"] = reset_seed
 
                 # Min: use whichever is lower between current value and configured initial
-                if current_val is not None and initial_min is not None:
-                    self.tracked_data[period]["min"] = min(current_val, initial_min)
+                if reset_seed is not None and initial_min is not None:
+                    self.tracked_data[period]["min"] = min(reset_seed, initial_min)
                 elif initial_min is not None:
                     self.tracked_data[period]["min"] = initial_min
                 else:
-                    self.tracked_data[period]["min"] = current_val
+                    self.tracked_data[period]["min"] = reset_seed
 
                 self.tracked_data[period]["last_reset"] = now
-                self.tracked_data[period]["start"] = current_val
-                self.tracked_data[period]["end"] = current_val
+                self.tracked_data[period]["start"] = reset_seed
+                self.tracked_data[period]["end"] = reset_seed
 
                 self.async_set_updated_data({})
 

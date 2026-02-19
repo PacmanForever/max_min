@@ -102,3 +102,22 @@ For measurement sensors (or missing `state_class`), reset exactly at boundary ti
 - Inline reset due-check (`_is_reset_due` path)
 - Watchdog due-check
 - Early reset dead-zone handling
+
+## 6. Integration Visibility in Home Assistant UI (Critical)
+
+### The Trap: Blindly applying generic `integration_type` guidance
+For this project, changing `manifest.json` from `integration_type: "hub"` to `"helper"`
+caused the integration to stop appearing alongside the rest of integrations in the main UI,
+which was a user-facing regression.
+
+### Project Rule
+Keep `integration_type` as `"hub"` for Max Min.
+
+Even if some generic Home Assistant guidance suggests `"helper"` for derived entities,
+the explicit product decision for this integration is **discoverability/visibility in the
+main integrations list**.
+
+### Release Checklist Guard
+Before releasing:
+- Verify `custom_components/max_min/manifest.json` keeps `integration_type: "hub"`.
+- If changed intentionally, document the user-visible impact in `CHANGELOG.md` and release notes.

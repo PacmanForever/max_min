@@ -378,9 +378,9 @@ def test_handle_reset_with_invalid_sensor_value(hass):
          patch("custom_components.max_min.coordinator.dt_util.now", return_value=now):
         coordinator._handle_reset(now, PERIOD_DAILY)
 
-    # current_val should be None (ValueError caught), so max/min reset to None
-    assert coordinator.tracked_data[PERIOD_DAILY]["max"] is None
-    assert coordinator.tracked_data[PERIOD_DAILY]["min"] is None
+    # current_val is invalid, so reset falls back to last end value
+    assert coordinator.tracked_data[PERIOD_DAILY]["max"] == 20.0
+    assert coordinator.tracked_data[PERIOD_DAILY]["min"] == 20.0
 
 
 # ---------------------------------------------------------------------------
