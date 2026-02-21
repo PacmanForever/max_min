@@ -1,6 +1,13 @@
 
 
 
+# 0.3.33 - 2026-02-21
+## Fixed
+- **Measurement Reset Carry-over**: Reset fallback to previous `end` value is now restricted to cumulative sources only (`total` / `total_increasing`).
+- **UV/Measurement Midnight Behavior**: Measurement sensors no longer reuse stale previous-period values when the source is unavailable/non-numeric at boundary time.
+## Added
+- **Regression Coverage**: Added/updated tests to enforce measurement vs cumulative fallback behavior during resets.
+
 # 0.3.32 - 2026-02-20
 ## Fixed
 - **Missed Midnight Reset Catch-up**: Added an immediate startup/reload catch-up check so overdue period resets are enforced without waiting for the next sensor update.

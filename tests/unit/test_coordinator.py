@@ -256,9 +256,9 @@ async def test_reset_with_no_current_value(hass, config_entry):
 
     with patch("custom_components.max_min.coordinator.async_track_point_in_time") as mock_track:
         coordinator._handle_reset(datetime(2023, 1, 2, 0, 0, 0), PERIOD_DAILY)
-        # Falls back to last known end value from previous period
-        assert coordinator.get_value(PERIOD_DAILY, TYPE_MAX) == 10.0
-        assert coordinator.get_value(PERIOD_DAILY, TYPE_MIN) == 10.0
+        # For measurement sources, unavailable reset does not reuse previous end
+        assert coordinator.get_value(PERIOD_DAILY, TYPE_MAX) is None
+        assert coordinator.get_value(PERIOD_DAILY, TYPE_MIN) is None
 
 
 @pytest.mark.asyncio

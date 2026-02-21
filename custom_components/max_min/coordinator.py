@@ -550,7 +550,8 @@ class MaxMinDataUpdateCoordinator(DataUpdateCoordinator):
 
             if period in self.tracked_data:
                 reset_seed = current_val
-                if reset_seed is None:
+                allow_end_fallback = self._source_is_cumulative
+                if reset_seed is None and allow_end_fallback:
                     end_val = self.tracked_data[period].get("end")
                     if isinstance(end_val, (int, float)):
                         reset_seed = float(end_val)
@@ -562,9 +563,14 @@ class MaxMinDataUpdateCoordinator(DataUpdateCoordinator):
 
                 if current_val is None and reset_seed is not None:
                     _LOGGER.debug(
-                        "Reset fallback for %s: source unavailable/non-numeric, using last end value %s",
+                        "Reset fallback for %s: cumulative source unavailable/non-numeric, using last end value %s",
                         period,
                         reset_seed,
+                    )
+                elif current_val is None and not allow_end_fallback:
+                    _LOGGER.debug(
+                        "Reset for %s: measurement source unavailable/non-numeric, not reusing last end value",
+                        period,
                     )
 
                 # Apply configured initial values as floor/ceiling after reset

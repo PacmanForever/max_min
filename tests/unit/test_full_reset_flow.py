@@ -89,8 +89,12 @@ async def test_reset_with_unavailable_source(hass, config_entry):
 async def test_reset_with_unavailable_source_uses_last_end_fallback(hass, config_entry):
     """Reset uses last end value when source is unavailable at boundary."""
     coordinator = MaxMinDataUpdateCoordinator(hass, config_entry)
+    coordinator._source_is_cumulative = True
 
-    hass.states.get.return_value = Mock(state="unavailable")
+    hass.states.get.return_value = Mock(
+        state="unavailable",
+        attributes={"state_class": "total_increasing"},
+    )
 
     # Simulate previous period state where latest reading was 0.0
     coordinator.tracked_data[PERIOD_DAILY] = {
