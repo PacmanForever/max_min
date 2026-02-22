@@ -106,7 +106,7 @@ async def test_first_refresh_forces_missed_reset_catchup(hass, config_entry):
     }
 
     with patch("custom_components.max_min.coordinator.async_track_point_in_time"), \
-         patch.object(coordinator, "_handle_reset") as mock_reset:
+         patch.object(coordinator, "_perform_reset") as mock_reset:
         await coordinator.async_config_entry_first_refresh()
 
     mock_reset.assert_called_once()
@@ -150,7 +150,7 @@ async def test_daily_reset(hass, config_entry):
     with patch("custom_components.max_min.coordinator.async_track_point_in_time") as mock_track:
         coordinator._schedule_resets()
         # Call the reset handler
-        coordinator._handle_reset(datetime(2023, 1, 2, 0, 0, 0), PERIOD_DAILY)
+        coordinator._perform_reset(datetime(2023, 1, 2, 0, 0, 0), PERIOD_DAILY)
         assert coordinator.get_value(PERIOD_DAILY, TYPE_MAX) == 10.0  # Reset to current
         assert coordinator.get_value(PERIOD_DAILY, TYPE_MIN) == 10.0
 
@@ -169,7 +169,7 @@ async def test_weekly_reset(hass, config_entry):
     with patch("custom_components.max_min.coordinator.async_track_point_in_time") as mock_track:
         coordinator._schedule_resets()
         # Reset should be next Monday
-        coordinator._handle_reset(datetime(2023, 1, 2, 0, 0, 0), PERIOD_WEEKLY)
+        coordinator._perform_reset(datetime(2023, 1, 2, 0, 0, 0), PERIOD_WEEKLY)
         assert coordinator.get_value(PERIOD_WEEKLY, TYPE_MAX) == 10.0
         assert coordinator.get_value(PERIOD_WEEKLY, TYPE_MIN) == 10.0
 
@@ -188,7 +188,7 @@ async def test_monthly_reset(hass, config_entry):
     with patch("custom_components.max_min.coordinator.async_track_point_in_time") as mock_track:
         coordinator._schedule_resets()
         # Reset should be Feb 1
-        coordinator._handle_reset(datetime(2023, 2, 1, 0, 0, 0), PERIOD_MONTHLY)
+        coordinator._perform_reset(datetime(2023, 2, 1, 0, 0, 0), PERIOD_MONTHLY)
         assert coordinator.get_value(PERIOD_MONTHLY, TYPE_MAX) == 10.0
         assert coordinator.get_value(PERIOD_MONTHLY, TYPE_MIN) == 10.0
 
@@ -207,7 +207,7 @@ async def test_yearly_reset(hass, config_entry):
     with patch("custom_components.max_min.coordinator.async_track_point_in_time") as mock_track:
         coordinator._schedule_resets()
         # Reset should be Jan 1 next year
-        coordinator._handle_reset(datetime(2024, 1, 1, 0, 0, 0), PERIOD_YEARLY)
+        coordinator._perform_reset(datetime(2024, 1, 1, 0, 0, 0), PERIOD_YEARLY)
         assert coordinator.get_value(PERIOD_YEARLY, TYPE_MAX) == 10.0
         assert coordinator.get_value(PERIOD_YEARLY, TYPE_MIN) == 10.0
 
@@ -255,7 +255,7 @@ async def test_reset_with_no_current_value(hass, config_entry):
     hass.states.get.return_value = Mock(state="unavailable")
 
     with patch("custom_components.max_min.coordinator.async_track_point_in_time") as mock_track:
-        coordinator._handle_reset(datetime(2023, 1, 2, 0, 0, 0), PERIOD_DAILY)
+        coordinator._perform_reset(datetime(2023, 1, 2, 0, 0, 0), PERIOD_DAILY)
         # For measurement sources, unavailable reset does not reuse previous end
         assert coordinator.get_value(PERIOD_DAILY, TYPE_MAX) is None
         assert coordinator.get_value(PERIOD_DAILY, TYPE_MIN) is None
@@ -281,13 +281,13 @@ async def test_weekly_reset_scheduling(hass, config_entry):
             # Expect reset next Monday: 2023-01-09 00:00:00
             assert reset_time == datetime(2023, 1, 9, 0, 0, 0).replace(tzinfo=timezone.utc)
         
-        # Verify call to _handle_reset matches signature
+        # Verify scheduler callback calls ensure_period_current
         callback = mock_track.call_args_list[0][0][1]
         # Simulate firing callback
-        with patch.object(coordinator, '_handle_reset') as mock_handle_reset:
+        with patch.object(coordinator, 'ensure_period_current') as mock_ensure:
             callback(datetime.now())
-            mock_handle_reset.assert_called_once()
-            assert mock_handle_reset.call_args[0][1] == PERIOD_WEEKLY
+            mock_ensure.assert_called_once()
+            assert mock_ensure.call_args[0][0] == PERIOD_WEEKLY
 
 
 @pytest.mark.asyncio
@@ -316,7 +316,7 @@ async def test_reset_rescheduling_all_periods(hass, config_entry):
              patch("custom_components.max_min.coordinator.async_track_point_in_time") as mock_track:
             
             # Call handle_reset directly
-            coordinator._handle_reset(datetime.now(), period)
+            coordinator._perform_reset(datetime.now(), period)
             
             # Verify it scheduled next reset
             assert mock_track.called
@@ -351,7 +351,7 @@ async def test_reset_rescheduling_edge_cases(hass, config_entry):
     with freeze_time("2023-12-15 12:00:00"), \
          patch("custom_components.max_min.coordinator.async_track_point_in_time") as mock_track:
          
-        coordinator._handle_reset(datetime.now(), PERIOD_MONTHLY)
+        coordinator._perform_reset(datetime.now(), PERIOD_MONTHLY)
         args = mock_track.call_args[0]
         reset_time = args[2]
         assert reset_time.year == 2024

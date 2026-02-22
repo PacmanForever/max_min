@@ -6,7 +6,7 @@ from homeassistant.util import dt as dt_util
 from custom_components.max_min.coordinator import MaxMinDataUpdateCoordinator
 from custom_components.max_min.const import (
     CONF_SENSOR_ENTITY, CONF_PERIODS, CONF_TYPES, CONF_OFFSET,
-    PERIOD_DAILY, TYPE_MAX
+    PERIOD_DAILY, PERIOD_WEEKLY, TYPE_MAX
 )
 
 @pytest.fixture
@@ -51,7 +51,7 @@ def test_chain_break_protection(mock_hass, config_entry):
     with patch("custom_components.max_min.coordinator.async_track_point_in_time") as mock_schedule:
         # Trigger reset
         now = datetime(2023, 1, 1, 0, 0, 0, tzinfo=timezone.utc)
-        coordinator._handle_reset(now, PERIOD_DAILY)
+        coordinator._perform_reset(now, PERIOD_DAILY)
         
         # Verify rescheduling happened ("The Chain remains unbroken")
         assert mock_schedule.called
@@ -78,7 +78,7 @@ def test_watchdog_detects_missed_reset(mock_hass, config_entry):
         "last_reset": old_reset
     }
     
-    with patch.object(coordinator, "_handle_reset") as mock_reset:
+    with patch.object(coordinator, "_perform_reset") as mock_reset:
         coordinator._check_watchdog(now)
         
         # Watchdog should scream and force reset
@@ -100,7 +100,7 @@ def test_watchdog_respects_offset(mock_hass, config_entry):
         "last_reset": old_reset # Old!
     }
     
-    with patch.object(coordinator, "_handle_reset") as mock_reset:
+    with patch.object(coordinator, "_perform_reset") as mock_reset:
         # 1. Check at 00:10 (Before offset expiry)
         # Should NOT trigger because we are waiting for offset
         time_early = day_start + timedelta(minutes=10)
@@ -128,7 +128,7 @@ def test_watchdog_ignores_offset_for_non_cumulative(mock_hass, config_entry):
         "last_reset": old_reset
     }
 
-    with patch.object(coordinator, "_handle_reset") as mock_reset:
+    with patch.object(coordinator, "_perform_reset") as mock_reset:
         # Should trigger immediately after period start despite offset configuration
         time_early = day_start + timedelta(minutes=1)
         coordinator._check_watchdog(time_early)
@@ -148,6 +148,40 @@ def test_watchdog_ignores_fresh_resets(mock_hass, config_entry):
         "last_reset": today_reset
     }
     
-    with patch.object(coordinator, "_handle_reset") as mock_reset:
+    with patch.object(coordinator, "_perform_reset") as mock_reset:
         coordinator._check_watchdog(now)
         mock_reset.assert_not_called()
+
+
+def test_watchdog_handles_naive_last_reset_string(mock_hass, config_entry):
+    """Watchdog handles restored naive datetime strings without crashing."""
+    with patch("custom_components.max_min.coordinator.async_track_time_interval"):
+        coordinator = MaxMinDataUpdateCoordinator(mock_hass, config_entry)
+
+    now = datetime(2023, 1, 2, 0, 5, 0, tzinfo=timezone.utc)
+    coordinator.tracked_data[PERIOD_DAILY] = {
+        "max": 10.0,
+        "last_reset": "2023-01-01T00:00:00",
+    }
+
+    with patch.object(coordinator, "_perform_reset") as mock_reset:
+        coordinator._check_watchdog(now)
+        mock_reset.assert_called_once_with(now, PERIOD_DAILY, reason="watchdog")
+
+
+def test_watchdog_continues_when_one_period_fails(mock_hass, config_entry):
+    """Watchdog should continue processing periods if one period errors."""
+    config_entry.data[CONF_PERIODS] = [PERIOD_DAILY, PERIOD_WEEKLY]
+    with patch("custom_components.max_min.coordinator.async_track_time_interval"):
+        coordinator = MaxMinDataUpdateCoordinator(mock_hass, config_entry)
+
+    now = datetime(2023, 1, 2, 0, 5, 0, tzinfo=timezone.utc)
+
+    with patch.object(
+        coordinator,
+        "ensure_period_current",
+        side_effect=[RuntimeError("boom"), True],
+    ) as mock_trigger:
+        coordinator._check_watchdog(now)
+
+    assert mock_trigger.call_count == 2

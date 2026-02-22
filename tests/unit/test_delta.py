@@ -141,7 +141,7 @@ async def test_delta_sensor_reset(hass):
     # Reset should set start = current (20.0), end = current (20.0) -> Delta = 0.0
     from homeassistant.util import dt as dt_util
     now = dt_util.now()
-    coordinator._handle_reset(now, PERIOD_DAILY)
+    coordinator._perform_reset(now, PERIOD_DAILY)
     
     assert coordinator.get_value(PERIOD_DAILY, "start") == 20.0
     assert coordinator.get_value(PERIOD_DAILY, "end") == 20.0

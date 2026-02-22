@@ -1,6 +1,18 @@
 
 
 
+# 0.3.35 - 2026-02-22
+## Changed
+- **Reset Architecture Refactor** (consensus GPT + Claude): Unified all reset paths through a single `ensure_period_current()` entry point, eliminating 5 divergent code paths.
+- **`last_reset = period_start`**: Reset timestamp now records the canonical period boundary (e.g. midnight) instead of the wall-clock moment, eliminating visual drift in `last_reset` attributes.
+- **Extracted `_compute_reset_seed()`**: Seed policy (measurement vs cumulative fallback) is now a standalone pure function, independently testable.
+- **Simplified `_is_reset_due()`**: Removed optional decision-path parameters (`require_offset_window`, `expected_reset_time`, `allow_missing_last_reset`), reducing combinatorial paths from 16 to 1.
+## Improved
+- **Backup timer simplified**: Now calls `ensure_period_current()` like all other triggers, no special `_ensure_backup_reset` method.
+- **Inline reset detection**: Uses `ensure_period_current()` instead of separate `_is_reset_due()` call with custom parameters.
+## Added
+- **Non-regression contract** (`test_non_regression.py`): 15 mandatory scenarios covering reset timing, DST, restore edge cases, seed policy, offset, inline, surgical reset, and initial value enforcement.
+
 # 0.3.33 - 2026-02-21
 ## Fixed
 - **Measurement Reset Carry-over**: Reset fallback to previous `end` value is now restricted to cumulative sources only (`total` / `total_increasing`).

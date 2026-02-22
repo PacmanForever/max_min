@@ -294,12 +294,12 @@ def test_restore_without_last_reset_applied_when_period_not_initialized(hass):
 
 
 # ---------------------------------------------------------------------------
-# _handle_reset — enforce configured initial values
+# _perform_reset — enforce configured initial values
 # ---------------------------------------------------------------------------
 
 
-def test_handle_reset_enforces_initial_max(hass):
-    """Test that _handle_reset applies configured initial max as floor.
+def test_perform_reset_enforces_initial_max(hass):
+    """Test that _perform_reset applies configured initial max as floor.
 
     When sensor value (13.107) is below configured initial max (45.0),
     the reset should use the configured initial instead.
@@ -319,7 +319,7 @@ def test_handle_reset_enforces_initial_max(hass):
     )
 
     with patch("custom_components.max_min.coordinator.async_track_point_in_time"):
-        coordinator._handle_reset(
+        coordinator._perform_reset(
             datetime(2026, 1, 1, 0, 0, 0, tzinfo=timezone.utc), PERIOD_YEARLY
         )
 
@@ -330,8 +330,8 @@ def test_handle_reset_enforces_initial_max(hass):
     assert coordinator.tracked_data[PERIOD_YEARLY]["end"] == 13.107
 
 
-def test_handle_reset_enforces_initial_min(hass):
-    """Test that _handle_reset applies configured initial min as ceiling.
+def test_perform_reset_enforces_initial_min(hass):
+    """Test that _perform_reset applies configured initial min as ceiling.
 
     When sensor value (10.0) is above configured initial min (-5.0),
     the reset should use the configured initial instead.
@@ -348,7 +348,7 @@ def test_handle_reset_enforces_initial_min(hass):
     )
 
     with patch("custom_components.max_min.coordinator.async_track_point_in_time"):
-        coordinator._handle_reset(
+        coordinator._perform_reset(
             datetime(2026, 1, 1, 0, 0, 0, tzinfo=timezone.utc), PERIOD_YEARLY
         )
 
@@ -356,8 +356,8 @@ def test_handle_reset_enforces_initial_min(hass):
     assert coordinator.tracked_data[PERIOD_YEARLY]["min"] == -5.0
 
 
-def test_handle_reset_keeps_sensor_value_when_more_extreme_than_initial(hass):
-    """Test that _handle_reset keeps sensor value when it's more extreme than initial.
+def test_perform_reset_keeps_sensor_value_when_more_extreme_than_initial(hass):
+    """Test that _perform_reset keeps sensor value when it's more extreme than initial.
 
     Max: sensor value (50.0) > initial max (45.0) → keep 50.0
     Min: sensor value (-10.0) < initial min (-5.0) → keep -10.0
@@ -373,7 +373,7 @@ def test_handle_reset_keeps_sensor_value_when_more_extreme_than_initial(hass):
     )
 
     with patch("custom_components.max_min.coordinator.async_track_point_in_time"):
-        coordinator._handle_reset(
+        coordinator._perform_reset(
             datetime(2026, 2, 9, 0, 0, 0, tzinfo=timezone.utc), PERIOD_DAILY
         )
 
@@ -385,15 +385,15 @@ def test_handle_reset_keeps_sensor_value_when_more_extreme_than_initial(hass):
     )
 
     with patch("custom_components.max_min.coordinator.async_track_point_in_time"):
-        coordinator._handle_reset(
+        coordinator._perform_reset(
             datetime(2026, 2, 10, 0, 0, 0, tzinfo=timezone.utc), PERIOD_DAILY
         )
 
     assert coordinator.tracked_data[PERIOD_DAILY]["min"] == -10.0
 
 
-def test_handle_reset_with_sensor_unavailable_uses_initial(hass):
-    """Test that _handle_reset uses configured initial when sensor is unavailable."""
+def test_perform_reset_with_sensor_unavailable_uses_initial(hass):
+    """Test that _perform_reset uses configured initial when sensor is unavailable."""
     config_entry = _make_config_entry(
         periods=[PERIOD_DAILY],
         period_initials={PERIOD_DAILY: {"max": 45.0, "min": -5.0}},
@@ -404,7 +404,7 @@ def test_handle_reset_with_sensor_unavailable_uses_initial(hass):
     hass.states.get.return_value = Mock(state="unavailable", attributes={})
 
     with patch("custom_components.max_min.coordinator.async_track_point_in_time"):
-        coordinator._handle_reset(
+        coordinator._perform_reset(
             datetime(2026, 2, 9, 0, 0, 0, tzinfo=timezone.utc), PERIOD_DAILY
         )
 
@@ -413,8 +413,8 @@ def test_handle_reset_with_sensor_unavailable_uses_initial(hass):
     assert coordinator.tracked_data[PERIOD_DAILY]["min"] == -5.0
 
 
-def test_handle_reset_without_initials_uses_sensor_value(hass):
-    """Test that _handle_reset works normally when no initials are configured."""
+def test_perform_reset_without_initials_uses_sensor_value(hass):
+    """Test that _perform_reset works normally when no initials are configured."""
     config_entry = _make_config_entry(periods=[PERIOD_DAILY])
     coordinator = MaxMinDataUpdateCoordinator(hass, config_entry)
 
@@ -423,7 +423,7 @@ def test_handle_reset_without_initials_uses_sensor_value(hass):
     )
 
     with patch("custom_components.max_min.coordinator.async_track_point_in_time"):
-        coordinator._handle_reset(
+        coordinator._perform_reset(
             datetime(2026, 2, 9, 0, 0, 0, tzinfo=timezone.utc), PERIOD_DAILY
         )
 
@@ -432,7 +432,7 @@ def test_handle_reset_without_initials_uses_sensor_value(hass):
     assert coordinator.tracked_data[PERIOD_DAILY]["min"] == 13.107
 
 
-def test_handle_reset_initial_max_zero_is_enforced(hass):
+def test_perform_reset_initial_max_zero_is_enforced(hass):
     """Test that configured initial max of 0.0 is correctly enforced after reset."""
     config_entry = _make_config_entry(
         periods=[PERIOD_DAILY],
@@ -446,7 +446,7 @@ def test_handle_reset_initial_max_zero_is_enforced(hass):
     )
 
     with patch("custom_components.max_min.coordinator.async_track_point_in_time"):
-        coordinator._handle_reset(
+        coordinator._perform_reset(
             datetime(2026, 2, 9, 0, 0, 0, tzinfo=timezone.utc), PERIOD_DAILY
         )
 

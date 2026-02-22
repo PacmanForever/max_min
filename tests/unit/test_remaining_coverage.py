@@ -143,12 +143,12 @@ def test_handle_sensor_change_creates_missing_period(hass):
 
 
 # ---------------------------------------------------------------------------
-# coordinator.py — _handle_reset reschedule branches for monthly (Dec),
+# coordinator.py — _perform_reset reschedule branches for monthly (Dec),
 # yearly, and the schedule_time assignment line
 # ---------------------------------------------------------------------------
 
-def test_handle_reset_reschedule_monthly_december(hass):
-    """_handle_reset reschedules monthly correctly in December (→ Jan next year)."""
+def test_perform_reset_reschedule_monthly_december(hass):
+    """_perform_reset reschedules monthly correctly in December (→ Jan next year)."""
     entry = _entry(periods=[PERIOD_MONTHLY])
     coordinator = MaxMinDataUpdateCoordinator(hass, entry)
     coordinator.tracked_data[PERIOD_MONTHLY] = {
@@ -160,7 +160,7 @@ def test_handle_reset_reschedule_monthly_december(hass):
     dec_now = datetime(2026, 12, 31, 0, 0, 0, tzinfo=timezone.utc)
     with patch("custom_components.max_min.coordinator.async_track_point_in_time") as mock_track, \
          patch("custom_components.max_min.coordinator.dt_util.now", return_value=dec_now):
-        coordinator._handle_reset(dec_now, PERIOD_MONTHLY)
+        coordinator._perform_reset(dec_now, PERIOD_MONTHLY)
 
         # Next reset should be Jan 1 2027
         assert PERIOD_MONTHLY in coordinator._next_resets
@@ -169,8 +169,8 @@ def test_handle_reset_reschedule_monthly_december(hass):
         mock_track.assert_called()
 
 
-def test_handle_reset_reschedule_monthly_non_december(hass):
-    """_handle_reset reschedules monthly correctly outside December."""
+def test_perform_reset_reschedule_monthly_non_december(hass):
+    """_perform_reset reschedules monthly correctly outside December."""
     entry = _entry(periods=[PERIOD_MONTHLY])
     coordinator = MaxMinDataUpdateCoordinator(hass, entry)
     coordinator.tracked_data[PERIOD_MONTHLY] = {
@@ -182,13 +182,13 @@ def test_handle_reset_reschedule_monthly_non_december(hass):
     jun_now = datetime(2026, 6, 15, 0, 0, 0, tzinfo=timezone.utc)
     with patch("custom_components.max_min.coordinator.async_track_point_in_time"), \
          patch("custom_components.max_min.coordinator.dt_util.now", return_value=jun_now):
-        coordinator._handle_reset(jun_now, PERIOD_MONTHLY)
+        coordinator._perform_reset(jun_now, PERIOD_MONTHLY)
         nr = coordinator._next_resets[PERIOD_MONTHLY]
         assert nr.month == 7 and nr.day == 1
 
 
-def test_handle_reset_reschedule_yearly(hass):
-    """_handle_reset reschedules yearly correctly."""
+def test_perform_reset_reschedule_yearly(hass):
+    """_perform_reset reschedules yearly correctly."""
     entry = _entry(periods=[PERIOD_YEARLY])
     coordinator = MaxMinDataUpdateCoordinator(hass, entry)
     coordinator.tracked_data[PERIOD_YEARLY] = {
@@ -200,7 +200,7 @@ def test_handle_reset_reschedule_yearly(hass):
     feb_now = datetime(2026, 2, 8, 0, 0, 0, tzinfo=timezone.utc)
     with patch("custom_components.max_min.coordinator.async_track_point_in_time") as mock_track, \
          patch("custom_components.max_min.coordinator.dt_util.now", return_value=feb_now):
-        coordinator._handle_reset(feb_now, PERIOD_YEARLY)
+        coordinator._perform_reset(feb_now, PERIOD_YEARLY)
 
         nr = coordinator._next_resets[PERIOD_YEARLY]
         assert nr.year == 2027 and nr.month == 1 and nr.day == 1
@@ -354,11 +354,11 @@ def test_schedule_resets_monthly_december(hass):
 
 
 # ---------------------------------------------------------------------------
-# coordinator.py — L337-338: _handle_reset with invalid sensor state
+# coordinator.py — L337-338: _perform_reset with invalid sensor state
 # ---------------------------------------------------------------------------
 
-def test_handle_reset_with_invalid_sensor_value(hass):
-    """_handle_reset handles ValueError when sensor state is not a float."""
+def test_perform_reset_with_invalid_sensor_value(hass):
+    """_perform_reset handles ValueError when sensor state is not a float."""
     entry = _entry(periods=[PERIOD_DAILY])
     coordinator = MaxMinDataUpdateCoordinator(hass, entry)
     coordinator.tracked_data[PERIOD_DAILY] = {
@@ -376,7 +376,7 @@ def test_handle_reset_with_invalid_sensor_value(hass):
     now = datetime(2026, 2, 9, 0, 0, 0, tzinfo=timezone.utc)
     with patch("custom_components.max_min.coordinator.async_track_point_in_time"), \
          patch("custom_components.max_min.coordinator.dt_util.now", return_value=now):
-        coordinator._handle_reset(now, PERIOD_DAILY)
+        coordinator._perform_reset(now, PERIOD_DAILY)
 
     # current_val is invalid, measurement reset does not reuse previous end
     assert coordinator.tracked_data[PERIOD_DAILY]["max"] is None
@@ -384,11 +384,11 @@ def test_handle_reset_with_invalid_sensor_value(hass):
 
 
 # ---------------------------------------------------------------------------
-# coordinator.py — L354-355: _handle_reset notifies entities
+# coordinator.py — L354-355: _perform_reset notifies entities
 # ---------------------------------------------------------------------------
 
-def test_handle_reset_notifies_entities(hass):
-    """_handle_reset calls async_write_ha_state on matching entities."""
+def test_perform_reset_notifies_entities(hass):
+    """_perform_reset calls async_write_ha_state on matching entities."""
     entry = _entry(periods=[PERIOD_DAILY])
     coordinator = MaxMinDataUpdateCoordinator(hass, entry)
     coordinator.tracked_data[PERIOD_DAILY] = {
@@ -411,7 +411,7 @@ def test_handle_reset_notifies_entities(hass):
     now = datetime(2026, 2, 9, 0, 0, 0, tzinfo=timezone.utc)
     with patch("custom_components.max_min.coordinator.async_track_point_in_time"), \
          patch("custom_components.max_min.coordinator.dt_util.now", return_value=now):
-        coordinator._handle_reset(now, PERIOD_DAILY)
+        coordinator._perform_reset(now, PERIOD_DAILY)
 
     entity_matching.async_write_ha_state.assert_called_once()
     entity_other.async_write_ha_state.assert_not_called()
@@ -421,8 +421,8 @@ def test_handle_reset_notifies_entities(hass):
 # coordinator.py — L365: weekly reschedule when days_ahead == 0
 # ---------------------------------------------------------------------------
 
-def test_handle_reset_reschedule_weekly_same_weekday(hass):
-    """_handle_reset reschedules weekly when today is the reset day (days_ahead=0→7)."""
+def test_perform_reset_reschedule_weekly_same_weekday(hass):
+    """_perform_reset reschedules weekly when today is the reset day (days_ahead=0→7)."""
     entry = _entry(periods=[PERIOD_WEEKLY])
     coordinator = MaxMinDataUpdateCoordinator(hass, entry)
     coordinator.tracked_data[PERIOD_WEEKLY] = {
@@ -435,7 +435,7 @@ def test_handle_reset_reschedule_weekly_same_weekday(hass):
     monday = datetime(2026, 2, 9, 0, 0, 0, tzinfo=timezone.utc)
     with patch("custom_components.max_min.coordinator.async_track_point_in_time") as mock_track, \
          patch("custom_components.max_min.coordinator.dt_util.now", return_value=monday):
-        coordinator._handle_reset(monday, PERIOD_WEEKLY)
+        coordinator._perform_reset(monday, PERIOD_WEEKLY)
 
     nr = coordinator._next_resets[PERIOD_WEEKLY]
     # Should schedule 7 days later = 2026-02-16 (next Monday)

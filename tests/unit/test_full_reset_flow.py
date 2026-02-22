@@ -56,7 +56,7 @@ async def test_reset_updates_entities(hass, config_entry):
     
     # Patch rescheduling to avoid event loop errors
     with patch("custom_components.max_min.coordinator.async_track_point_in_time"):
-        coordinator._handle_reset(now, PERIOD_DAILY)
+        coordinator._perform_reset(now, PERIOD_DAILY)
     
     # 1. Verify Data Reset to Current Value (10.0)
     assert coordinator.tracked_data[PERIOD_DAILY]["max"] == 10.0
@@ -78,7 +78,7 @@ async def test_reset_with_unavailable_source(hass, config_entry):
     now = datetime(2023, 1, 2, 0, 0, 0, tzinfo=timezone.utc)
     
     with patch("custom_components.max_min.coordinator.async_track_point_in_time"):
-        coordinator._handle_reset(now, PERIOD_DAILY)
+        coordinator._perform_reset(now, PERIOD_DAILY)
     
     # Logic: if unavailable, current_val is None.
     # self.tracked_data[period]["max"] = current_val (None)
@@ -108,7 +108,7 @@ async def test_reset_with_unavailable_source_uses_last_end_fallback(hass, config
     now = datetime(2023, 1, 2, 0, 0, 0, tzinfo=timezone.utc)
 
     with patch("custom_components.max_min.coordinator.async_track_point_in_time"):
-        coordinator._handle_reset(now, PERIOD_DAILY)
+        coordinator._perform_reset(now, PERIOD_DAILY)
 
     # Daily period starts from last known source value, not previous-day max
     assert coordinator.tracked_data[PERIOD_DAILY]["max"] == 0.0

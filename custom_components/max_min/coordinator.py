@@ -1,7 +1,7 @@
 """Data coordinator for Max Min integration."""
 
 import inspect
-from datetime import timedelta
+from datetime import datetime, timedelta
 import logging
 
 from homeassistant.util import dt as dt_util
@@ -28,6 +28,9 @@ from .const import (
 )
 
 _LOGGER = logging.getLogger(__name__)
+
+WATCHDOG_INTERVAL = timedelta(minutes=1)
+BACKUP_RESET_DELAY = timedelta(seconds=30)
 
 
 class MaxMinDataUpdateCoordinator(DataUpdateCoordinator):
@@ -108,10 +111,10 @@ class MaxMinDataUpdateCoordinator(DataUpdateCoordinator):
         self._watchdog_unsub = None
         self._source_is_cumulative = False
         
-        # Start Watchdog (every 10 minutes)
+        # Start Watchdog (every 1 minute)
         # It ensures that if a reset timer failed or was missed, we catch up eventually.
         self._watchdog_unsub = async_track_time_interval(
-            self.hass, self._check_watchdog, timedelta(minutes=10)
+            self.hass, self._check_watchdog, WATCHDOG_INTERVAL
         )
 
     @callback
@@ -120,8 +123,11 @@ class MaxMinDataUpdateCoordinator(DataUpdateCoordinator):
         _LOGGER.debug("Watchdog checking for missed resets...")
         changes = False
         for period in self.periods:
-            if self._trigger_reset_if_due(now, period, reason="watchdog", require_offset_window=True):
-                changes = True
+            try:
+                if self.ensure_period_current(period, now, reason="watchdog"):
+                    changes = True
+            except Exception as err:
+                _LOGGER.exception("Watchdog failed for period %s: %s", period, err)
                 
         if changes:
             _LOGGER.info("Watchdog forced missed resets successfully.")
@@ -213,7 +219,45 @@ class MaxMinDataUpdateCoordinator(DataUpdateCoordinator):
             return dt_util.start_of_local_day(now.replace(year=now.year + 1, month=1, day=1))
         return None
 
-    def _is_reset_due(self, now, period, require_offset_window=True, expected_reset_time=None, allow_missing_last_reset=True):
+    @staticmethod
+    def _normalize_last_reset(last_reset, reference_tz):
+        """Normalize restored/stored last_reset to a timezone-aware datetime."""
+        if isinstance(last_reset, str):
+            last_reset = dt_util.parse_datetime(last_reset)
+
+        if not isinstance(last_reset, datetime):
+            return None
+
+        if last_reset.tzinfo is None and reference_tz is not None:
+            return last_reset.replace(tzinfo=reference_tz)
+
+        return last_reset
+
+    def _compute_reset_seed(self, period) -> float | None:
+        """Compute the seed value for a period reset.
+
+        Measurement sources: use current sensor value only.
+        Cumulative sources: fall back to last end value if sensor unavailable.
+        """
+        state = self.hass.states.get(self.sensor_entity)
+        if state and state.state not in (None, "unknown", "unavailable"):
+            try:
+                return float(state.state)
+            except ValueError:
+                pass
+        # Fallback: only for cumulative sources
+        if self._source_is_cumulative:
+            end_val = self.tracked_data.get(period, {}).get("end")
+            if isinstance(end_val, (int, float)):
+                return float(end_val)
+            if isinstance(end_val, str):
+                try:
+                    return float(end_val)
+                except ValueError:
+                    pass
+        return None
+
+    def _is_reset_due(self, now, period) -> bool:
         """Check if a period reset is due based on last_reset and period boundaries."""
         if period == PERIOD_ALL_TIME:
             return False
@@ -226,34 +270,35 @@ class MaxMinDataUpdateCoordinator(DataUpdateCoordinator):
         if not period_start:
             return False
 
-        last_reset = data.get("last_reset")
-        if not allow_missing_last_reset and last_reset is None:
-            return False
-        if last_reset and last_reset >= period_start:
-            return False
+        last_reset = self._normalize_last_reset(data.get("last_reset"), period_start.tzinfo)
+        if last_reset:
+            try:
+                if last_reset >= period_start:
+                    return False
+            except TypeError:
+                _LOGGER.warning(
+                    "Invalid last_reset %s for period %s; treating as missing",
+                    last_reset,
+                    period,
+                )
 
-        if require_offset_window and self.offset > 0 and self._source_is_cumulative:
+        if self.offset > 0 and self._source_is_cumulative:
             if now < period_start + timedelta(seconds=self.offset):
                 return False
 
-        if expected_reset_time and now < expected_reset_time:
-            return False
-
         return True
 
-    def _trigger_reset_if_due(self, now, period, reason, require_offset_window=True, expected_reset_time=None, allow_missing_last_reset=True):
-        """Run reset only when due, and log source for traceability."""
-        if not self._is_reset_due(
-            now,
-            period,
-            require_offset_window=require_offset_window,
-            expected_reset_time=expected_reset_time,
-            allow_missing_last_reset=allow_missing_last_reset,
-        ):
+    def ensure_period_current(self, period, now, reason="check") -> bool:
+        """Ensure the given period has been reset for the current boundary.
+
+        Single entry point for all reset triggers (scheduler, watchdog,
+        inline, backup).  Returns True if a reset was performed.
+        """
+        if not self._is_reset_due(now, period):
             return False
 
         _LOGGER.warning("Reset triggered by %s for %s at %s", reason, period, now)
-        self._handle_reset(now, period, reason=reason)
+        self._perform_reset(now, period, reason=reason)
         return True
 
     def update_restored_data(self, period, type_, value, last_reset=None):
@@ -398,37 +443,22 @@ class MaxMinDataUpdateCoordinator(DataUpdateCoordinator):
 
                 for period in self.periods:
                     if period not in self.tracked_data:
-                        self.tracked_data[period] = {"max": None, "min": None, "start": None, "end": None}
+                        self.tracked_data[period] = {
+                            "max": None, "min": None, "start": None, "end": None,
+                            "last_reset": self._get_period_start(now, period),
+                        }
 
                     data = self.tracked_data[period]
                     is_cumulative = self._source_is_cumulative
 
                     # 0. Inline period-boundary reset detection
-                    # If a sensor update arrives after the period boundary but before the
-                    # scheduled async_track_point_in_time fires, we must reset first so
-                    # old max/min values don't bleed into the new period.
-                    # When offset > 0 (cumulative sensors), defer to the scheduled reset
-                    # unless the offset window has already passed.
+                    # If a sensor update arrives after the period boundary but before
+                    # the scheduled timer fires, we must reset first so old values
+                    # don't bleed into the new period.  ensure_period_current
+                    # respects cumulative offset.
                     if period != PERIOD_ALL_TIME:
-                        period_start = self._get_period_start(now, period)
-                        last_reset = data.get("last_reset")
-                        if self._is_reset_due(
-                            now,
-                            period,
-                            require_offset_window=True,
-                            allow_missing_last_reset=False,
-                        ):
-                            _LOGGER.debug(
-                                "Inline reset for %s: last_reset %s < period_start %s",
-                                period, last_reset, period_start,
-                            )
-                            # Cancel the scheduled reset if pending
-                            if period in self._reset_listeners:
-                                self._reset_listeners[period]()
-                                del self._reset_listeners[period]
-                            self._handle_reset(now, period, reason="inline")
-                            # After reset, data has been re-initialised with current_val
-                            # from self.hass.states – refresh local reference
+                        if self.ensure_period_current(period, now, reason="inline"):
+                            # After reset, data has been re-initialised – refresh ref
                             data = self.tracked_data[period]
 
                     # 1. Early Reset Detection (Offset Window)
@@ -442,12 +472,7 @@ class MaxMinDataUpdateCoordinator(DataUpdateCoordinator):
                             # If cumulative sensor drops during dead zone, it's a reset
                             if is_cumulative and data["max"] is not None and value < data["max"]:
                                 _LOGGER.debug("Early reset detected for %s. Triggering reset now.", period)
-                                # Cancel scheduled reset
-                                if period in self._reset_listeners:
-                                    self._reset_listeners[period]()
-                                    del self._reset_listeners[period]
-                                self._handle_reset(now, period, reason="early_offset")
-                                # This period is reset; continue to process remaining periods
+                                self._perform_reset(now, period, reason="early_offset")
 
                             continue
                     
@@ -511,65 +536,45 @@ class MaxMinDataUpdateCoordinator(DataUpdateCoordinator):
         # Default arg p=period captures the loop variable by value
         self._reset_listeners[period] = async_track_point_in_time(
             self.hass,
-            lambda now, p=period: self._handle_reset(now, p, reason="scheduler"),
+            lambda now, p=period: self.ensure_period_current(p, now, reason="scheduler"),
             schedule_time,
         )
 
         # Backup guard: if the main timer is missed, force verification shortly after.
-        backup_time = schedule_time + timedelta(minutes=2)
+        backup_time = schedule_time + BACKUP_RESET_DELAY
         self._backup_reset_listeners[period] = async_track_point_in_time(
             self.hass,
-            lambda now, p=period, expected=schedule_time: self._ensure_backup_reset(now, p, expected),
+            lambda now, p=period: self.ensure_period_current(p, now, reason="backup"),
             backup_time,
         )
 
     @callback
-    def _ensure_backup_reset(self, now, period, expected_reset_time):
-        """Force reset if main timer did not execute as expected."""
-        self._trigger_reset_if_due(
-            now,
-            period,
-            reason="backup",
-            require_offset_window=False,
-            expected_reset_time=expected_reset_time,
-        )
+    def _perform_reset(self, now, period, reason="scheduler"):
+        """Handle period reset.
 
-    @callback
-    def _handle_reset(self, now, period, reason="scheduler"):
-        """Handle period reset."""
+        Uses _compute_reset_seed for seed policy and records last_reset as
+        the canonical period_start (not wall-clock ``now``) so that
+        _is_reset_due becomes fully idempotent.
+        """
         _LOGGER.debug("Handling period reset for %s - %s (source=%s)", self.config_entry.title, period, reason)
 
         try:
-            current_val = None
-            state = self.hass.states.get(self.sensor_entity)
-            if state and state.state not in (None, "unknown", "unavailable"):
-                try:
-                    current_val = float(state.state)
-                except ValueError:
-                    pass
+            reset_seed = self._compute_reset_seed(period)
 
             if period in self.tracked_data:
-                reset_seed = current_val
-                allow_end_fallback = self._source_is_cumulative
-                if reset_seed is None and allow_end_fallback:
-                    end_val = self.tracked_data[period].get("end")
-                    if isinstance(end_val, (int, float)):
-                        reset_seed = float(end_val)
-                    elif isinstance(end_val, str):
-                        try:
-                            reset_seed = float(end_val)
-                        except ValueError:
-                            reset_seed = None
-
-                if current_val is None and reset_seed is not None:
+                # Log seed provenance when source is unavailable
+                state = self.hass.states.get(self.sensor_entity)
+                source_available = (
+                    state and state.state not in (None, "unknown", "unavailable")
+                )
+                if not source_available and reset_seed is not None:
                     _LOGGER.debug(
-                        "Reset fallback for %s: cumulative source unavailable/non-numeric, using last end value %s",
-                        period,
-                        reset_seed,
+                        "Reset fallback for %s: source unavailable, using last end value %s",
+                        period, reset_seed,
                     )
-                elif current_val is None and not allow_end_fallback:
+                elif not source_available:
                     _LOGGER.debug(
-                        "Reset for %s: measurement source unavailable/non-numeric, not reusing last end value",
+                        "Reset for %s: source unavailable, seed is None",
                         period,
                     )
 
@@ -578,7 +583,7 @@ class MaxMinDataUpdateCoordinator(DataUpdateCoordinator):
                 initial_max = initials.get("max")
                 initial_min = initials.get("min")
 
-                # Max: use whichever is higher between current value and configured initial
+                # Max: use whichever is higher between seed and configured initial
                 if reset_seed is not None and initial_max is not None:
                     self.tracked_data[period]["max"] = max(reset_seed, initial_max)
                 elif initial_max is not None:
@@ -586,7 +591,7 @@ class MaxMinDataUpdateCoordinator(DataUpdateCoordinator):
                 else:
                     self.tracked_data[period]["max"] = reset_seed
 
-                # Min: use whichever is lower between current value and configured initial
+                # Min: use whichever is lower between seed and configured initial
                 if reset_seed is not None and initial_min is not None:
                     self.tracked_data[period]["min"] = min(reset_seed, initial_min)
                 elif initial_min is not None:
@@ -594,7 +599,8 @@ class MaxMinDataUpdateCoordinator(DataUpdateCoordinator):
                 else:
                     self.tracked_data[period]["min"] = reset_seed
 
-                self.tracked_data[period]["last_reset"] = now
+                # Canonical: last_reset is the period start, not the wall-clock moment
+                self.tracked_data[period]["last_reset"] = self._get_period_start(now, period)
                 self.tracked_data[period]["start"] = reset_seed
                 self.tracked_data[period]["end"] = reset_seed
 

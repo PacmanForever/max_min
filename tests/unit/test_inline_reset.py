@@ -88,7 +88,7 @@ async def test_inline_reset_on_period_boundary(hass, config_entry):
     cancel_mock.assert_called_once()
 
     # After inline reset + processing: max and min should be 8.0 (current value)
-    # because _handle_reset sets both to current sensor value (8.0),
+    # because _perform_reset sets both to current sensor value (8.0),
     # and 8.0 == 8.0 so no further update from _handle_sensor_change
     assert coordinator.tracked_data[PERIOD_DAILY]["max"] == 8.0
     assert coordinator.tracked_data[PERIOD_DAILY]["min"] == 8.0

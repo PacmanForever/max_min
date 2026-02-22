@@ -81,9 +81,9 @@ async def test_offset_dead_zone_early_reset(hass, config_entry):
         # Ensure hass.states.get returns the new state so handle_reset reads it
         hass.states.get.return_value = Mock(state="0.0")
 
-        # Mock _handle_reset to verify it gets called
-        with patch.object(coordinator, '_handle_reset', wraps=coordinator._handle_reset) as mock_reset:
-             # We also need to patch async_track_point_in_time because _handle_reset calls it to schedule NEXT reset
+        # Mock _perform_reset to verify it gets called
+        with patch.object(coordinator, '_perform_reset', wraps=coordinator._perform_reset) as mock_reset:
+             # We also need to patch async_track_point_in_time because _perform_reset calls it to schedule NEXT reset
              with patch("custom_components.max_min.coordinator.async_track_point_in_time"):
                  coordinator._handle_sensor_change(event)
              
@@ -102,6 +102,6 @@ async def test_offset_dead_zone_early_reset(hass, config_entry):
     assert coordinator.tracked_data[PERIOD_DAILY]["max"] == 0.0
     # Listener for next period should be scheduled
     assert PERIOD_DAILY in coordinator._reset_listeners
-    # Wait, _handle_reset reschedules! So it should contain the NEW listener.
+    # Wait, _perform_reset reschedules! So it should contain the NEW listener.
     # checking that old one is gone is implicit by cancel_mock call.
     # coordinator._reset_listeners might contain the NEW listener for next day.
