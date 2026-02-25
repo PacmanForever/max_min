@@ -216,11 +216,6 @@ class MaxSensor(_BaseMaxMinSensor):
         """Return the current maximum."""
         return self.coordinator.get_value(self.period, self._value_key)
 
-    @property
-    def available(self):
-        """Return True when a max value has been recorded."""
-        return self.coordinator.get_value(self.period, self._value_key) is not None
-
 
 class MinSensor(_BaseMaxMinSensor):
     """Representation of a Min sensor."""
@@ -247,11 +242,6 @@ class MinSensor(_BaseMaxMinSensor):
     def native_value(self):
         """Return the current minimum."""
         return self.coordinator.get_value(self.period, self._value_key)
-
-    @property
-    def available(self):
-        """Return True when a min value has been recorded."""
-        return self.coordinator.get_value(self.period, self._value_key) is not None
 
 
 class DeltaSensor(_BaseMaxMinSensor):
@@ -303,10 +293,3 @@ class DeltaSensor(_BaseMaxMinSensor):
         if start is not None and end is not None:
             return end - start
         return None
-
-    @property
-    def available(self):
-        """Return True when both start and end values exist."""
-        start = self.coordinator.get_value(self.period, "start")
-        end = self.coordinator.get_value(self.period, "end")
-        return start is not None and end is not None

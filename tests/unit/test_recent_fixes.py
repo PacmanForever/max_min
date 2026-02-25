@@ -351,8 +351,8 @@ class TestDeltaPersistence:
         # Should not raise exception - ValueError caught and ignored
         await sensor.async_added_to_hass()
 
-        # Sensor should be unavailable (no valid start/end)
-        assert sensor.available is False
+        # Entity stays available (shows 'unknown' in HA), native_value is None
+        assert sensor.available is True
         assert sensor.native_value is None  # No valid start/end = no delta
 
     @pytest.mark.asyncio

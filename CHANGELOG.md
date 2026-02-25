@@ -1,6 +1,18 @@
 
 
 
+# 0.3.36 - 2026-02-25
+## Fixed
+- **Scheduler Callbacks Not Running in Event Loop**: Timer callbacks passed to `async_track_point_in_time` were bare lambdas without `@callback` decorator, causing HA to run them in the thread-pool executor instead of the event loop. This meant `async_write_ha_state()` never propagated the reset to HA's state machine at midnight — the graph only updated when the source sensor next reported (minutes or hours later). Replaced lambdas with `@callback`-decorated inner functions.
+- **Measurement Sensor Seed Fallback**: `_compute_reset_seed()` now falls back to the last recorded `end` value for ALL sensor types when the source is unavailable at reset time (e.g. UV index at night). Previously, this fallback was restricted to cumulative sensors, causing measurement entities to go unavailable and HA to render a flat stale-value line.
+## Changed
+- **Removed Custom `available` Overrides**: `MaxSensor`, `MinSensor`, and `DeltaSensor` no longer override the `available` property. Entities now delegate to `CoordinatorEntity.available`, showing `unknown` in HA (clean graph break) instead of `unavailable` (flat line).
+- **Dead Code Cleanup**: Removed unused `import inspect` and unreachable entity notification loop from `_perform_reset`.
+## Added
+- **NR-16**: Regression test — measurement sensor with end_val seeds correctly when source unavailable.
+- **NR-17**: Regression test — measurement sensor with no end_val yields seed=None.
+- **NR-18**: Regression test — scheduler callbacks have `@callback` decorator (`_hass_callback` marker).
+
 # 0.3.35 - 2026-02-22
 ## Changed
 - **Reset Architecture Refactor** (consensus GPT + Claude): Unified all reset paths through a single `ensure_period_current()` entry point, eliminating 5 divergent code paths.

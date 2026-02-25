@@ -139,8 +139,14 @@ async def test_nr03_catchup_after_restart():
 # ===================================================================
 
 @freeze_time("2026-02-22 00:00:00", tz_offset=0)
-def test_nr04_measurement_no_carryover():
-    """Measurement sensor unavailable at reset → seed=None, not last end."""
+def test_nr04_measurement_seed_uses_last_end():
+    """Measurement sensor unavailable at reset → seed = last end value.
+
+    This ensures the entity keeps a numeric state so the HA history
+    graph shows a clean break at the period boundary instead of a flat
+    line of the previous maximum (which happens when the entity goes
+    unavailable/None).
+    """
     hass = _hass("unavailable")
     coordinator = MaxMinDataUpdateCoordinator(hass, _entry())
     coordinator._source_is_cumulative = False
@@ -155,10 +161,11 @@ def test_nr04_measurement_no_carryover():
         coordinator._perform_reset(now, PERIOD_DAILY)
 
     data = coordinator.tracked_data[PERIOD_DAILY]
-    assert data["max"] is None
-    assert data["min"] is None
-    assert data["start"] is None
-    assert data["end"] is None
+    # Seed = last end value (20.0) — not None
+    assert data["max"] == 20.0
+    assert data["min"] == 20.0
+    assert data["start"] == 20.0
+    assert data["end"] == 20.0
 
 
 # ===================================================================
@@ -426,3 +433,109 @@ def test_nr15_initial_value_enforcement():
     # start/end always reflect the actual seed
     assert data["start"] == 13.0
     assert data["end"] == 13.0
+
+
+# ===================================================================
+# NR-16  Measurement sensor seed fallback to end_val
+# ===================================================================
+
+@freeze_time("2026-02-22 00:00:00", tz_offset=0)
+def test_nr16_measurement_seed_fallback():
+    """Non-cumulative sensor unavailable at reset uses last end value as seed.
+
+    This fixes the graph stale-line problem: when the source sensor
+    (e.g. UV index) is unavailable at midnight, the entity keeps a
+    numeric state so HA history shows a clean break instead of a flat
+    continuation of the previous maximum.
+    """
+    hass = _hass("unavailable")
+    coordinator = MaxMinDataUpdateCoordinator(hass, _entry())
+    coordinator._source_is_cumulative = False
+
+    coordinator.tracked_data[PERIOD_DAILY] = {
+        "max": 3.1, "min": 0.2, "start": 0.1, "end": 0.3,
+        "last_reset": datetime(2026, 2, 21, 0, 0, 0, tzinfo=timezone.utc),
+    }
+
+    now = datetime(2026, 2, 22, 0, 0, 0, tzinfo=timezone.utc)
+    with patch("custom_components.max_min.coordinator.async_track_point_in_time"):
+        coordinator._perform_reset(now, PERIOD_DAILY)
+
+    data = coordinator.tracked_data[PERIOD_DAILY]
+    # Seed = last end value (0.3), NOT None and NOT yesterday's max (3.1)
+    assert data["max"] == 0.3
+    assert data["min"] == 0.3
+    assert data["start"] == 0.3
+    assert data["end"] == 0.3
+
+
+# ===================================================================
+# NR-17  Measurement sensor with NO end_val falls to None
+# ===================================================================
+
+@freeze_time("2026-02-22 00:00:00", tz_offset=0)
+def test_nr17_measurement_no_end_val_seed_none():
+    """Non-cumulative sensor unavailable with no end value → seed is None.
+
+    This can happen on a fresh setup where the source never reported.
+    The entity shows 'unknown' in HA (not 'unavailable').
+    """
+    hass = _hass("unavailable")
+    coordinator = MaxMinDataUpdateCoordinator(hass, _entry())
+    coordinator._source_is_cumulative = False
+
+    coordinator.tracked_data[PERIOD_DAILY] = {
+        "max": None, "min": None, "start": None, "end": None,
+        "last_reset": datetime(2026, 2, 21, 0, 0, 0, tzinfo=timezone.utc),
+    }
+
+    now = datetime(2026, 2, 22, 0, 0, 0, tzinfo=timezone.utc)
+    with patch("custom_components.max_min.coordinator.async_track_point_in_time"):
+        coordinator._perform_reset(now, PERIOD_DAILY)
+
+    data = coordinator.tracked_data[PERIOD_DAILY]
+    # No end value to fall back to → seed = None
+    assert data["max"] is None
+    assert data["min"] is None
+    assert data["start"] is None
+    assert data["end"] is None
+
+
+# ===================================================================
+# NR-18  Scheduler callbacks are @callback-decorated (event-loop)
+# ===================================================================
+
+def test_nr18_scheduler_callbacks_are_ha_callbacks():
+    """Timer callbacks passed to async_track_point_in_time must have the
+    _hass_callback marker so HA runs them in the event loop.
+
+    Without this, async_write_ha_state runs in the thread-pool executor
+    and the HA state machine is never updated at reset time — the graph
+    shows the change only when the source sensor next reports (minutes
+    or hours later).
+    """
+    hass = _hass("10.0")
+    coordinator = MaxMinDataUpdateCoordinator(hass, _entry())
+
+    captured_callbacks = []
+
+    def capture(hass, cb, point_in_time):
+        captured_callbacks.append(cb)
+        return lambda: None  # unsub
+
+    with patch(
+        "custom_components.max_min.coordinator.async_track_point_in_time",
+        side_effect=capture,
+    ):
+        coordinator._schedule_resets()
+
+    # Daily period → 2 callbacks (main + backup)
+    assert len(captured_callbacks) >= 2, (
+        f"Expected at least 2 callbacks, got {len(captured_callbacks)}"
+    )
+
+    for cb in captured_callbacks:
+        assert getattr(cb, "_hass_callback", False), (
+            f"Callback {cb} is missing @callback decorator — HA will run it "
+            f"in the executor instead of the event loop"
+        )

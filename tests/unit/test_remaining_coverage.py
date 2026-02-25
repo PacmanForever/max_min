@@ -378,17 +378,17 @@ def test_perform_reset_with_invalid_sensor_value(hass):
          patch("custom_components.max_min.coordinator.dt_util.now", return_value=now):
         coordinator._perform_reset(now, PERIOD_DAILY)
 
-    # current_val is invalid, measurement reset does not reuse previous end
-    assert coordinator.tracked_data[PERIOD_DAILY]["max"] is None
-    assert coordinator.tracked_data[PERIOD_DAILY]["min"] is None
+    # Sensor value invalid → seed falls back to last end value (20.0)
+    assert coordinator.tracked_data[PERIOD_DAILY]["max"] == 20.0
+    assert coordinator.tracked_data[PERIOD_DAILY]["min"] == 20.0
 
 
 # ---------------------------------------------------------------------------
-# coordinator.py — L354-355: _perform_reset notifies entities
+# coordinator.py — _perform_reset calls async_set_updated_data
 # ---------------------------------------------------------------------------
 
-def test_perform_reset_notifies_entities(hass):
-    """_perform_reset calls async_write_ha_state on matching entities."""
+def test_perform_reset_calls_set_updated_data(hass):
+    """_perform_reset calls async_set_updated_data to notify entities."""
     entry = _entry(periods=[PERIOD_DAILY])
     coordinator = MaxMinDataUpdateCoordinator(hass, entry)
     coordinator.tracked_data[PERIOD_DAILY] = {
@@ -397,24 +397,13 @@ def test_perform_reset_notifies_entities(hass):
     coordinator._next_resets = {}
     coordinator._reset_listeners = {}
 
-    # Create mock entities
-    entity_matching = Mock()
-    entity_matching.period = PERIOD_DAILY
-
-    entity_other = Mock()
-    entity_other.period = PERIOD_WEEKLY
-
-    entity_no_period = Mock(spec=[])  # no 'period' attribute
-
-    coordinator.entities = [entity_matching, entity_other, entity_no_period]
-
     now = datetime(2026, 2, 9, 0, 0, 0, tzinfo=timezone.utc)
     with patch("custom_components.max_min.coordinator.async_track_point_in_time"), \
-         patch("custom_components.max_min.coordinator.dt_util.now", return_value=now):
+         patch("custom_components.max_min.coordinator.dt_util.now", return_value=now), \
+         patch.object(coordinator, "async_set_updated_data") as mock_notify:
         coordinator._perform_reset(now, PERIOD_DAILY)
 
-    entity_matching.async_write_ha_state.assert_called_once()
-    entity_other.async_write_ha_state.assert_not_called()
+    mock_notify.assert_called_once_with({})
 
 
 # ---------------------------------------------------------------------------

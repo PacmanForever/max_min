@@ -1,10 +1,12 @@
 import pytest
 from datetime import datetime, timedelta, timezone
+from importlib import import_module
 from homeassistant.util import dt as dt_util
+
 try:
-    from zoneinfo import ZoneInfo
-except ImportError:
-    from backports.zoneinfo import ZoneInfo
+    ZoneInfo = import_module("zoneinfo").ZoneInfo
+except ModuleNotFoundError:
+    ZoneInfo = import_module("backports.zoneinfo").ZoneInfo
 
 from custom_components.max_min.coordinator import MaxMinDataUpdateCoordinator
 from custom_components.max_min.const import PERIOD_DAILY, PERIOD_MONTHLY, PERIOD_YEARLY

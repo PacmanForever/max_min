@@ -1,6 +1,5 @@
 """Data coordinator for Max Min integration."""
 
-import inspect
 from datetime import datetime, timedelta
 import logging
 
@@ -236,8 +235,11 @@ class MaxMinDataUpdateCoordinator(DataUpdateCoordinator):
     def _compute_reset_seed(self, period) -> float | None:
         """Compute the seed value for a period reset.
 
-        Measurement sources: use current sensor value only.
-        Cumulative sources: fall back to last end value if sensor unavailable.
+        Always tries the live sensor value first.  When the source is
+        unavailable (e.g. a solar sensor at night), falls back to the
+        last recorded end value so that entities keep a numeric state
+        and the HA history graph shows a clean break at the period
+        boundary instead of a flat line of the previous maximum.
         """
         state = self.hass.states.get(self.sensor_entity)
         if state and state.state not in (None, "unknown", "unavailable"):
@@ -245,16 +247,18 @@ class MaxMinDataUpdateCoordinator(DataUpdateCoordinator):
                 return float(state.state)
             except ValueError:
                 pass
-        # Fallback: only for cumulative sources
-        if self._source_is_cumulative:
-            end_val = self.tracked_data.get(period, {}).get("end")
-            if isinstance(end_val, (int, float)):
+        # Fallback: use last known end value regardless of sensor type.
+        # For cumulative sensors this preserves the meter reading.
+        # For measurement sensors this avoids a None seed that would
+        # make the entity unavailable in HA (graph shows stale line).
+        end_val = self.tracked_data.get(period, {}).get("end")
+        if isinstance(end_val, (int, float)):
+            return float(end_val)
+        if isinstance(end_val, str):
+            try:
                 return float(end_val)
-            if isinstance(end_val, str):
-                try:
-                    return float(end_val)
-                except ValueError:
-                    pass
+            except ValueError:
+                pass
         return None
 
     def _is_reset_due(self, now, period) -> bool:
@@ -288,6 +292,7 @@ class MaxMinDataUpdateCoordinator(DataUpdateCoordinator):
 
         return True
 
+    @callback
     def ensure_period_current(self, period, now, reason="check") -> bool:
         """Ensure the given period has been reset for the current boundary.
 
@@ -533,19 +538,26 @@ class MaxMinDataUpdateCoordinator(DataUpdateCoordinator):
             period, self.config_entry.title, effective_offset, schedule_time
         )
 
-        # Default arg p=period captures the loop variable by value
+        # Inner functions decorated with @callback so that HA's HassJob
+        # classifies them as event-loop callbacks (not executor jobs).
+        # Without this, async_write_ha_state runs outside the event loop
+        # and the HA state machine is never updated at reset time.
+        @callback
+        def on_reset(now, _period=period):
+            self.ensure_period_current(_period, now, reason="scheduler")
+
+        @callback
+        def on_backup(now, _period=period):
+            self.ensure_period_current(_period, now, reason="backup")
+
         self._reset_listeners[period] = async_track_point_in_time(
-            self.hass,
-            lambda now, p=period: self.ensure_period_current(p, now, reason="scheduler"),
-            schedule_time,
+            self.hass, on_reset, schedule_time,
         )
 
         # Backup guard: if the main timer is missed, force verification shortly after.
         backup_time = schedule_time + BACKUP_RESET_DELAY
         self._backup_reset_listeners[period] = async_track_point_in_time(
-            self.hass,
-            lambda now, p=period: self.ensure_period_current(p, now, reason="backup"),
-            backup_time,
+            self.hass, on_backup, backup_time,
         )
 
     @callback
@@ -605,11 +617,6 @@ class MaxMinDataUpdateCoordinator(DataUpdateCoordinator):
                 self.tracked_data[period]["end"] = reset_seed
 
                 self.async_set_updated_data({})
-
-                # Notify entities so they refresh their HA state immediately
-                for entity in getattr(self, "entities", []):
-                    if hasattr(entity, "period") and entity.period == period:
-                        entity.async_write_ha_state()
 
         except Exception as e:
             _LOGGER.exception("Error during reset for %s: %s", period, e)

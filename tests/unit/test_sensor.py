@@ -52,11 +52,13 @@ def test_delta_sensor_missing_start_end():
                 return 5.0
             return None
         hass = None
+        last_update_success = True
 
     config_entry = type("ConfigEntry", (), {"entry_id": "abc", "data": {"sensor_entity": "sensor.x"}})()
     sensor = DeltaSensor(DummyCoordinator(), config_entry, "Test Delta", "daily")
     assert sensor.native_value is None
-    assert not sensor.available
+    # Entity stays available even without a value (shows 'unknown' in HA)
+    assert sensor.available is True
 """Test sensor platform."""
 
 from unittest.mock import Mock, patch
@@ -92,6 +94,7 @@ def coordinator():
             return None
     coord.get_value.side_effect = get_value
     coord.hass = Mock()
+    coord.last_update_success = True
     coord.hass.states.get.return_value = Mock(state="10")
     coord.hass.states.get.return_value.attributes = {
         "unit_of_measurement": "°C",
@@ -110,13 +113,14 @@ def test_delta_sensor(coordinator, config_entry, hass):
     attrs = sensor.extra_state_attributes
     assert attrs["start_value"] == 4.0
     assert attrs["end_value"] == 6.0
-def test_delta_sensor_unavailable(coordinator, config_entry, hass):
-    """Test delta sensor unavailable."""
+def test_delta_sensor_no_value(coordinator, config_entry, hass):
+    """Test delta sensor with no value shows unknown, not unavailable."""
     coordinator.hass = hass
     coordinator.get_value.side_effect = lambda period, type_: None
     sensor = DeltaSensor(coordinator, config_entry, "Delta Test", PERIOD_DAILY)
     assert sensor.native_value is None
-    assert sensor.available is False
+    # Entity stays available — HA will show 'unknown' state, not 'unavailable'
+    assert sensor.available
 def test_delta_sensor_no_unit(coordinator, config_entry, hass):
     """Test delta sensor without unit."""
     source_state = Mock()
@@ -238,8 +242,8 @@ def test_min_sensor(coordinator, config_entry, hass):
     assert sensor.native_unit_of_measurement == "°C"
 
 
-def test_sensor_unavailable(coordinator, config_entry, hass):
-    """Test sensor unavailable."""
+def test_sensor_no_value(coordinator, config_entry, hass):
+    """Test sensors with no value show unknown, not unavailable."""
     coordinator.hass = hass
     coordinator.get_value.return_value = None
     coordinator.get_value.side_effect = None # Remove side_effect to return None
@@ -247,8 +251,11 @@ def test_sensor_unavailable(coordinator, config_entry, hass):
     max_sensor = MaxSensor(coordinator, config_entry, "Max Test", PERIOD_DAILY)
     min_sensor = MinSensor(coordinator, config_entry, "Min Test", PERIOD_DAILY)
 
-    assert max_sensor.available is False
-    assert min_sensor.available is False
+    # Entities stay available — native_value=None → HA shows 'unknown'
+    assert max_sensor.native_value is None
+    assert min_sensor.native_value is None
+    assert max_sensor.available
+    assert min_sensor.available
 
 
 def test_sensor_no_unit(coordinator, config_entry, hass):
