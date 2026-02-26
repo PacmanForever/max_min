@@ -1,6 +1,14 @@
 
 
 
+# 0.3.38 - 2026-02-26
+## Improved
+- **Optional Settings Description**: Form now shows "Leave empty to disable enforcement", clarifying that empty fields mean no floor/ceiling is applied.
+## Changed
+- **CI: Daily Compatibility Workflow**: Fixed install order (test deps first, HA after with `--upgrade`) to prevent `pytest-homeassistant-custom-component` from downgrading HA. Added HA `dev` branch to matrix, auto-issue creation on scheduled failure, `fail-fast: false`, pip cache, and version display step.
+- **CI: Unit & Component Workflows**: Applied consistent install order and pip cache.
+- **README**: Added Delta initial value documentation, fixed HACS repository URL.
+
 # 0.3.37 - 2026-02-26
 ## Fixed
 - **Delta Initial Values Missing from UI**: When creating or editing an entry with only Delta type selected, the optional settings form was empty (no fields shown). Now shows `Initial Delta Value` fields for each configured period.

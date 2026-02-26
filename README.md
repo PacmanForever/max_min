@@ -28,7 +28,7 @@ A custom Home Assistant integration that creates max and min sensors based on a 
 
 1. Open HACS in your Home Assistant instance.
 2. Go to "Integrations" > "Custom repositories".
-3. Add `https://github.com/PacmanForever/max-min` as a custom repository with category "Integration".
+3. Add `https://github.com/PacmanForever/max_min` as a custom repository with category "Integration".
 4. Search for "Max Min" and install it.
 5. Restart Home Assistant.
 6. Add the integration through the UI.
@@ -48,10 +48,10 @@ After installation, add the integration via the Home Assistant UI:
 2. Search for "Max Min".
 3. Select the source sensor (an existing numeric sensor).
 4. Choose the period: Daily, Weekly, Monthly, Yearly or All time.
-5. Select sensor types: Max, Min, or both.
+5. Select sensor types: Max, Min, Delta, or any combination.
 6. (Optional) Select a device to link the new sensors to.
 7. (Optional) Set an Offset/Margin in seconds (default 0, for cumulative sources).
-8. (Optional) Set initial values for max and/or min to start with existing values.
+8. (Optional) Set initial values for Max, Min and/or Delta sensors.
 
 **Note**: When you link sensors to a device, Home Assistant will show a screen at the end of the setup asking you to assign an area. This is standard Home Assistant behavior; if the device already has an area, it will be pre-selected.
 
@@ -84,12 +84,13 @@ To ensure data consistency even in edge cases, Max Min implements several fail-s
 
 ## Initial Values
 
-You can set initial values for the max and min sensors when configuring the integration. This is useful for migrating from other integrations or when you want to start with known baseline values.
+You can set initial values for Max, Min and Delta sensors when configuring the integration. This is useful for migrating from other integrations or when you want to start with known baseline values.
 
 - **Initial Max**: Set a starting maximum value. The sensor will only update if the source sensor exceeds this value. This value is enforced as a floor — restored values below it will be raised back to the configured initial.
 - **Initial Min**: Set a starting minimum value. The sensor will only update if the source sensor goes below this value. This value is enforced as a ceiling — restored values above it will be lowered back to the configured initial.
+- **Initial Delta**: Set a starting delta value. The sensor will show this value until the real computed delta (end − start) exceeds it. This value is enforced as a floor — useful when replacing another integration mid-period.
 
-If no initial values are set, the sensors will start with the first value received from the source sensor.
+If no initial values are set, the sensors will start with the first value received from the source sensor. Leave the fields empty to disable enforcement.
 
 ## How it works
 
