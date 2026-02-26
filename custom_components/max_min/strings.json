@@ -14,7 +14,7 @@
       },
       "optional_settings": {
         "title": "Optional settings",
-        "description": "Optionally configure initial values for each selected period. For Max sensors, the initial value acts as a floor; for Min sensors, it acts as a ceiling; for Delta sensors, it acts as a floor (minimum delta).",
+        "description": "Optionally configure initial values for each selected period. For Max sensors, the initial value acts as a floor; for Min sensors, it acts as a ceiling; for Delta sensors, it acts as a floor (minimum delta). Leave empty to disable enforcement.",
         "data": {
           "daily_initial_min": "Daily: Initial Min Value",
           "daily_initial_max": "Daily: Initial Max Value",
@@ -58,7 +58,7 @@
       },
       "optional_settings": {
         "title": "Optional settings",
-        "description": "Update the initial values for your tracked periods.",
+        "description": "Update the initial values for your tracked periods. Leave empty to disable enforcement.",
         "data": {
           "daily_initial_min": "Daily: Initial Min Value",
           "daily_initial_max": "Daily: Initial Max Value",
