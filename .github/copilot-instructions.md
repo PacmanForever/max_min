@@ -79,6 +79,8 @@ Integració custom de Home Assistant per rastrejar valors màxims, mínims i del
 - Valors inicials configurats s'han d'enforçar com a floor/ceiling després del restore
 - **Chain Break Protection**: En callbacks temporitzats (`async_track_point_in_time`), la reprogramació del següent event ha d'anar SEMPRE en un bloc `finally`. Si la lògica falla (ex: sensor unavailable), la cadena de resets no es pot trencar mai.
 - **Patró Watchdog**: No confiar cegament en un sol timer per events crítics (com resets de mitjanit). Implementar un Watchdog periòdic (ex: cada 10 min) que verifiqui `last_reset < periode_start` i forci el reset si s'ha perdut, respectant offsets.
+- **`@callback` obligatori en timers HA (CRÍTIC)**: Qualsevol funció passada a `async_track_point_in_time` o `async_track_time_interval` **MUST** tenir el decorador `@callback`. Sense ell, HA l'executa al thread-pool executor i `async_write_ha_state()` no propaga el canvi d'estat. Síntoma: el gràfic mostra el reset amb minuts/hores de retard (quan el sensor font reporta el següent valor). Fix v0.3.36. Mai usar lambdas com a callbacks de timers HA.
+- **Seed fallback universal**: `_compute_reset_seed()` ha de fer fallback a `end_val` per a TOTS els tipus de sensor (no només cumulatius). Si no, sensors de mesura (UV, temperatura) queden amb seed=None quan el font és unavailable al moment del reset, causant línia plana al gràfic.
 
 ## Preferències
 

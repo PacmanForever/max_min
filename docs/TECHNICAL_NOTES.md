@@ -84,7 +84,54 @@ if unload_ok:
         hass.data[DOMAIN].pop(entry.entry_id)
 ```
 
-## 5. Offset Scope (Critical)
+## 5. `@callback` Decorator on Timer Callbacks (Critical — v0.3.36)
+
+### The Trap: Bare lambdas or undecorated functions passed to `async_track_point_in_time`
+When HA receives a callable via `async_track_point_in_time`, it classifies it through `HassJob`:
+1. If the callable has `@callback` → runs in the **event loop** (correct)
+2. If it's a coroutine → runs via `async_create_task`
+3. **Otherwise** → runs in the **thread-pool executor**
+
+A bare lambda or undecorated function falls into case 3. Inside the executor thread, calls to `async_set_updated_data()` / `async_write_ha_state()` silently fail to propagate the state change to HA's state machine. The result:
+- Internal data (`tracked_data`) is updated correctly
+- `last_reset` is set → watchdog thinks everything is fine
+- **But HA never records a state change** → entities keep their old value in the recorder
+- The graph only updates when the source sensor publishes its next value (minutes or hours later)
+
+### The Symptom
+Graphs show the reset happening **when the source sensor next reports**, not at the scheduled time (midnight). For sensors that report frequently (humidity → ~10 min delay), it looks like a minor glitch. For sensors that go unavailable overnight (UV index → hours delay), the graph shows a flat stale line until morning.
+
+### The Fix
+Always use `@callback`-decorated functions (not lambdas) when passing callbacks to HA timer helpers:
+
+```python
+# WRONG — runs in executor, state changes are lost
+self._reset_listeners[period] = async_track_point_in_time(
+    self.hass,
+    lambda now, p=period: self.ensure_period_current(p, now, reason="scheduler"),
+    schedule_time,
+)
+
+# CORRECT — runs in event loop, state changes propagate immediately
+@callback
+def on_reset(now, _period=period):
+    self.ensure_period_current(_period, now, reason="scheduler")
+
+self._reset_listeners[period] = async_track_point_in_time(
+    self.hass, on_reset, schedule_time,
+)
+```
+
+### Verification
+NR-18 in `test_non_regression.py` checks that all callbacks passed to `async_track_point_in_time` have the `_hass_callback` marker.
+
+### Where this applies
+- `_schedule_single_reset()` — main reset timer and backup timer
+- Any future use of `async_track_point_in_time` or `async_track_time_interval`
+- Also mark the target method (`ensure_period_current`) with `@callback` for consistency
+
+
+## 6. Offset Scope (Critical)
 
 ### The Trap: Applying offset to all sensor classes
 Offset/dead-zone protection was introduced to absorb latency and restart artifacts from cumulative sensors near period boundaries.
@@ -103,7 +150,7 @@ For measurement sensors (or missing `state_class`), reset exactly at boundary ti
 - Watchdog due-check
 - Early reset dead-zone handling
 
-## 6. Integration Visibility in Home Assistant UI (Critical)
+## 7. Integration Visibility in Home Assistant UI (Critical)
 
 ### The Trap: Blindly applying generic `integration_type` guidance
 For this project, changing `manifest.json` from `integration_type: "hub"` to `"helper"`
