@@ -88,4 +88,5 @@ Integració custom de Home Assistant per rastrejar valors màxims, mínims i del
 - Codi en anglès
 - Prioritzar correcció sobre velocitat
 - Executar tests complets abans de considerar una tasca acabada
+- **Mai incrementar versió, fer commit, tag o release sense confirmació explícita de l'usuari**
 - No crear fitxers .md de resum tret que es demani explícitament
