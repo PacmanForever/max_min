@@ -1,6 +1,14 @@
 
 
 
+# 0.3.37 - 2026-02-26
+## Fixed
+- **Delta Initial Values Missing from UI**: When creating or editing an entry with only Delta type selected, the optional settings form was empty (no fields shown). Now shows `Initial Delta Value` fields for each configured period.
+- **Entry Title Ignoring Delta in OptionsFlow**: When editing an entry via options, the title suffix only considered Max and Min. Selecting only Delta produced "Sensor (Max/Min)" instead of "Sensor (Delta)". Now uses the same suffix builder as ConfigFlow.
+## Added
+- **Initial Delta Value Support**: Delta sensors can now have an initial value configured, acting as a floor — the sensor shows the initial value until the real computed delta (end - start) exceeds it. Useful for replacing another integration mid-period.
+- **NR-19**: Regression test — DeltaSensor initial_delta floor enforcement.
+
 # 0.3.36 - 2026-02-25
 ## Fixed
 - **Scheduler Callbacks Not Running in Event Loop**: Timer callbacks passed to `async_track_point_in_time` were bare lambdas without `@callback` decorator, causing HA to run them in the thread-pool executor instead of the event loop. This meant `async_write_ha_state()` never propagated the reset to HA's state machine at midnight — the graph only updated when the source sensor next reported (minutes or hours later). Replaced lambdas with `@callback`-decorated inner functions.

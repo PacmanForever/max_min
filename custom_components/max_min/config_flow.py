@@ -7,6 +7,7 @@ from homeassistant.helpers import selector
 
 from .const import (
     CONF_DEVICE_ID,
+    CONF_INITIAL_DELTA,
     CONF_INITIAL_MAX,
     CONF_INITIAL_MIN,
     CONF_OFFSET,
@@ -159,8 +160,11 @@ class MaxMinConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             if TYPE_MAX in types:
                 key = f"{period}_{CONF_INITIAL_MAX}"
                 schema[vol.Optional(key)] = vol.Coerce(float)
+            if TYPE_DELTA in types:
+                key = f"{period}_{CONF_INITIAL_DELTA}"
+                schema[vol.Optional(key)] = vol.Coerce(float)
         
-        # If no settings are relevant (e.g. only Delta selected), skip this step
+        # If no settings are relevant, skip this step
         if not schema:
             return await self.async_step_optional_settings({})
 
@@ -275,7 +279,7 @@ class MaxMinOptionsFlow(config_entries.OptionsFlow):
                 # Detect changes in initial values to trigger surgical history resets
                 reset_list = []
                 for period in periods:
-                    for type_ in [TYPE_MIN, TYPE_MAX]:
+                    for type_ in [TYPE_MIN, TYPE_MAX, TYPE_DELTA]:
                         key = f"{period}_initial_{type_}"
                         if key in user_input:
                             new_val = user_input[key]
@@ -315,14 +319,14 @@ class MaxMinOptionsFlow(config_entries.OptionsFlow):
                         if state and state.name:
                             sensor_name = state.name
 
-                        if TYPE_MAX in types and TYPE_MIN in types:
-                            suffix = "Max/Min"
-                        elif TYPE_MAX in types:
-                            suffix = "Max"
-                        elif TYPE_MIN in types:
-                            suffix = "Min"
-                        else:
-                            suffix = "Max/Min"
+                        suffixes = []
+                        if TYPE_MAX in types:
+                            suffixes.append("Max")
+                        if TYPE_MIN in types:
+                            suffixes.append("Min")
+                        if TYPE_DELTA in types:
+                            suffixes.append("Delta")
+                        suffix = "/".join(suffixes) if suffixes else "Max/Min"
                         
                         new_title = f"{sensor_name} ({suffix})"
                         if new_title != self._config_entry.title:
@@ -340,6 +344,10 @@ class MaxMinOptionsFlow(config_entries.OptionsFlow):
                 
             if TYPE_MAX in types:
                 key = f"{period}_{CONF_INITIAL_MAX}"
+                schema[vol.Optional(key)] = vol.Coerce(float)
+
+            if TYPE_DELTA in types:
+                key = f"{period}_{CONF_INITIAL_DELTA}"
                 schema[vol.Optional(key)] = vol.Coerce(float)
 
         return self.async_show_form(

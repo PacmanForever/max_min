@@ -249,6 +249,19 @@ class DeltaSensor(_BaseMaxMinSensor):
 
     _value_key = "delta"
 
+    def __init__(self, coordinator, config_entry, name, period):
+        """Initialize the delta sensor."""
+        super().__init__(coordinator, config_entry, name, period)
+        # Read initial_delta from config (acts as a floor for the delta value)
+        key = f"{period}_initial_delta"
+        val = config_entry.options.get(key, config_entry.data.get(key))
+        self._initial_delta: float | None = None
+        if val is not None:
+            try:
+                self._initial_delta = float(val)
+            except (ValueError, TypeError):
+                pass
+
     async def async_added_to_hass(self) -> None:
         """Restore previous state on startup."""
         await super().async_added_to_hass()
@@ -287,9 +300,15 @@ class DeltaSensor(_BaseMaxMinSensor):
 
     @property
     def native_value(self):
-        """Return end - start."""
+        """Return end - start, enforcing initial_delta as a floor."""
         start = self.coordinator.get_value(self.period, "start")
         end = self.coordinator.get_value(self.period, "end")
         if start is not None and end is not None:
-            return end - start
+            delta = end - start
+            if self._initial_delta is not None and delta < self._initial_delta:
+                return self._initial_delta
+            return delta
+        # No start/end yet but initial_delta configured → show the floor
+        if self._initial_delta is not None:
+            return self._initial_delta
         return None

@@ -14,18 +14,23 @@
       },
       "optional_settings": {
         "title": "Optional settings",
-        "description": "Optionally configure initial values for each selected period. For Max sensors, the initial value acts as a floor; for Min sensors, it acts as a ceiling.",
+        "description": "Optionally configure initial values for each selected period. For Max sensors, the initial value acts as a floor; for Min sensors, it acts as a ceiling; for Delta sensors, it acts as a floor (minimum delta).",
         "data": {
           "daily_initial_min": "Daily: Initial Min Value",
           "daily_initial_max": "Daily: Initial Max Value",
+          "daily_initial_delta": "Daily: Initial Delta Value",
           "weekly_initial_min": "Weekly: Initial Min Value",
           "weekly_initial_max": "Weekly: Initial Max Value",
+          "weekly_initial_delta": "Weekly: Initial Delta Value",
           "monthly_initial_min": "Monthly: Initial Min Value",
           "monthly_initial_max": "Monthly: Initial Max Value",
+          "monthly_initial_delta": "Monthly: Initial Delta Value",
           "yearly_initial_min": "Yearly: Initial Min Value",
           "yearly_initial_max": "Yearly: Initial Max Value",
+          "yearly_initial_delta": "Yearly: Initial Delta Value",
           "all_time_initial_min": "All-time: Initial Min Value",
-          "all_time_initial_max": "All-time: Initial Max Value"
+          "all_time_initial_max": "All-time: Initial Max Value",
+          "all_time_initial_delta": "All-time: Initial Delta Value"
         }
       }
     },
@@ -57,14 +62,19 @@
         "data": {
           "daily_initial_min": "Daily: Initial Min Value",
           "daily_initial_max": "Daily: Initial Max Value",
+          "daily_initial_delta": "Daily: Initial Delta Value",
           "weekly_initial_min": "Weekly: Initial Min Value",
           "weekly_initial_max": "Weekly: Initial Max Value",
+          "weekly_initial_delta": "Weekly: Initial Delta Value",
           "monthly_initial_min": "Monthly: Initial Min Value",
           "monthly_initial_max": "Monthly: Initial Max Value",
+          "monthly_initial_delta": "Monthly: Initial Delta Value",
           "yearly_initial_min": "Yearly: Initial Min Value",
           "yearly_initial_max": "Yearly: Initial Max Value",
+          "yearly_initial_delta": "Yearly: Initial Delta Value",
           "all_time_initial_min": "All-time: Initial Min Value",
-          "all_time_initial_max": "All-time: Initial Max Value"
+          "all_time_initial_max": "All-time: Initial Max Value",
+          "all_time_initial_delta": "All-time: Initial Delta Value"
         }
       }
     },

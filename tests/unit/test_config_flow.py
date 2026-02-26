@@ -490,6 +490,59 @@ async def test_options_flow_update_title(hass):
 
 
 @pytest.mark.asyncio
+async def test_options_flow_update_title_delta(hass):
+    """Test options flow updates title correctly for Delta and combinations."""
+    config_entry = MagicMock()
+    config_entry.data = {CONF_SENSOR_ENTITY: "sensor.test"}
+    config_entry.options = {CONF_TYPES: [TYPE_MAX]}
+
+    # Test Delta only
+    flow = MaxMinOptionsFlow(config_entry)
+    flow.hass = Mock()
+    flow.hass.states.get.return_value = None
+    flow.hass.config_entries.async_update_entry = Mock()
+
+    await flow.async_step_init({
+        CONF_PERIODS: [PERIOD_DAILY],
+        CONF_TYPES: [TYPE_DELTA],
+    })
+    await flow.async_step_optional_settings({})
+
+    call_args = flow.hass.config_entries.async_update_entry.call_args
+    assert call_args[1]["title"] == "sensor.test (Delta)"
+
+    # Test Max + Delta
+    flow = MaxMinOptionsFlow(config_entry)
+    flow.hass = Mock()
+    flow.hass.states.get.return_value = None
+    flow.hass.config_entries.async_update_entry = Mock()
+
+    await flow.async_step_init({
+        CONF_PERIODS: [PERIOD_DAILY],
+        CONF_TYPES: [TYPE_MAX, TYPE_DELTA],
+    })
+    await flow.async_step_optional_settings({})
+
+    call_args = flow.hass.config_entries.async_update_entry.call_args
+    assert call_args[1]["title"] == "sensor.test (Max/Delta)"
+
+    # Test Max + Min + Delta
+    flow = MaxMinOptionsFlow(config_entry)
+    flow.hass = Mock()
+    flow.hass.states.get.return_value = None
+    flow.hass.config_entries.async_update_entry = Mock()
+
+    await flow.async_step_init({
+        CONF_PERIODS: [PERIOD_DAILY],
+        CONF_TYPES: [TYPE_MAX, TYPE_MIN, TYPE_DELTA],
+    })
+    await flow.async_step_optional_settings({})
+
+    call_args = flow.hass.config_entries.async_update_entry.call_args
+    assert call_args[1]["title"] == "sensor.test (Max/Min/Delta)"
+
+
+@pytest.mark.asyncio
 async def test_config_flow_validation_requirements(hass):
     """Test that validation fails if periods or types are empty."""
     flow = MaxMinConfigFlow()
@@ -547,7 +600,7 @@ async def test_options_flow_validation_requirements(hass):
 
 @pytest.mark.asyncio
 async def test_config_flow_delta_selection(hass):
-    """Test config flow allowing delta selection."""
+    """Test config flow allowing delta selection shows initial delta field."""
     flow = MaxMinConfigFlow()
     flow.hass = Mock()
     flow.async_set_unique_id = AsyncMock()
@@ -562,11 +615,16 @@ async def test_config_flow_delta_selection(hass):
         CONF_TYPES: [TYPE_DELTA],
     })
     
-    # Selecting ONLY Delta should skip the optional settings form (as it's empty)
-    # and go directly to create entry
-    assert result["type"] == FlowResultType.CREATE_ENTRY
-    assert result["data"][CONF_TYPES] == [TYPE_DELTA]
-    assert result["title"] == "Test Sensor (Delta)"
+    # Selecting ONLY Delta should now show optional_settings with delta field
+    assert result["type"] == FlowResultType.FORM
+    assert result["step_id"] == "optional_settings"
+    assert f"{PERIOD_DAILY}_initial_delta" in result["data_schema"].schema
+
+    # Submit with empty input → creates entry
+    result2 = await flow.async_step_optional_settings({})
+    assert result2["type"] == FlowResultType.CREATE_ENTRY
+    assert result2["data"][CONF_TYPES] == [TYPE_DELTA]
+    assert result2["title"] == "Test Sensor (Delta)"
 
 
 @pytest.mark.asyncio

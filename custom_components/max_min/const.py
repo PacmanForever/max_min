@@ -6,6 +6,7 @@ CONF_PERIODS = "periods"
 CONF_TYPES = "types"
 CONF_INITIAL_MIN = "initial_min"
 CONF_INITIAL_MAX = "initial_max"
+CONF_INITIAL_DELTA = "initial_delta"
 CONF_OFFSET = "offset"
 CONF_RESET_HISTORY = "reset_history"
 

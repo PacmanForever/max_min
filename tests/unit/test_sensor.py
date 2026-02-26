@@ -10,7 +10,7 @@ def test_delta_sensor_missing_start_end():
                     return None
                 hass = None
 
-            config_entry = type("ConfigEntry", (), {"entry_id": "abc", "data": {"sensor_entity": "sensor.x"}})()
+            config_entry = type("ConfigEntry", (), {"entry_id": "abc", "data": {"sensor_entity": "sensor.x"}, "options": {}})()
             sensor = DeltaSensor(DummyCoordinator(), config_entry, "Test Delta", "daily")
             attrs = sensor.extra_state_attributes
             # Should be empty dict
@@ -22,7 +22,7 @@ def test_delta_sensor_missing_start_end():
                 return None
             hass = None
 
-        config_entry = type("ConfigEntry", (), {"entry_id": "abc", "data": {"sensor_entity": "sensor.x"}})()
+        config_entry = type("ConfigEntry", (), {"entry_id": "abc", "data": {"sensor_entity": "sensor.x"}, "options": {}})()
         sensor = DeltaSensor(DummyCoordinator(), config_entry, "Test Delta", "daily")
         # No hass, device_class is None; state_class always "measurement"
         assert sensor.device_class is None
@@ -54,7 +54,7 @@ def test_delta_sensor_missing_start_end():
         hass = None
         last_update_success = True
 
-    config_entry = type("ConfigEntry", (), {"entry_id": "abc", "data": {"sensor_entity": "sensor.x"}})()
+    config_entry = type("ConfigEntry", (), {"entry_id": "abc", "data": {"sensor_entity": "sensor.x"}, "options": {}})()
     sensor = DeltaSensor(DummyCoordinator(), config_entry, "Test Delta", "daily")
     assert sensor.native_value is None
     # Entity stays available even without a value (shows 'unknown' in HA)

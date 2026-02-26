@@ -539,3 +539,61 @@ def test_nr18_scheduler_callbacks_are_ha_callbacks():
             f"Callback {cb} is missing @callback decorator — HA will run it "
             f"in the executor instead of the event loop"
         )
+
+
+# ===================================================================
+# NR-19  DeltaSensor initial_delta floor enforcement
+# ===================================================================
+
+def test_nr19_delta_initial_value_floor():
+    """initial_delta acts as a floor for the delta sensor value.
+
+    When configured, the delta sensor returns initial_delta if the
+    computed (end - start) is lower, or the computed value if higher.
+    Also returns initial_delta when start/end are not yet available.
+    """
+    from custom_components.max_min.sensor import DeltaSensor
+
+    class DummyCoord:
+        hass = None
+        last_update_success = True
+        def __init__(self, start, end):
+            self._start = start
+            self._end = end
+        def get_value(self, period, key):
+            if key == "start":
+                return self._start
+            if key == "end":
+                return self._end
+            return None
+
+    entry = type("CE", (), {
+        "entry_id": "test",
+        "data": {"sensor_entity": "sensor.x", "weekly_initial_delta": 42.0},
+        "options": {},
+    })()
+
+    # Case 1: computed delta (5) < initial_delta (42) → return floor
+    s = DeltaSensor(DummyCoord(100.0, 105.0), entry, "D", "weekly")
+    assert s.native_value == 42.0
+
+    # Case 2: computed delta (50) > initial_delta (42) → return real
+    s2 = DeltaSensor(DummyCoord(100.0, 150.0), entry, "D", "weekly")
+    assert s2.native_value == 50.0
+
+    # Case 3: no start/end yet → return initial_delta
+    s3 = DeltaSensor(DummyCoord(None, None), entry, "D", "weekly")
+    assert s3.native_value == 42.0
+
+    # Case 4: no initial_delta → return real delta
+    entry_no_init = type("CE", (), {
+        "entry_id": "test",
+        "data": {"sensor_entity": "sensor.x"},
+        "options": {},
+    })()
+    s4 = DeltaSensor(DummyCoord(100.0, 105.0), entry_no_init, "D", "weekly")
+    assert s4.native_value == 5.0
+
+    # Case 5: no initial_delta, no start/end → None
+    s5 = DeltaSensor(DummyCoord(None, None), entry_no_init, "D", "weekly")
+    assert s5.native_value is None
