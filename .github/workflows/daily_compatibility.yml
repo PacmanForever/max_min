@@ -7,6 +7,8 @@ on:
 jobs:
   compatibility:
     runs-on: ubuntu-latest
+    permissions:
+      issues: write
     strategy:
       fail-fast: false
       matrix:

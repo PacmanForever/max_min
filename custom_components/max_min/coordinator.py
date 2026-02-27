@@ -12,6 +12,7 @@ from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 from .const import (
     CONF_INITIAL_MAX,
     CONF_INITIAL_MIN,
+    CONF_INITIAL_DELTA,
     CONF_OFFSET,
     CONF_RESET_HISTORY,
     CONF_PERIODS,
@@ -74,9 +75,11 @@ class MaxMinDataUpdateCoordinator(DataUpdateCoordinator):
             # Try specific period value first, then global
             specific_max_key = f"{period}_{CONF_INITIAL_MAX}"
             specific_min_key = f"{period}_{CONF_INITIAL_MIN}"
+            specific_delta_key = f"{period}_{CONF_INITIAL_DELTA}"
 
             p_initial_max = config_entry.options.get(specific_max_key, config_entry.data.get(specific_max_key, global_initial_max))
             p_initial_min = config_entry.options.get(specific_min_key, config_entry.data.get(specific_min_key, global_initial_min))
+            p_initial_delta = config_entry.options.get(specific_delta_key, config_entry.data.get(specific_delta_key))
 
             # Ensure we coerce to float if they came from somewhere weird
             if p_initial_max is not None:
@@ -89,8 +92,13 @@ class MaxMinDataUpdateCoordinator(DataUpdateCoordinator):
                     p_initial_min = float(p_initial_min)
                 except (ValueError, TypeError):
                     p_initial_min = None
+            if p_initial_delta is not None:
+                try:
+                    p_initial_delta = float(p_initial_delta)
+                except (ValueError, TypeError):
+                    p_initial_delta = None
 
-            _LOGGER.debug("Period %s: Initial Max=%s, Min=%s", period, p_initial_max, p_initial_min)
+            _LOGGER.debug("Period %s: Initial Max=%s, Min=%s, Delta=%s", period, p_initial_max, p_initial_min, p_initial_delta)
 
             self.tracked_data[period] = {
                 "max": p_initial_max,
@@ -101,6 +109,7 @@ class MaxMinDataUpdateCoordinator(DataUpdateCoordinator):
             self._configured_initials[period] = {
                 "max": p_initial_max,
                 "min": p_initial_min,
+                "delta": p_initial_delta,
             }
 
         self._reset_listeners = {}
@@ -309,7 +318,8 @@ class MaxMinDataUpdateCoordinator(DataUpdateCoordinator):
     def update_restored_data(self, period, type_, value, last_reset=None):
         """Update data from restored state."""
         # Check if this specific sensor or all sensors should skip history restore
-        if "all" in self.reset_history or f"{period}_{type_}" in self.reset_history:
+        check_type = "delta" if type_ in ("start", "end") else type_
+        if "all" in self.reset_history or f"{period}_{check_type}" in self.reset_history:
             _LOGGER.debug("[%s] Skipping restore for %s %s (surgical reset triggered by config change)", self.config_entry.title, period, type_)
             return
 
@@ -402,7 +412,11 @@ class MaxMinDataUpdateCoordinator(DataUpdateCoordinator):
                         data["last_reset"] = self._get_period_start(now, period)
                     # Delta support: initialize start/end
                     if data.get("start") is None:
-                        data["start"] = current_value
+                        initial_delta = self._configured_initials.get(period, {}).get("delta")
+                        if initial_delta is not None:
+                            data["start"] = current_value - initial_delta
+                        else:
+                            data["start"] = current_value
                     if data.get("end") is None:
                         data["end"] = current_value
                     
@@ -487,6 +501,15 @@ class MaxMinDataUpdateCoordinator(DataUpdateCoordinator):
                         updated = True
                     if data["min"] is None or value < data["min"]:
                         data["min"] = value
+                        updated = True
+
+                    # Delta support: initialize start if missing
+                    if data.get("start") is None:
+                        initial_delta = self._configured_initials.get(period, {}).get("delta")
+                        if initial_delta is not None:
+                            data["start"] = value - initial_delta
+                        else:
+                            data["start"] = value
                         updated = True
 
                     # Delta support: update end value

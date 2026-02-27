@@ -1,6 +1,10 @@
 
 
 
+# 0.3.39 - 2025-02-26
+## Fixed
+- **Delta Initial Value Flatline**: Fixed a critical bug where Delta sensors configured with an initial value would flatline instead of incrementing. The logic was refactored from a "floor" pattern to an "offset" pattern, allowing natural increments to add on top of the initial value correctly.
+
 # 0.3.38 - 2026-02-26
 ## Improved
 - **Optional Settings Description**: Form now shows "Leave empty to disable enforcement", clarifying that empty fields mean no floor/ceiling is applied.

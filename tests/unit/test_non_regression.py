@@ -542,58 +542,68 @@ def test_nr18_scheduler_callbacks_are_ha_callbacks():
 
 
 # ===================================================================
-# NR-19  DeltaSensor initial_delta floor enforcement
+# NR-19  DeltaSensor initial_delta offset enforcement
 # ===================================================================
 
-def test_nr19_delta_initial_value_floor():
-    """initial_delta acts as a floor for the delta sensor value.
+import pytest
 
-    When configured, the delta sensor returns initial_delta if the
-    computed (end - start) is lower, or the computed value if higher.
-    Also returns initial_delta when start/end are not yet available.
+@pytest.mark.asyncio
+async def test_nr19_delta_initial_value_offset(hass):
+    """initial_delta acts as an offset for the delta sensor value.
+
+    When configured, the coordinator initializes the `start` value by
+    subtracting `initial_delta` from the current source value. This ensures
+    the delta (end - start) starts at `initial_delta` and increments naturally.
     """
+    from custom_components.max_min.coordinator import MaxMinDataUpdateCoordinator
     from custom_components.max_min.sensor import DeltaSensor
+    from pytest_homeassistant_custom_component.common import MockConfigEntry
+    from unittest.mock import patch, MagicMock
 
+    state_mock = MagicMock()
+    state_mock.state = "100.0"
+    state_mock.attributes = {}
+    hass.states.get.return_value = state_mock
+
+    entry = MockConfigEntry(
+        domain="max_min",
+        title="Test",
+        data={"sensor_entity": "sensor.source", "periods": ["weekly"], "types": ["delta"], "weekly_initial_delta": 42.0},
+        options={},
+    )
+
+    coord = MaxMinDataUpdateCoordinator(hass, entry)
+    
+    with patch("custom_components.max_min.coordinator.async_track_point_in_time"), \
+         patch("custom_components.max_min.coordinator.async_track_state_change_event"):
+        await coord.async_config_entry_first_refresh()
+
+    # The coordinator should have initialized start = 100 - 42 = 58
+    assert coord.get_value("weekly", "start") == 58.0
+    assert coord.get_value("weekly", "end") == 100.0
+
+    # The sensor should return end - start = 42.0
+    s = DeltaSensor(coord, entry, "D", "weekly")
+    assert s.native_value == 42.0
+
+    # When source increases by 5, delta should be 47.0
+    state_mock2 = MagicMock()
+    state_mock2.state = "105.0"
+    state_mock2.attributes = {}
+    event_mock = MagicMock()
+    event_mock.data = {"new_state": state_mock2}
+    coord._handle_sensor_change(event_mock)
+    
+    assert coord.get_value("weekly", "start") == 58.0
+    assert coord.get_value("weekly", "end") == 105.0
+    assert s.native_value == 47.0
+
+    # Case: no start/end yet -> returns initial_delta
     class DummyCoord:
         hass = None
         last_update_success = True
-        def __init__(self, start, end):
-            self._start = start
-            self._end = end
         def get_value(self, period, key):
-            if key == "start":
-                return self._start
-            if key == "end":
-                return self._end
             return None
-
-    entry = type("CE", (), {
-        "entry_id": "test",
-        "data": {"sensor_entity": "sensor.x", "weekly_initial_delta": 42.0},
-        "options": {},
-    })()
-
-    # Case 1: computed delta (5) < initial_delta (42) → return floor
-    s = DeltaSensor(DummyCoord(100.0, 105.0), entry, "D", "weekly")
-    assert s.native_value == 42.0
-
-    # Case 2: computed delta (50) > initial_delta (42) → return real
-    s2 = DeltaSensor(DummyCoord(100.0, 150.0), entry, "D", "weekly")
-    assert s2.native_value == 50.0
-
-    # Case 3: no start/end yet → return initial_delta
-    s3 = DeltaSensor(DummyCoord(None, None), entry, "D", "weekly")
-    assert s3.native_value == 42.0
-
-    # Case 4: no initial_delta → return real delta
-    entry_no_init = type("CE", (), {
-        "entry_id": "test",
-        "data": {"sensor_entity": "sensor.x"},
-        "options": {},
-    })()
-    s4 = DeltaSensor(DummyCoord(100.0, 105.0), entry_no_init, "D", "weekly")
-    assert s4.native_value == 5.0
-
-    # Case 5: no initial_delta, no start/end → None
-    s5 = DeltaSensor(DummyCoord(None, None), entry_no_init, "D", "weekly")
-    assert s5.native_value is None
+    
+    s_none = DeltaSensor(DummyCoord(), entry, "D", "weekly")
+    assert s_none.native_value == 42.0

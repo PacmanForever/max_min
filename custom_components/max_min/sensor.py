@@ -300,15 +300,12 @@ class DeltaSensor(_BaseMaxMinSensor):
 
     @property
     def native_value(self):
-        """Return end - start, enforcing initial_delta as a floor."""
+        """Return end - start."""
         start = self.coordinator.get_value(self.period, "start")
         end = self.coordinator.get_value(self.period, "end")
         if start is not None and end is not None:
-            delta = end - start
-            if self._initial_delta is not None and delta < self._initial_delta:
-                return self._initial_delta
-            return delta
-        # No start/end yet but initial_delta configured → show the floor
+            return end - start
+        # No start/end yet but initial_delta configured → show the initial value
         if self._initial_delta is not None:
             return self._initial_delta
         return None
