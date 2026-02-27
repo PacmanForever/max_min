@@ -1,7 +1,11 @@
 
 
 
-# 0.3.39 - 2025-02-26
+# 0.3.40 - 2026-02-27
+## Fixed
+- **Delta Legacy State Migration**: Fixed an issue where upgrading to v0.3.39 caused existing Delta sensors with an initial value to drop significantly. The integration now detects legacy states (where the start value was not offset) and automatically migrates them, restoring the correct trajectory (initial value + increments).
+
+# 0.3.39 - 2026-02-27
 ## Fixed
 - **Delta Initial Value Flatline**: Fixed a critical bug where Delta sensors configured with an initial value would flatline instead of incrementing. The logic was refactored from a "floor" pattern to an "offset" pattern, allowing natural increments to add on top of the initial value correctly.
 

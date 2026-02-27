@@ -275,16 +275,36 @@ class DeltaSensor(_BaseMaxMinSensor):
             end = last_state.attributes.get("end_value")
             last_reset = last_state.attributes.get("last_reset")
             
-            if start is not None:
+            if start is not None and end is not None:
                 try:
-                    self.coordinator.update_restored_data(self.period, "start", float(start), last_reset)
+                    start_f = float(start)
+                    end_f = float(end)
+                    
+                    # Legacy state migration (v0.3.38 -> v0.3.39+)
+                    # In v0.3.38, `start` was not offset by `initial_delta`, causing `end - start`
+                    # to be just the raw increments. If we see a raw delta that is positive but
+                    # less than `initial_delta`, it means this state was saved under v0.3.38.
+                    # We must offset `start` now so the math works correctly forever.
+                    if self._initial_delta is not None and self._initial_delta > 0:
+                        if 0 <= (end_f - start_f) < self._initial_delta:
+                            start_f -= self._initial_delta
+                            
+                    self.coordinator.update_restored_data(self.period, "start", start_f, last_reset)
+                    self.coordinator.update_restored_data(self.period, "end", end_f, last_reset)
                 except ValueError:
                     pass
-            if end is not None:
-                try:
-                    self.coordinator.update_restored_data(self.period, "end", float(end), last_reset)
-                except ValueError:
-                    pass
+            else:
+                # Fallback if only one is present (rare)
+                if start is not None:
+                    try:
+                        self.coordinator.update_restored_data(self.period, "start", float(start), last_reset)
+                    except ValueError:
+                        pass
+                if end is not None:
+                    try:
+                        self.coordinator.update_restored_data(self.period, "end", float(end), last_reset)
+                    except ValueError:
+                        pass
 
     @property
     def extra_state_attributes(self):

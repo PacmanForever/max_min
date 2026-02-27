@@ -607,3 +607,140 @@ async def test_nr19_delta_initial_value_offset(hass):
     
     s_none = DeltaSensor(DummyCoord(), entry, "D", "weekly")
     assert s_none.native_value == 42.0
+
+@pytest.mark.asyncio
+async def test_nr20_delta_legacy_state_migration(hass):
+    """
+    NR-20: Verify that legacy states (v0.3.38) where `start` was not offset
+    are correctly migrated when restored.
+    """
+    from custom_components.max_min.sensor import DeltaSensor
+    from custom_components.max_min.coordinator import MaxMinDataUpdateCoordinator
+    from homeassistant.core import State
+    from unittest.mock import patch, MagicMock
+
+    # Setup mock config entry with initial_delta = 35
+    config_entry = MagicMock()
+    config_entry.options = {"weekly_initial_delta": 35.0}
+    config_entry.data = {"sensor_entity": "sensor.test", "periods": ["weekly"], "offset": 0}
+    config_entry.entry_id = "test_entry"
+
+    # Setup coordinator
+    coord = MaxMinDataUpdateCoordinator(hass, config_entry)
+    coord.tracked_data["weekly"] = {"max": None, "min": None, "start": None, "end": None, "last_reset": None}
+
+    # Setup sensor
+    sensor = DeltaSensor(coord, config_entry, "Test Delta", "weekly")
+    sensor.hass = hass
+    sensor.entity_id = "sensor.test_delta"
+
+    # Mock the last state to simulate a v0.3.38 state
+    # In v0.3.38, start was not offset. So raw_delta = 1001.8 - 1000 = 1.8
+    # Since 1.8 < 35, it should trigger the migration.
+    import homeassistant.util.dt as dt_util
+    now = dt_util.now()
+    mock_last_state = State(
+        "sensor.test_delta",
+        "35.0", # In v0.3.38, it showed max(1.8, 35) = 35
+        attributes={
+            "start_value": 1000.0,
+            "end_value": 1001.8,
+            "last_reset": now.isoformat()
+        }
+    )
+
+    with patch("custom_components.max_min.sensor.RestoreEntity.async_get_last_state", return_value=mock_last_state):
+        await sensor.async_added_to_hass()
+
+    # Verify the coordinator's start value was offset
+    # start should be 1000.0 - 35.0 = 965.0
+    assert coord.tracked_data["weekly"]["start"] == 965.0
+    assert coord.tracked_data["weekly"]["end"] == 1001.8
+
+    # Verify the sensor's native value is now 1001.8 - 965.0 = 36.8
+    assert sensor.native_value == pytest.approx(36.8)
+
+    # Now simulate a state that was ALREADY migrated (or created in v0.3.39)
+    # raw_delta = 1001.8 - 965.0 = 36.8
+    # Since 36.8 >= 35, it should NOT trigger the migration again.
+    mock_last_state_migrated = State(
+        "sensor.test_delta",
+        "36.8",
+        attributes={
+            "start_value": 965.0,
+            "end_value": 1001.8,
+            "last_reset": now.isoformat()
+        }
+    )
+
+    # Reset coordinator data
+    coord.tracked_data["weekly"] = {"max": None, "min": None, "start": None, "end": None, "last_reset": None}
+
+    with patch("custom_components.max_min.sensor.RestoreEntity.async_get_last_state", return_value=mock_last_state_migrated):
+        await sensor.async_added_to_hass()
+
+    # Verify the coordinator's start value was NOT offset again
+    assert coord.tracked_data["weekly"]["start"] == 965.0
+    assert coord.tracked_data["weekly"]["end"] == 1001.8
+    assert sensor.native_value == pytest.approx(36.8)
+
+@pytest.mark.asyncio
+async def test_nr21_delta_legacy_state_migration_partial_restore(hass):
+    """
+    NR-21: Verify that if only start or only end is restored, it falls back
+    to the normal restore logic without migration.
+    """
+    from custom_components.max_min.sensor import DeltaSensor
+    from custom_components.max_min.coordinator import MaxMinDataUpdateCoordinator
+    from homeassistant.core import State
+    from unittest.mock import patch, MagicMock
+    import homeassistant.util.dt as dt_util
+
+    config_entry = MagicMock()
+    config_entry.options = {"weekly_initial_delta": 35.0}
+    config_entry.data = {"sensor_entity": "sensor.test", "periods": ["weekly"], "offset": 0}
+    config_entry.entry_id = "test_entry"
+
+    coord = MaxMinDataUpdateCoordinator(hass, config_entry)
+    coord.tracked_data["weekly"] = {"max": None, "min": None, "start": None, "end": None, "last_reset": None}
+
+    sensor = DeltaSensor(coord, config_entry, "Test Delta", "weekly")
+    sensor.hass = hass
+    sensor.entity_id = "sensor.test_delta"
+
+    now = dt_util.now()
+    
+    # Only start is present
+    mock_last_state_start_only = State(
+        "sensor.test_delta",
+        "35.0",
+        attributes={
+            "start_value": 1000.0,
+            "last_reset": now.isoformat()
+        }
+    )
+
+    with patch("custom_components.max_min.sensor.RestoreEntity.async_get_last_state", return_value=mock_last_state_start_only):
+        await sensor.async_added_to_hass()
+
+    assert coord.tracked_data["weekly"]["start"] == 1000.0
+    assert coord.tracked_data["weekly"]["end"] is None
+
+    # Reset
+    coord.tracked_data["weekly"] = {"max": None, "min": None, "start": None, "end": None, "last_reset": None}
+
+    # Only end is present
+    mock_last_state_end_only = State(
+        "sensor.test_delta",
+        "35.0",
+        attributes={
+            "end_value": 1001.8,
+            "last_reset": now.isoformat()
+        }
+    )
+
+    with patch("custom_components.max_min.sensor.RestoreEntity.async_get_last_state", return_value=mock_last_state_end_only):
+        await sensor.async_added_to_hass()
+
+    assert coord.tracked_data["weekly"]["start"] is None
+    assert coord.tracked_data["weekly"]["end"] == 1001.8
