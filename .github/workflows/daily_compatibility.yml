@@ -13,12 +13,21 @@ jobs:
       fail-fast: false
       matrix:
         ha-version: ["stable", "beta", "dev"]
-        python-version: ["3.13"]
+        python-version: ["auto"]
     steps:
       - uses: actions/checkout@v4
+      - name: Detect Python version for HA dev
+        id: detect-python
+        run: |
+          if [ "${{ matrix.ha-version }}" = "dev" ]; then
+            curl -s https://raw.githubusercontent.com/home-assistant/core/dev/pyproject.toml | grep '^requires-python' | cut -d '"' -f2 > .python-version
+            echo "python_version=$(cat .python-version)" >> $GITHUB_OUTPUT
+          else
+            echo "python_version=3.13" >> $GITHUB_OUTPUT
+          fi
       - uses: actions/setup-python@v5
         with:
-          python-version: ${{ matrix.python-version }}
+          python-version: ${{ steps.detect-python.outputs.python_version }}
           cache: 'pip'
       - name: Install test dependencies
         run: |
