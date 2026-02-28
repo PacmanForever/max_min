@@ -173,3 +173,29 @@ async def test_delta_negative_change(hass):
     # Delta should be 5.0 - 10.0 = -5.0
     sensor = DeltaSensor(coordinator, entry, "Delta Sensor", PERIOD_DAILY)
     assert sensor.native_value == -5.0
+
+
+@pytest.mark.asyncio
+async def test_delta_initial_with_comma_decimal(hass):
+    """Initial delta accepts localized comma decimal format."""
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={
+            CONF_SENSOR_ENTITY: "sensor.source",
+            CONF_PERIODS: [PERIOD_DAILY],
+            CONF_TYPES: [TYPE_DELTA],
+        },
+        options={
+            "daily_initial_delta": "52,3",
+        },
+    )
+    hass.states.get.return_value = Mock(state="100.0")
+
+    coordinator = MaxMinDataUpdateCoordinator(hass, entry)
+    await coordinator.async_config_entry_first_refresh()
+
+    sensor = DeltaSensor(coordinator, entry, "Delta Sensor", PERIOD_DAILY)
+
+    assert coordinator.get_value(PERIOD_DAILY, "start") == pytest.approx(47.7)
+    assert coordinator.get_value(PERIOD_DAILY, "end") == pytest.approx(100.0)
+    assert sensor.native_value == pytest.approx(52.3)

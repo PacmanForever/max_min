@@ -33,6 +33,15 @@ WATCHDOG_INTERVAL = timedelta(minutes=1)
 BACKUP_RESET_DELAY = timedelta(seconds=30)
 
 
+def _as_float(value):
+    """Convert value to float accepting comma decimal separator."""
+    if value is None:
+        return None
+    if isinstance(value, str):
+        value = value.strip().replace(",", ".")
+    return float(value)
+
+
 class MaxMinDataUpdateCoordinator(DataUpdateCoordinator):
     """Class to manage fetching data from the sensor."""
 
@@ -84,17 +93,17 @@ class MaxMinDataUpdateCoordinator(DataUpdateCoordinator):
             # Ensure we coerce to float if they came from somewhere weird
             if p_initial_max is not None:
                 try:
-                    p_initial_max = float(p_initial_max)
+                    p_initial_max = _as_float(p_initial_max)
                 except (ValueError, TypeError):
                     p_initial_max = None
             if p_initial_min is not None:
                 try:
-                    p_initial_min = float(p_initial_min)
+                    p_initial_min = _as_float(p_initial_min)
                 except (ValueError, TypeError):
                     p_initial_min = None
             if p_initial_delta is not None:
                 try:
-                    p_initial_delta = float(p_initial_delta)
+                    p_initial_delta = _as_float(p_initial_delta)
                 except (ValueError, TypeError):
                     p_initial_delta = None
 
@@ -153,7 +162,7 @@ class MaxMinDataUpdateCoordinator(DataUpdateCoordinator):
                 
             if init_val is not None:
                 try:
-                    init_val = float(init_val)
+                    init_val = _as_float(init_val)
                     current_val = self.tracked_data.get(period, {}).get(type_)
                     if type_ == "max":
                         if current_val is None or current_val < init_val:

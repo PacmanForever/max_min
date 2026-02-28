@@ -27,6 +27,15 @@ from .const import (
 )
 
 
+def _coerce_localized_float(value):
+    """Coerce numbers accepting both dot and comma decimal separators."""
+    if value is None:
+        return None
+    if isinstance(value, str):
+        value = value.strip().replace(",", ".")
+    return float(value)
+
+
 class MaxMinConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     """Handle a config flow for Max Min."""
 
@@ -156,13 +165,13 @@ class MaxMinConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         for period in periods:
             if TYPE_MIN in types:
                 key = f"{period}_{CONF_INITIAL_MIN}"
-                schema[vol.Optional(key)] = vol.Coerce(float)
+                schema[vol.Optional(key)] = _coerce_localized_float
             if TYPE_MAX in types:
                 key = f"{period}_{CONF_INITIAL_MAX}"
-                schema[vol.Optional(key)] = vol.Coerce(float)
+                schema[vol.Optional(key)] = _coerce_localized_float
             if TYPE_DELTA in types:
                 key = f"{period}_{CONF_INITIAL_DELTA}"
-                schema[vol.Optional(key)] = vol.Coerce(float)
+                schema[vol.Optional(key)] = _coerce_localized_float
         
         # If no settings are relevant, skip this step
         if not schema:
@@ -287,8 +296,8 @@ class MaxMinOptionsFlow(config_entries.OptionsFlow):
                             
                             # Normalize for comparison
                             try:
-                                n_val = float(new_val) if new_val is not None else None
-                                o_val = float(old_val) if old_val is not None else None
+                                n_val = _coerce_localized_float(new_val) if new_val is not None else None
+                                o_val = _coerce_localized_float(old_val) if old_val is not None else None
                                 if n_val != o_val:
                                     reset_list.append(f"{period}_{type_}")
                             except (ValueError, TypeError):
@@ -340,15 +349,15 @@ class MaxMinOptionsFlow(config_entries.OptionsFlow):
             # Try to find specific value, fallback to global legacy value
             if TYPE_MIN in types:
                 key = f"{period}_{CONF_INITIAL_MIN}"
-                schema[vol.Optional(key)] = vol.Coerce(float)
+                schema[vol.Optional(key)] = _coerce_localized_float
                 
             if TYPE_MAX in types:
                 key = f"{period}_{CONF_INITIAL_MAX}"
-                schema[vol.Optional(key)] = vol.Coerce(float)
+                schema[vol.Optional(key)] = _coerce_localized_float
 
             if TYPE_DELTA in types:
                 key = f"{period}_{CONF_INITIAL_DELTA}"
-                schema[vol.Optional(key)] = vol.Coerce(float)
+                schema[vol.Optional(key)] = _coerce_localized_float
 
         return self.async_show_form(
             step_id="optional_settings",

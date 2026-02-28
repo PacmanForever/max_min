@@ -1,6 +1,11 @@
 
 
 
+# 0.3.41 - 2026-02-28
+## Fixed
+- **Localized Decimal Parsing**: Initial values now accept both dot and comma decimal separators (e.g. `52.3` and `52,3`) consistently across ConfigFlow, OptionsFlow, coordinator enforcement, and Delta sensor initialization.
+- **Delta Initial Value Enforcement**: Added regression coverage to ensure `initial_delta` with comma-decimal input is parsed and applied correctly.
+
 # 0.3.40 - 2026-02-27
 ## Fixed
 - **Delta Legacy State Migration**: Fixed an issue where upgrading to v0.3.39 caused existing Delta sensors with an initial value to drop significantly. The integration now detects legacy states (where the start value was not offset) and automatically migrates them, restoring the correct trajectory (initial value + increments).

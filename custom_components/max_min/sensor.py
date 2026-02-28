@@ -25,6 +25,15 @@ from .const import (
 )
 
 
+def _as_float(value):
+    """Convert value to float accepting comma decimal separator."""
+    if value is None:
+        return None
+    if isinstance(value, str):
+        value = value.strip().replace(",", ".")
+    return float(value)
+
+
 async def async_setup_entry(
     hass: HomeAssistant,
     config_entry: ConfigEntry,
@@ -258,7 +267,7 @@ class DeltaSensor(_BaseMaxMinSensor):
         self._initial_delta: float | None = None
         if val is not None:
             try:
-                self._initial_delta = float(val)
+                self._initial_delta = _as_float(val)
             except (ValueError, TypeError):
                 pass
 
