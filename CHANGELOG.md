@@ -1,6 +1,10 @@
 
 
 
+# 0.3.44 - 2026-03-01
+## Fixed
+- **Reverted OptionsFlow to v0.3.41 baseline**: Removed all normalization overengineering (`_normalize_multi_select`, `_normalize_device_id`, `_normalize_offset`, try/except wrappers) introduced in v0.3.42-v0.3.43 that caused persistent "Unknown error occurred". Restored the exact working code from v0.3.41 with only a duplicate `CONF_DEVICE_ID` guard fix.
+
 # 0.3.43 - 2026-03-01
 ## Fixed
 - **OptionsFlow robustness overhaul**: Moved normalization helpers (`_normalize_multi_select`, `_normalize_device_id`, `_normalize_offset`) to module level. Restored `suggested_value` on DeviceSelector so previously selected device is remembered. Wrapped entire method bodies (including form construction) in `try/except` so schema-building errors are caught. Removed duplicate `CONF_DEVICE_ID` guard in `async_step_optional_settings`.

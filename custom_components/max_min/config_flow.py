@@ -41,35 +41,6 @@ def _coerce_localized_float(value):
     return float(value)
 
 
-def _normalize_multi_select(value, fallback, *, allow_empty=False):
-    """Normalize selector values into a non-empty string list."""
-    if isinstance(value, (list, tuple, set)):
-        normalized = [item for item in value if isinstance(item, str) and item]
-        if allow_empty and not normalized:
-            return []
-        return normalized or list(fallback)
-    if isinstance(value, str) and value:
-        return [value]
-    return list(fallback)
-
-
-def _normalize_device_id(value):
-    """Normalize device_id to string or None."""
-    if isinstance(value, str):
-        clean = value.strip()
-        return clean or None
-    return None
-
-
-def _normalize_offset(value):
-    """Normalize offset to a safe number for selector defaults."""
-    try:
-        offset = int(float(value))
-    except (TypeError, ValueError):
-        offset = 0
-    return max(0, min(300, offset))
-
-
 class MaxMinConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     """Handle a config flow for Max Min."""
 
@@ -235,244 +206,161 @@ class MaxMinOptionsFlow(config_entries.OptionsFlow):
     async def async_step_init(self, user_input=None):
         """Manage the options."""
         errors = {}
-        try:
-            default_types = _normalize_multi_select(
-                self._config_entry.options.get(CONF_TYPES, self._config_entry.data.get(CONF_TYPES, [TYPE_MAX, TYPE_MIN])),
-                [TYPE_MAX, TYPE_MIN],
-            )
-            default_periods = _normalize_multi_select(
-                self._config_entry.options.get(CONF_PERIODS, self._config_entry.data.get(CONF_PERIODS, [PERIOD_DAILY])),
-                [PERIOD_DAILY],
-            )
-            default_device = _normalize_device_id(
-                self._config_entry.options.get(CONF_DEVICE_ID, self._config_entry.data.get(CONF_DEVICE_ID))
-            )
-            default_offset = _normalize_offset(
-                self._config_entry.options.get(CONF_OFFSET, self._config_entry.data.get(CONF_OFFSET, 0))
-            )
+        if user_input is not None:
+            if not user_input.get(CONF_PERIODS):
+                errors[CONF_PERIODS] = "periods_required"
 
-            if user_input is not None:
-                user_input = dict(user_input)
-                user_input[CONF_PERIODS] = _normalize_multi_select(
-                    user_input.get(CONF_PERIODS),
-                    default_periods,
-                    allow_empty=True,
-                )
-                user_input[CONF_TYPES] = _normalize_multi_select(
-                    user_input.get(CONF_TYPES),
-                    default_types,
-                    allow_empty=True,
-                )
-                user_input[CONF_DEVICE_ID] = _normalize_device_id(user_input.get(CONF_DEVICE_ID))
-                if CONF_OFFSET in user_input:
-                    user_input[CONF_OFFSET] = _normalize_offset(user_input.get(CONF_OFFSET))
+            if not user_input.get(CONF_TYPES):
+                errors[CONF_TYPES] = "types_required"
+            
+            if not errors:
+                self.options.update(user_input)
+                return await self.async_step_optional_settings()
 
-                if not user_input.get(CONF_PERIODS):
-                    errors[CONF_PERIODS] = "periods_required"
+        # Defaults for schema
+        default_types = self._config_entry.options.get(CONF_TYPES, self._config_entry.data.get(CONF_TYPES, [TYPE_MAX, TYPE_MIN]))
+        default_periods = self._config_entry.options.get(CONF_PERIODS, self._config_entry.data.get(CONF_PERIODS, [PERIOD_DAILY]))
+        default_device = self._config_entry.options.get(CONF_DEVICE_ID, self._config_entry.data.get(CONF_DEVICE_ID))
+        default_offset = self._config_entry.options.get(CONF_OFFSET, self._config_entry.data.get(CONF_OFFSET, 0))
 
-                if not user_input.get(CONF_TYPES):
-                    errors[CONF_TYPES] = "types_required"
-
-                if not errors:
-                    self.options.update(user_input)
-                    return await self.async_step_optional_settings()
-
-            device_schema_key = vol.Optional(CONF_DEVICE_ID)
-            if default_device is not None:
-                device_schema_key = vol.Optional(
-                    CONF_DEVICE_ID,
-                    description={"suggested_value": default_device},
-                )
-
-            return self.async_show_form(
-                step_id="init",
-                data_schema=vol.Schema({
-                    vol.Required(
-                        CONF_PERIODS,
-                        default=default_periods,
-                    ): selector.SelectSelector(
-                        selector.SelectSelectorConfig(
-                            options=[
-                                {"value": PERIOD_DAILY, "label": "Daily"},
-                                {"value": PERIOD_WEEKLY, "label": "Weekly"},
-                                {"value": PERIOD_MONTHLY, "label": "Monthly"},
-                                {"value": PERIOD_YEARLY, "label": "Yearly"},
-                                {"value": PERIOD_ALL_TIME, "label": "All time"},
-                            ],
-                            multiple=True,
-                        )
-                    ),
-                    vol.Required(
-                        CONF_TYPES,
-                        default=default_types,
-                    ): selector.SelectSelector(
-                        selector.SelectSelectorConfig(
-                            options=[
-                                {"value": TYPE_MIN, "label": "Minimum"},
-                                {"value": TYPE_MAX, "label": "Maximum"},
-                                {"value": TYPE_DELTA, "label": "Delta"},
-                            ],
-                            multiple=True,
-                        )
-                    ),
-                    device_schema_key: selector.DeviceSelector(
-                        selector.DeviceSelectorConfig()
-                    ),
-                    vol.Optional(
-                        CONF_OFFSET,
-                        default=default_offset,
-                    ): selector.NumberSelector(
-                        selector.NumberSelectorConfig(
-                            min=0,
-                            max=300,
-                            step=1,
-                            unit_of_measurement="seconds",
-                        )
-                    ),
-                }),
-                errors=errors,
-            )
-        except Exception:
-            _LOGGER.exception("Unexpected error in options flow init step")
-            # Last-resort fallback: show form with safe defaults
-            return self.async_show_form(
-                step_id="init",
-                data_schema=vol.Schema({
-                    vol.Required(CONF_PERIODS, default=[PERIOD_DAILY]): selector.SelectSelector(
-                        selector.SelectSelectorConfig(
-                            options=[
-                                {"value": PERIOD_DAILY, "label": "Daily"},
-                                {"value": PERIOD_WEEKLY, "label": "Weekly"},
-                                {"value": PERIOD_MONTHLY, "label": "Monthly"},
-                                {"value": PERIOD_YEARLY, "label": "Yearly"},
-                                {"value": PERIOD_ALL_TIME, "label": "All time"},
-                            ],
-                            multiple=True,
-                        )
-                    ),
-                    vol.Required(CONF_TYPES, default=[TYPE_MAX, TYPE_MIN]): selector.SelectSelector(
-                        selector.SelectSelectorConfig(
-                            options=[
-                                {"value": TYPE_MIN, "label": "Minimum"},
-                                {"value": TYPE_MAX, "label": "Maximum"},
-                                {"value": TYPE_DELTA, "label": "Delta"},
-                            ],
-                            multiple=True,
-                        )
-                    ),
-                    vol.Optional(CONF_DEVICE_ID): selector.DeviceSelector(
-                        selector.DeviceSelectorConfig()
-                    ),
-                    vol.Optional(CONF_OFFSET, default=0): selector.NumberSelector(
-                        selector.NumberSelectorConfig(min=0, max=300, step=1, unit_of_measurement="seconds")
-                    ),
-                }),
-                errors={"base": "unknown_error"},
-            )
+        return self.async_show_form(
+            step_id="init",
+            data_schema=vol.Schema({
+                vol.Required(
+                    CONF_PERIODS,
+                    default=default_periods,
+                ): selector.SelectSelector(
+                    selector.SelectSelectorConfig(
+                        options=[
+                            {"value": PERIOD_DAILY, "label": "Daily"},
+                            {"value": PERIOD_WEEKLY, "label": "Weekly"},
+                            {"value": PERIOD_MONTHLY, "label": "Monthly"},
+                            {"value": PERIOD_YEARLY, "label": "Yearly"},
+                            {"value": PERIOD_ALL_TIME, "label": "All time"},
+                        ],
+                        multiple=True,
+                    )
+                ),
+                vol.Required(
+                    CONF_TYPES,
+                    default=default_types,
+                ): selector.SelectSelector(
+                    selector.SelectSelectorConfig(
+                        options=[
+                            {"value": TYPE_MIN, "label": "Minimum"},
+                            {"value": TYPE_MAX, "label": "Maximum"},
+                            {"value": TYPE_DELTA, "label": "Delta"},
+                        ],
+                        multiple=True,
+                    )
+                ),
+                vol.Optional(CONF_DEVICE_ID, description={"suggested_value": default_device}): selector.DeviceSelector(
+                    selector.DeviceSelectorConfig()
+                ),
+                vol.Optional(
+                    CONF_OFFSET, 
+                    default=default_offset,
+                ): selector.NumberSelector(
+                    selector.NumberSelectorConfig(
+                        min=0,
+                        max=300,
+                        step=1,
+                        unit_of_measurement="seconds",
+                    )
+                ),
+            }),
+            errors=errors,
+        )
 
     async def async_step_optional_settings(self, user_input=None):
         """Manage optional settings."""
         errors = {}
-        try:
-            # Get current configuration (merging existing + new from init step)
-            periods = _normalize_multi_select(
-                self.options.get(CONF_PERIODS, self._config_entry.options.get(CONF_PERIODS, self._config_entry.data.get(CONF_PERIODS, [PERIOD_DAILY]))),
-                [PERIOD_DAILY],
-            )
-            types = _normalize_multi_select(
-                self.options.get(CONF_TYPES, self._config_entry.options.get(CONF_TYPES, self._config_entry.data.get(CONF_TYPES, [TYPE_MAX, TYPE_MIN]))),
-                [TYPE_MAX, TYPE_MIN],
-            )
+        # Get current configuration (merging existing + new from init step)
+        periods = self.options.get(CONF_PERIODS, self._config_entry.options.get(CONF_PERIODS, self._config_entry.data.get(CONF_PERIODS, [PERIOD_DAILY])))
+        types = self.options.get(CONF_TYPES, self._config_entry.options.get(CONF_TYPES, self._config_entry.data.get(CONF_TYPES, [TYPE_MAX, TYPE_MIN])))
 
-            if user_input is not None:
-                # Validate min < max for each period
-                for period in periods:
-                    initial_min = user_input.get(f"{period}_{CONF_INITIAL_MIN}")
-                    initial_max = user_input.get(f"{period}_{CONF_INITIAL_MAX}")
-
-                    if initial_min is not None and initial_max is not None and initial_min > initial_max:
-                        errors["base"] = "min_greater_than_max"
-                        errors[f"{period}_{CONF_INITIAL_MIN}"] = "min_greater_than_max"
-
-                if not errors:
-                    # Detect changes in initial values to trigger surgical history resets
-                    reset_list = []
-                    for period in periods:
-                        for type_ in [TYPE_MIN, TYPE_MAX, TYPE_DELTA]:
-                            key = f"{period}_initial_{type_}"
-                            if key in user_input:
-                                new_val = user_input[key]
-                                old_val = self.options.get(key, self._config_entry.options.get(key, self._config_entry.data.get(key)))
-
-                                # Normalize for comparison
-                                try:
-                                    n_val = _coerce_localized_float(new_val) if new_val is not None else None
-                                    o_val = _coerce_localized_float(old_val) if old_val is not None else None
-                                    if n_val != o_val:
-                                        reset_list.append(f"{period}_{type_}")
-                                except (ValueError, TypeError):
-                                    if new_val != old_val:
-                                        reset_list.append(f"{period}_{type_}")
-
-                    # Filter out None/empty values so they don't overwrite existing settings
-                    filtered_input = {k: v for k, v in user_input.items() if v is not None}
-                    self.options.update(filtered_input)
-
-                    if reset_list:
-                        self.options[CONF_RESET_HISTORY] = reset_list
-
-                    # Ensure device_id is captured as None if cleared/missing
-                    if CONF_DEVICE_ID not in self.options:
-                        self.options[CONF_DEVICE_ID] = None
-
-                    # Update title based on selected types
-                    if self.hass:
-                        sensor_entity = self._config_entry.data.get(CONF_SENSOR_ENTITY)
-                        if sensor_entity:
-                            sensor_name = sensor_entity
-                            state = self.hass.states.get(sensor_entity)
-                            if state and state.name:
-                                sensor_name = state.name
-
-                            suffixes = []
-                            if TYPE_MAX in types:
-                                suffixes.append("Max")
-                            if TYPE_MIN in types:
-                                suffixes.append("Min")
-                            if TYPE_DELTA in types:
-                                suffixes.append("Delta")
-                            suffix = "/".join(suffixes) if suffixes else "Max/Min"
-
-                            new_title = f"{sensor_name} ({suffix})"
-                            if new_title != self._config_entry.title:
-                                self.hass.config_entries.async_update_entry(self._config_entry, title=new_title)
-
-                    return self.async_create_entry(title="", data=self.options)
-
-            # Build schema for the form
-            schema = {}
+        if user_input is not None:
+             # Validate min < max for each period
             for period in periods:
-                if TYPE_MIN in types:
-                    key = f"{period}_{CONF_INITIAL_MIN}"
-                    schema[vol.Optional(key)] = _coerce_localized_float
+                initial_min = user_input.get(f"{period}_{CONF_INITIAL_MIN}")
+                initial_max = user_input.get(f"{period}_{CONF_INITIAL_MAX}")
 
-                if TYPE_MAX in types:
-                    key = f"{period}_{CONF_INITIAL_MAX}"
-                    schema[vol.Optional(key)] = _coerce_localized_float
+                if initial_min is not None and initial_max is not None and initial_min > initial_max:
+                    errors["base"] = "min_greater_than_max"
+                    errors[f"{period}_{CONF_INITIAL_MIN}"] = "min_greater_than_max"
+            
+            if not errors:
+                # Detect changes in initial values to trigger surgical history resets
+                reset_list = []
+                for period in periods:
+                    for type_ in [TYPE_MIN, TYPE_MAX, TYPE_DELTA]:
+                        key = f"{period}_initial_{type_}"
+                        if key in user_input:
+                            new_val = user_input[key]
+                            old_val = self.options.get(key, self._config_entry.options.get(key, self._config_entry.data.get(key)))
+                            
+                            # Normalize for comparison
+                            try:
+                                n_val = _coerce_localized_float(new_val) if new_val is not None else None
+                                o_val = _coerce_localized_float(old_val) if old_val is not None else None
+                                if n_val != o_val:
+                                    reset_list.append(f"{period}_{type_}")
+                            except (ValueError, TypeError):
+                                if new_val != old_val:
+                                    reset_list.append(f"{period}_{type_}")
 
-                if TYPE_DELTA in types:
-                    key = f"{period}_{CONF_INITIAL_DELTA}"
-                    schema[vol.Optional(key)] = _coerce_localized_float
+                # Filter out None/empty values so they don't overwrite existing settings
+                filtered_input = {k: v for k, v in user_input.items() if v is not None}
+                self.options.update(filtered_input)
+                
+                if reset_list:
+                    self.options[CONF_RESET_HISTORY] = reset_list
 
-            return self.async_show_form(
-                step_id="optional_settings",
-                data_schema=vol.Schema(schema),
-                errors=errors,
-            )
-        except Exception:
-            _LOGGER.exception("Unexpected error in options flow optional settings step")
-            return self.async_show_form(
-                step_id="optional_settings",
-                data_schema=vol.Schema({}),
-                errors={"base": "unknown_error"},
-            )
+                # Ensure device_id is captured as None if cleared/missing
+                if CONF_DEVICE_ID not in self.options:
+                    self.options[CONF_DEVICE_ID] = None
+                
+                # Update title based on selected types
+                if self.hass:
+                    sensor_entity = self._config_entry.data.get(CONF_SENSOR_ENTITY)
+                    if sensor_entity:
+                        sensor_name = sensor_entity
+                        state = self.hass.states.get(sensor_entity)
+                        if state and state.name:
+                            sensor_name = state.name
+
+                        suffixes = []
+                        if TYPE_MAX in types:
+                            suffixes.append("Max")
+                        if TYPE_MIN in types:
+                            suffixes.append("Min")
+                        if TYPE_DELTA in types:
+                            suffixes.append("Delta")
+                        suffix = "/".join(suffixes) if suffixes else "Max/Min"
+                        
+                        new_title = f"{sensor_name} ({suffix})"
+                        if new_title != self._config_entry.title:
+                            self.hass.config_entries.async_update_entry(self._config_entry, title=new_title)
+
+                return self.async_create_entry(title="", data=self.options)
+
+        # Build schema
+        schema = {}
+        for period in periods:
+            if TYPE_MIN in types:
+                key = f"{period}_{CONF_INITIAL_MIN}"
+                schema[vol.Optional(key)] = _coerce_localized_float
+                
+            if TYPE_MAX in types:
+                key = f"{period}_{CONF_INITIAL_MAX}"
+                schema[vol.Optional(key)] = _coerce_localized_float
+
+            if TYPE_DELTA in types:
+                key = f"{period}_{CONF_INITIAL_DELTA}"
+                schema[vol.Optional(key)] = _coerce_localized_float
+
+        return self.async_show_form(
+            step_id="optional_settings",
+            data_schema=vol.Schema(schema),
+            errors=errors,
+        )
