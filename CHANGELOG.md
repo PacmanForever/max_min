@@ -1,6 +1,10 @@
 
 
 
+# 0.3.45 - 2026-03-01
+## Fixed
+- **OptionsFlow/ConfigFlow "Unknown error occurred"**: Root cause found — v0.3.41 replaced `vol.Coerce(float)` with a raw Python callable (`_coerce_localized_float`) in form schemas. HA cannot serialize raw callables for the frontend, causing the form submission to crash. Fixed by using `selector.NumberSelector(mode="box", step="any")` which HA serializes correctly and still accepts decimal input.
+
 # 0.3.44 - 2026-03-01
 ## Fixed
 - **Reverted OptionsFlow to v0.3.41 baseline**: Removed all normalization overengineering (`_normalize_multi_select`, `_normalize_device_id`, `_normalize_offset`, try/except wrappers) introduced in v0.3.42-v0.3.43 that caused persistent "Unknown error occurred". Restored the exact working code from v0.3.41 with only a duplicate `CONF_DEVICE_ID` guard fix.

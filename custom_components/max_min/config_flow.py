@@ -167,16 +167,19 @@ class MaxMinConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         
         # Build schema
         schema = {}
+        initial_number_selector = selector.NumberSelector(
+            selector.NumberSelectorConfig(mode="box", step="any")
+        )
         for period in periods:
             if TYPE_MIN in types:
                 key = f"{period}_{CONF_INITIAL_MIN}"
-                schema[vol.Optional(key)] = _coerce_localized_float
+                schema[vol.Optional(key)] = initial_number_selector
             if TYPE_MAX in types:
                 key = f"{period}_{CONF_INITIAL_MAX}"
-                schema[vol.Optional(key)] = _coerce_localized_float
+                schema[vol.Optional(key)] = initial_number_selector
             if TYPE_DELTA in types:
                 key = f"{period}_{CONF_INITIAL_DELTA}"
-                schema[vol.Optional(key)] = _coerce_localized_float
+                schema[vol.Optional(key)] = initial_number_selector
         
         # If no settings are relevant, skip this step
         if not schema:
@@ -346,18 +349,21 @@ class MaxMinOptionsFlow(config_entries.OptionsFlow):
 
         # Build schema
         schema = {}
+        initial_number_selector = selector.NumberSelector(
+            selector.NumberSelectorConfig(mode="box", step="any")
+        )
         for period in periods:
             if TYPE_MIN in types:
                 key = f"{period}_{CONF_INITIAL_MIN}"
-                schema[vol.Optional(key)] = _coerce_localized_float
+                schema[vol.Optional(key)] = initial_number_selector
                 
             if TYPE_MAX in types:
                 key = f"{period}_{CONF_INITIAL_MAX}"
-                schema[vol.Optional(key)] = _coerce_localized_float
+                schema[vol.Optional(key)] = initial_number_selector
 
             if TYPE_DELTA in types:
                 key = f"{period}_{CONF_INITIAL_DELTA}"
-                schema[vol.Optional(key)] = _coerce_localized_float
+                schema[vol.Optional(key)] = initial_number_selector
 
         return self.async_show_form(
             step_id="optional_settings",
