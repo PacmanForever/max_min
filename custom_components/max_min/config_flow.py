@@ -1,5 +1,7 @@
 """Config flow for Max Min integration."""
 
+import logging
+
 import voluptuous as vol
 from homeassistant import config_entries
 from homeassistant.core import callback
@@ -25,6 +27,9 @@ from .const import (
     TYPE_MIN,
     TYPE_DELTA,
 )
+
+
+_LOGGER = logging.getLogger(__name__)
 
 
 def _coerce_localized_float(value):
@@ -201,22 +206,25 @@ class MaxMinOptionsFlow(config_entries.OptionsFlow):
     async def async_step_init(self, user_input=None):
         """Manage the options."""
         errors = {}
-        if user_input is not None:
-            if not user_input.get(CONF_PERIODS):
-                errors[CONF_PERIODS] = "periods_required"
-
-            if not user_input.get(CONF_TYPES):
-                errors[CONF_TYPES] = "types_required"
-            
-            if not errors:
-                self.options.update(user_input)
-                return await self.async_step_optional_settings()
-
-        # Defaults for schema
         default_types = self._config_entry.options.get(CONF_TYPES, self._config_entry.data.get(CONF_TYPES, [TYPE_MAX, TYPE_MIN]))
         default_periods = self._config_entry.options.get(CONF_PERIODS, self._config_entry.data.get(CONF_PERIODS, [PERIOD_DAILY]))
         default_device = self._config_entry.options.get(CONF_DEVICE_ID, self._config_entry.data.get(CONF_DEVICE_ID))
         default_offset = self._config_entry.options.get(CONF_OFFSET, self._config_entry.data.get(CONF_OFFSET, 0))
+
+        try:
+            if user_input is not None:
+                if not user_input.get(CONF_PERIODS):
+                    errors[CONF_PERIODS] = "periods_required"
+
+                if not user_input.get(CONF_TYPES):
+                    errors[CONF_TYPES] = "types_required"
+
+                if not errors:
+                    self.options.update(user_input)
+                    return await self.async_step_optional_settings()
+        except Exception:
+            _LOGGER.exception("Unexpected error in options flow init step")
+            errors = {"base": "unknown_error"}
 
         return self.async_show_form(
             step_id="init",
@@ -253,7 +261,7 @@ class MaxMinOptionsFlow(config_entries.OptionsFlow):
                     selector.DeviceSelectorConfig()
                 ),
                 vol.Optional(
-                    CONF_OFFSET, 
+                    CONF_OFFSET,
                     default=default_offset,
                 ): selector.NumberSelector(
                     selector.NumberSelectorConfig(
@@ -274,74 +282,90 @@ class MaxMinOptionsFlow(config_entries.OptionsFlow):
         periods = self.options.get(CONF_PERIODS, self._config_entry.options.get(CONF_PERIODS, self._config_entry.data.get(CONF_PERIODS, [PERIOD_DAILY])))
         types = self.options.get(CONF_TYPES, self._config_entry.options.get(CONF_TYPES, self._config_entry.data.get(CONF_TYPES, [TYPE_MAX, TYPE_MIN])))
 
-        if user_input is not None:
-             # Validate min < max for each period
-            for period in periods:
-                initial_min = user_input.get(f"{period}_{CONF_INITIAL_MIN}")
-                initial_max = user_input.get(f"{period}_{CONF_INITIAL_MAX}")
-
-                if initial_min is not None and initial_max is not None and initial_min > initial_max:
-                    errors["base"] = "min_greater_than_max"
-                    errors[f"{period}_{CONF_INITIAL_MIN}"] = "min_greater_than_max"
-            
-            if not errors:
-                # Detect changes in initial values to trigger surgical history resets
-                reset_list = []
+        try:
+            if user_input is not None:
+                 # Validate min < max for each period
                 for period in periods:
-                    for type_ in [TYPE_MIN, TYPE_MAX, TYPE_DELTA]:
-                        key = f"{period}_initial_{type_}"
-                        if key in user_input:
-                            new_val = user_input[key]
-                            old_val = self.options.get(key, self._config_entry.options.get(key, self._config_entry.data.get(key)))
-                            
-                            # Normalize for comparison
-                            try:
-                                n_val = _coerce_localized_float(new_val) if new_val is not None else None
-                                o_val = _coerce_localized_float(old_val) if old_val is not None else None
-                                if n_val != o_val:
-                                    reset_list.append(f"{period}_{type_}")
-                            except (ValueError, TypeError):
-                                if new_val != old_val:
-                                    reset_list.append(f"{period}_{type_}")
+                    initial_min = user_input.get(f"{period}_{CONF_INITIAL_MIN}")
+                    initial_max = user_input.get(f"{period}_{CONF_INITIAL_MAX}")
 
-                # Filter out None/empty values so they don't overwrite existing settings
-                filtered_input = {k: v for k, v in user_input.items() if v is not None}
-                self.options.update(filtered_input)
-                
-                if reset_list:
-                    self.options[CONF_RESET_HISTORY] = reset_list
+                    if initial_min is not None and initial_max is not None and initial_min > initial_max:
+                        errors["base"] = "min_greater_than_max"
+                        errors[f"{period}_{CONF_INITIAL_MIN}"] = "min_greater_than_max"
 
-                # Ensure device_id is captured as None if cleared/missing to override data
-                if CONF_DEVICE_ID not in self.options:
-                    # It should be in options based on prev step, but if not we might inherit it or set to None
-                    # Actually if user_input (this step) is mostly empty, we rely on self.options from step_init
-                    # to carry the device_id.
+                if not errors:
+                    # Detect changes in initial values to trigger surgical history resets
+                    reset_list = []
+                    for period in periods:
+                        for type_ in [TYPE_MIN, TYPE_MAX, TYPE_DELTA]:
+                            key = f"{period}_initial_{type_}"
+                            if key in user_input:
+                                new_val = user_input[key]
+                                old_val = self.options.get(key, self._config_entry.options.get(key, self._config_entry.data.get(key)))
+
+                                # Normalize for comparison
+                                try:
+                                    n_val = _coerce_localized_float(new_val) if new_val is not None else None
+                                    o_val = _coerce_localized_float(old_val) if old_val is not None else None
+                                    if n_val != o_val:
+                                        reset_list.append(f"{period}_{type_}")
+                                except (ValueError, TypeError):
+                                    if new_val != old_val:
+                                        reset_list.append(f"{period}_{type_}")
+
+                    # Filter out None/empty values so they don't overwrite existing settings
+                    filtered_input = {k: v for k, v in user_input.items() if v is not None}
+                    self.options.update(filtered_input)
+
+                    if reset_list:
+                        self.options[CONF_RESET_HISTORY] = reset_list
+
+                    # Ensure device_id is captured as None if cleared/missing to override data
                     if CONF_DEVICE_ID not in self.options:
-                        self.options[CONF_DEVICE_ID] = None
-                
-                # Update title based on selected types
-                if self.hass:
-                    sensor_entity = self._config_entry.data.get(CONF_SENSOR_ENTITY)
-                    if sensor_entity:
-                        sensor_name = sensor_entity
-                        state = self.hass.states.get(sensor_entity)
-                        if state and state.name:
-                            sensor_name = state.name
+                        # It should be in options based on prev step, but if not we might inherit it or set to None
+                        # Actually if user_input (this step) is mostly empty, we rely on self.options from step_init
+                        # to carry the device_id.
+                        if CONF_DEVICE_ID not in self.options:
+                            self.options[CONF_DEVICE_ID] = None
 
-                        suffixes = []
-                        if TYPE_MAX in types:
-                            suffixes.append("Max")
-                        if TYPE_MIN in types:
-                            suffixes.append("Min")
-                        if TYPE_DELTA in types:
-                            suffixes.append("Delta")
-                        suffix = "/".join(suffixes) if suffixes else "Max/Min"
-                        
-                        new_title = f"{sensor_name} ({suffix})"
-                        if new_title != self._config_entry.title:
-                            self.hass.config_entries.async_update_entry(self._config_entry, title=new_title)
+                    # Update title based on selected types
+                    if self.hass:
+                        sensor_entity = self._config_entry.data.get(CONF_SENSOR_ENTITY)
+                        if sensor_entity:
+                            sensor_name = sensor_entity
+                            state = self.hass.states.get(sensor_entity)
+                            if state and state.name:
+                                sensor_name = state.name
 
-                return self.async_create_entry(title="", data=self.options)
+                            suffixes = []
+                            if TYPE_MAX in types:
+                                suffixes.append("Max")
+                            if TYPE_MIN in types:
+                                suffixes.append("Min")
+                            if TYPE_DELTA in types:
+                                suffixes.append("Delta")
+                            suffix = "/".join(suffixes) if suffixes else "Max/Min"
+
+                            new_title = f"{sensor_name} ({suffix})"
+                            if new_title != self._config_entry.title:
+                                self.hass.config_entries.async_update_entry(self._config_entry, title=new_title)
+
+                    return self.async_create_entry(title="", data=self.options)
+        except Exception:
+            _LOGGER.exception("Unexpected error in options flow optional settings step")
+            errors = {"base": "unknown_error"}
+            periods = self._config_entry.options.get(
+                CONF_PERIODS,
+                self._config_entry.data.get(CONF_PERIODS, [PERIOD_DAILY]),
+            )
+            types = self._config_entry.options.get(
+                CONF_TYPES,
+                self._config_entry.data.get(CONF_TYPES, [TYPE_MAX, TYPE_MIN]),
+            )
+            if not isinstance(periods, (list, tuple, set)):
+                periods = [PERIOD_DAILY]
+            if not isinstance(types, (list, tuple, set)):
+                types = [TYPE_MAX, TYPE_MIN]
 
         # Build schema
         schema = {}
@@ -350,7 +374,7 @@ class MaxMinOptionsFlow(config_entries.OptionsFlow):
             if TYPE_MIN in types:
                 key = f"{period}_{CONF_INITIAL_MIN}"
                 schema[vol.Optional(key)] = _coerce_localized_float
-                
+
             if TYPE_MAX in types:
                 key = f"{period}_{CONF_INITIAL_MAX}"
                 schema[vol.Optional(key)] = _coerce_localized_float

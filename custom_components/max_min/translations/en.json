@@ -38,7 +38,8 @@
       "sensor_not_found": "The selected sensor does not exist",
       "min_greater_than_max": "Initial minimum value cannot be greater than initial maximum value",
       "periods_required": "Please select at least one period.",
-      "types_required": "Please select at least one sensor type."
+      "types_required": "Please select at least one sensor type.",
+      "unknown_error": "An unexpected error occurred. Check Home Assistant logs for details."
     },
     "abort": {
       "already_configured": "This configuration already exists"
@@ -81,7 +82,8 @@
     "error": {
       "min_greater_than_max": "Initial minimum value cannot be greater than initial maximum value",
       "periods_required": "Please select at least one period.",
-      "types_required": "Please select at least one sensor type."
+      "types_required": "Please select at least one sensor type.",
+      "unknown_error": "An unexpected error occurred. Check Home Assistant logs for details."
     }
   }
 }

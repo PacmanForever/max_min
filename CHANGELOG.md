@@ -1,6 +1,14 @@
 
 
 
+# 0.3.42 - 2026-03-01
+## Fixed
+- **OptionsFlow Submit Crash**: Fixed a regression in options form defaults where an indentation error could raise `UnboundLocalError` during submit, surfaced in Home Assistant UI as `Unknown error occurred`.
+- **Defensive Error Handling in OptionsFlow**: Added guarded exception handling in options steps (`init` and `optional_settings`) to prevent generic hard-failures and return a controlled form error.
+## Added
+- **Operational Diagnostics**: Added explicit exception logging for unexpected options-flow failures so root causes are visible in Home Assistant logs.
+- **User-facing Error Translation**: Added `unknown_error` translation key for config/options flows to show a clear fallback message instead of HA's generic unknown error banner.
+
 # 0.3.41 - 2026-02-28
 ## Fixed
 - **Localized Decimal Parsing**: Initial values now accept both dot and comma decimal separators (e.g. `52.3` and `52,3`) consistently across ConfigFlow, OptionsFlow, coordinator enforcement, and Delta sensor initialization.

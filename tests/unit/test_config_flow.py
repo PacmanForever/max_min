@@ -688,3 +688,42 @@ async def test_options_flow_overwrite_with_new_value(hass):
     assert result["type"] == FlowResultType.CREATE_ENTRY
     assert result.get("data", {}).get(f"{PERIOD_DAILY}_{CONF_INITIAL_MAX}") == 50.0
 
+
+@pytest.mark.asyncio
+async def test_options_flow_init_unexpected_error_is_handled(hass):
+    """Test unexpected error in options init is logged and shown as form error."""
+    config_entry = MagicMock()
+    config_entry.options = {}
+    config_entry.data = {CONF_SENSOR_ENTITY: "sensor.test"}
+
+    flow = MaxMinOptionsFlow(config_entry)
+    flow.hass = Mock()
+    flow.async_step_optional_settings = AsyncMock(side_effect=RuntimeError("boom"))
+
+    result = await flow.async_step_init({
+        CONF_PERIODS: [PERIOD_DAILY],
+        CONF_TYPES: [TYPE_MAX],
+    })
+
+    assert result["type"] == FlowResultType.FORM
+    assert result["step_id"] == "init"
+    assert result["errors"]["base"] == "unknown_error"
+
+
+@pytest.mark.asyncio
+async def test_options_flow_optional_unexpected_error_is_handled(hass):
+    """Test unexpected error in options optional settings is shown as form error."""
+    config_entry = MagicMock()
+    config_entry.options = {CONF_PERIODS: [PERIOD_DAILY], CONF_TYPES: [TYPE_MAX]}
+    config_entry.data = {CONF_SENSOR_ENTITY: "sensor.test"}
+
+    flow = MaxMinOptionsFlow(config_entry)
+    flow.hass = Mock()
+    flow.options[CONF_PERIODS] = None
+
+    result = await flow.async_step_optional_settings({})
+
+    assert result["type"] == FlowResultType.FORM
+    assert result["step_id"] == "optional_settings"
+    assert result["errors"]["base"] == "unknown_error"
+
