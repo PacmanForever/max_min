@@ -1,6 +1,10 @@
 
 
 
+# 0.3.43 - 2026-03-01
+## Fixed
+- **OptionsFlow robustness overhaul**: Moved normalization helpers (`_normalize_multi_select`, `_normalize_device_id`, `_normalize_offset`) to module level. Restored `suggested_value` on DeviceSelector so previously selected device is remembered. Wrapped entire method bodies (including form construction) in `try/except` so schema-building errors are caught. Removed duplicate `CONF_DEVICE_ID` guard in `async_step_optional_settings`.
+
 # 0.3.42 - 2026-03-01
 ## Fixed
 - **OptionsFlow Submit Crash**: Fixed a regression in options form defaults where an indentation error could raise `UnboundLocalError` during submit, surfaced in Home Assistant UI as `Unknown error occurred`.

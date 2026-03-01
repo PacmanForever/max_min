@@ -1,6 +1,6 @@
 """Test config flow."""
 
-from unittest.mock import AsyncMock, MagicMock, Mock
+from unittest.mock import AsyncMock, MagicMock, Mock, patch
 
 import pytest
 from homeassistant import config_entries
@@ -719,11 +719,61 @@ async def test_options_flow_optional_unexpected_error_is_handled(hass):
 
     flow = MaxMinOptionsFlow(config_entry)
     flow.hass = Mock()
-    flow.options[CONF_PERIODS] = None
 
-    result = await flow.async_step_optional_settings({})
+    # Force an exception inside the try block via a broken normalizer
+    with patch(
+        "custom_components.max_min.config_flow._normalize_multi_select",
+        side_effect=RuntimeError("boom"),
+    ):
+        result = await flow.async_step_optional_settings({})
 
     assert result["type"] == FlowResultType.FORM
     assert result["step_id"] == "optional_settings"
     assert result["errors"]["base"] == "unknown_error"
+
+
+@pytest.mark.asyncio
+async def test_options_flow_init_handles_legacy_malformed_defaults(hass):
+    """Test options init does not crash with malformed legacy defaults."""
+    config_entry = MagicMock()
+    config_entry.options = {
+        CONF_PERIODS: None,
+        CONF_TYPES: None,
+        "device_id": {"bad": "value"},
+        "offset": "not_a_number",
+    }
+    config_entry.data = {CONF_SENSOR_ENTITY: "sensor.test"}
+
+    flow = MaxMinOptionsFlow(config_entry)
+    flow.hass = Mock()
+
+    result = await flow.async_step_init()
+    assert result["type"] == FlowResultType.FORM
+    assert result["step_id"] == "init"
+
+
+@pytest.mark.asyncio
+async def test_options_flow_init_normalizes_string_selection(hass):
+    """Test options init accepts string values from selectors without crashing."""
+    config_entry = MagicMock()
+    config_entry.options = {}
+    config_entry.data = {CONF_SENSOR_ENTITY: "sensor.test"}
+    config_entry.title = "Max Min"
+
+    flow = MaxMinOptionsFlow(config_entry)
+    flow.hass = Mock()
+    flow.hass.states.get.return_value = None
+    flow.hass.config_entries.async_update_entry = Mock()
+
+    result = await flow.async_step_init(
+        {
+            CONF_PERIODS: PERIOD_DAILY,
+            CONF_TYPES: TYPE_DELTA,
+            "offset": "0",
+            "device_id": "",
+        }
+    )
+
+    assert result["type"] == FlowResultType.FORM
+    assert result["step_id"] == "optional_settings"
 
