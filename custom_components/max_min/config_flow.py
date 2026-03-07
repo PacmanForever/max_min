@@ -31,6 +31,21 @@ from .const import (
 
 _LOGGER = logging.getLogger(__name__)
 
+# Canonical chronological order for period display
+_PERIOD_ORDER = [
+    PERIOD_DAILY,
+    PERIOD_WEEKLY,
+    PERIOD_MONTHLY,
+    PERIOD_YEARLY,
+    PERIOD_ALL_TIME,
+]
+
+
+def _sorted_periods(periods):
+    """Return periods sorted in canonical chronological order."""
+    order = {p: i for i, p in enumerate(_PERIOD_ORDER)}
+    return sorted(periods, key=lambda p: order.get(p, len(_PERIOD_ORDER)))
+
 
 def _coerce_localized_float(value):
     """Coerce numbers accepting both dot and comma decimal separators."""
@@ -125,7 +140,7 @@ class MaxMinConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     async def async_step_optional_settings(self, user_input=None):
         """Handle optional settings step."""
         errors = {}
-        periods = self.data.get(CONF_PERIODS, [PERIOD_DAILY])
+        periods = _sorted_periods(self.data.get(CONF_PERIODS, [PERIOD_DAILY]))
         types = self.data.get(CONF_TYPES, [TYPE_MAX, TYPE_MIN])
 
         if user_input is not None:
@@ -279,7 +294,7 @@ class MaxMinOptionsFlow(config_entries.OptionsFlow):
         """Manage optional settings."""
         errors = {}
         # Get current configuration (merging existing + new from init step)
-        periods = self.options.get(CONF_PERIODS, self._config_entry.options.get(CONF_PERIODS, self._config_entry.data.get(CONF_PERIODS, [PERIOD_DAILY])))
+        periods = _sorted_periods(self.options.get(CONF_PERIODS, self._config_entry.options.get(CONF_PERIODS, self._config_entry.data.get(CONF_PERIODS, [PERIOD_DAILY]))))
         types = self.options.get(CONF_TYPES, self._config_entry.options.get(CONF_TYPES, self._config_entry.data.get(CONF_TYPES, [TYPE_MAX, TYPE_MIN])))
 
         if user_input is not None:

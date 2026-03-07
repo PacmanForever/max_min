@@ -1,6 +1,12 @@
 
 
 
+# 0.3.46 - 2026-03-07
+## Fixed
+- **Surgical reset double-reload**: Moving `CONF_RESET_HISTORY` cleanup before update listener registration prevents a second reload that overwrites initial values with stale restored data.
+## Improved
+- **Period field ordering**: Optional settings fields now sorted chronologically (daily → weekly → monthly → yearly → all time) regardless of selection order.
+
 # 0.3.45 - 2026-03-01
 ## Fixed
 - **OptionsFlow/ConfigFlow "Unknown error occurred"**: Root cause found — v0.3.41 replaced `vol.Coerce(float)` with a raw Python callable (`_coerce_localized_float`) in form schemas. HA cannot serialize raw callables for the frontend, causing the form submission to crash. Fixed by using `selector.NumberSelector(mode="box", step="any")` which HA serializes correctly and still accepts decimal input.

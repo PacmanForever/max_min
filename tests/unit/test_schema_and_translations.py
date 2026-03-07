@@ -7,13 +7,16 @@ from unittest.mock import Mock, AsyncMock
 from homeassistant.data_entry_flow import FlowResultType
 
 from custom_components.max_min.config_flow import MaxMinConfigFlow
+from custom_components.max_min.config_flow import MaxMinOptionsFlow
 from custom_components.max_min.const import (
+    CONF_INITIAL_DELTA,
     CONF_INITIAL_MAX,
     CONF_INITIAL_MIN,
     CONF_PERIODS,
     CONF_SENSOR_ENTITY,
     CONF_TYPES,
-    CONF_DEVICE_ID
+    CONF_DEVICE_ID,
+    TYPE_DELTA,
 )
 
 
@@ -133,3 +136,77 @@ def test_en_translation_match():
             en_strings = json.load(f)
             
         assert strings == en_strings, "en.json does not match strings.json"
+
+
+@pytest.mark.asyncio
+async def test_optional_settings_periods_sorted_configflow(hass):
+    """Test that optional settings fields follow chronological period order in ConfigFlow.
+
+    Even when the user selects periods in arbitrary order (e.g. yearly, daily,
+    monthly, weekly), the form fields must appear sorted: daily → weekly →
+    monthly → yearly → all_time.
+    """
+    flow = MaxMinConfigFlow()
+    flow.hass = Mock()
+    flow.async_set_unique_id = AsyncMock()
+    flow._abort_if_unique_id_configured = Mock(return_value=None)
+
+    # User selects periods in non-chronological order
+    await flow.async_step_user({
+        CONF_SENSOR_ENTITY: "sensor.test",
+        CONF_PERIODS: ["yearly", "daily", "monthly", "weekly"],
+        CONF_TYPES: [TYPE_DELTA],
+    })
+
+    result = await flow.async_step_optional_settings()
+    assert result["type"] == FlowResultType.FORM
+
+    field_names = []
+    for key in result["data_schema"].schema.keys():
+        field_names.append(str(key.schema) if hasattr(key, "schema") else str(key))
+
+    # Should be: daily_initial_delta, weekly_initial_delta, monthly_initial_delta, yearly_initial_delta
+    assert field_names == [
+        "daily_initial_delta",
+        "weekly_initial_delta",
+        "monthly_initial_delta",
+        "yearly_initial_delta",
+    ]
+
+
+@pytest.mark.asyncio
+async def test_optional_settings_periods_sorted_optionsflow(hass):
+    """Test that optional settings fields follow chronological period order in OptionsFlow.
+
+    Same assertion as above but for the options flow path.
+    """
+    config_entry = Mock()
+    config_entry.entry_id = "test"
+    config_entry.data = {
+        CONF_SENSOR_ENTITY: "sensor.test",
+        CONF_PERIODS: ["monthly", "yearly", "daily"],
+        CONF_TYPES: [TYPE_DELTA],
+    }
+    config_entry.options = {}
+
+    flow = MaxMinOptionsFlow(config_entry)
+    flow.hass = hass
+
+    # Simulate init step selecting periods in non-chronological order
+    flow.options = {
+        CONF_PERIODS: ["monthly", "yearly", "daily"],
+        CONF_TYPES: [TYPE_DELTA],
+    }
+
+    result = await flow.async_step_optional_settings()
+    assert result["type"] == FlowResultType.FORM
+
+    field_names = []
+    for key in result["data_schema"].schema.keys():
+        field_names.append(str(key.schema) if hasattr(key, "schema") else str(key))
+
+    assert field_names == [
+        "daily_initial_delta",
+        "monthly_initial_delta",
+        "yearly_initial_delta",
+    ]
