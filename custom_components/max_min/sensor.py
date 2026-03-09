@@ -107,11 +107,11 @@ async def async_setup_entry(
     for period in periods:
         period_label = period_labels.get(period, period)
         if TYPE_MAX in types:
-            entities.append(MaxSensor(coordinator, config_entry, f"{sensor_name} {period_label} Max", period))
+            entities.append(MaxSensor(coordinator, config_entry, f"{sensor_name} {period_label} (Max)", period))
         if TYPE_MIN in types:
-            entities.append(MinSensor(coordinator, config_entry, f"{sensor_name} {period_label} Min", period))
+            entities.append(MinSensor(coordinator, config_entry, f"{sensor_name} {period_label} (Min)", period))
         if TYPE_DELTA in types:
-            entities.append(DeltaSensor(coordinator, config_entry, f"{sensor_name} {period_label} Delta", period))
+            entities.append(DeltaSensor(coordinator, config_entry, f"{sensor_name} {period_label} (Delta)", period))
 
     async_add_entities(entities)
 
@@ -187,8 +187,8 @@ class _BaseMaxMinSensor(CoordinatorEntity, SensorEntity, RestoreEntity):
 
     @property
     def extra_state_attributes(self):
-        """Return the state attributes including last_reset."""
-        attrs = {}
+        """Return the state attributes including last_reset and config_entry_id."""
+        attrs = {"config_entry_id": self._config_entry.entry_id}
         last_reset = self.coordinator.get_value(self.period, "last_reset")
         if last_reset:
             attrs["last_reset"] = last_reset.isoformat()
@@ -209,6 +209,10 @@ class MaxSensor(_BaseMaxMinSensor):
         await super().async_added_to_hass()
         last_state = await self.async_get_last_state()
         if last_state:
+            # Skip restore if state belongs to a different config entry (delete+recreate)
+            if last_state.attributes.get("config_entry_id") not in (None, self._config_entry.entry_id):
+                return
+
             self._attr_native_unit_of_measurement = last_state.attributes.get("unit_of_measurement")
             self._attr_device_class = last_state.attributes.get("device_class")
 
@@ -236,6 +240,10 @@ class MinSensor(_BaseMaxMinSensor):
         await super().async_added_to_hass()
         last_state = await self.async_get_last_state()
         if last_state:
+            # Skip restore if state belongs to a different config entry (delete+recreate)
+            if last_state.attributes.get("config_entry_id") not in (None, self._config_entry.entry_id):
+                return
+
             self._attr_native_unit_of_measurement = last_state.attributes.get("unit_of_measurement")
             self._attr_device_class = last_state.attributes.get("device_class")
 
@@ -276,6 +284,10 @@ class DeltaSensor(_BaseMaxMinSensor):
         await super().async_added_to_hass()
         last_state = await self.async_get_last_state()
         if last_state:
+            # Skip restore if state belongs to a different config entry (delete+recreate)
+            if last_state.attributes.get("config_entry_id") not in (None, self._config_entry.entry_id):
+                return
+
             self._attr_native_unit_of_measurement = last_state.attributes.get("unit_of_measurement")
             self._attr_device_class = last_state.attributes.get("device_class")
 
@@ -288,16 +300,7 @@ class DeltaSensor(_BaseMaxMinSensor):
                 try:
                     start_f = float(start)
                     end_f = float(end)
-                    
-                    # Legacy state migration (v0.3.38 -> v0.3.39+)
-                    # In v0.3.38, `start` was not offset by `initial_delta`, causing `end - start`
-                    # to be just the raw increments. If we see a raw delta that is positive but
-                    # less than `initial_delta`, it means this state was saved under v0.3.38.
-                    # We must offset `start` now so the math works correctly forever.
-                    if self._initial_delta is not None and self._initial_delta > 0:
-                        if 0 <= (end_f - start_f) < self._initial_delta:
-                            start_f -= self._initial_delta
-                            
+
                     self.coordinator.update_restored_data(self.period, "start", start_f, last_reset)
                     self.coordinator.update_restored_data(self.period, "end", end_f, last_reset)
                 except ValueError:

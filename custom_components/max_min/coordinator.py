@@ -127,6 +127,10 @@ class MaxMinDataUpdateCoordinator(DataUpdateCoordinator):
         self._unsub_sensor_state_listener = None
         self._watchdog_unsub = None
         self._source_is_cumulative = False
+        # Periods whose start/end need re-anchoring on the first sensor update
+        # after a reset.  Avoids race conditions with sensors that also reset at
+        # midnight while keeping delta=0 (not unavailable) immediately after reset.
+        self._pending_start_reanchor: set[str] = set()
         
         # Start Watchdog (every 1 minute)
         # It ensures that if a reset timer failed or was missed, we catch up eventually.
@@ -262,7 +266,7 @@ class MaxMinDataUpdateCoordinator(DataUpdateCoordinator):
         state = self.hass.states.get(self.sensor_entity)
         if state and state.state not in (None, "unknown", "unavailable"):
             try:
-                return float(state.state)
+                return round(float(state.state), 4)
             except ValueError:
                 pass
         # Fallback: use last known end value regardless of sensor type.
@@ -271,10 +275,10 @@ class MaxMinDataUpdateCoordinator(DataUpdateCoordinator):
         # make the entity unavailable in HA (graph shows stale line).
         end_val = self.tracked_data.get(period, {}).get("end")
         if isinstance(end_val, (int, float)):
-            return float(end_val)
+            return round(float(end_val), 4)
         if isinstance(end_val, str):
             try:
-                return float(end_val)
+                return round(float(end_val), 4)
             except ValueError:
                 pass
         return None
@@ -377,19 +381,11 @@ class MaxMinDataUpdateCoordinator(DataUpdateCoordinator):
         if type_ == "max":
             if data["max"] is None or value > data["max"]:
                 data["max"] = value
-            # Enforce configured initial max as floor (user explicitly set it)
-            configured = self._configured_initials.get(period, {}).get("max")
-            if configured is not None and (data["max"] is None or data["max"] < configured):
-                data["max"] = configured
         
         # Case Min:
         if type_ == "min":
             if data["min"] is None or value < data["min"]:
                 data["min"] = value
-            # Enforce configured initial min as ceiling (user explicitly set it)
-            configured = self._configured_initials.get(period, {}).get("min")
-            if configured is not None and (data["min"] is None or data["min"] > configured):
-                data["min"] = configured
 
         # Case Start/End (Delta support):
         if type_ in ("start", "end"):
@@ -498,10 +494,21 @@ class MaxMinDataUpdateCoordinator(DataUpdateCoordinator):
                             now <= reset_time + timedelta(seconds=self.offset)):
                             
                             # If cumulative sensor drops during dead zone, it's a reset
-                            if is_cumulative and data["max"] is not None and value < data["max"]:
+                            if data["max"] is not None and value < data["max"]:
                                 _LOGGER.debug("Early reset detected for %s. Triggering reset now.", period)
                                 self._perform_reset(now, period, reason="early_offset")
+                                continue
 
+                            # No drop: update max/min/end so values stay accurate
+                            if data["max"] is None or value > data["max"]:
+                                data["max"] = value
+                                updated = True
+                            if data["min"] is None or value < data["min"]:
+                                data["min"] = value
+                                updated = True
+                            if data.get("end") != value:
+                                data["end"] = value
+                                updated = True
                             continue
                     
                     # Normal update logic
@@ -512,8 +519,17 @@ class MaxMinDataUpdateCoordinator(DataUpdateCoordinator):
                         data["min"] = value
                         updated = True
 
+                    # Delta support: re-anchor start after reset
+                    # Initial delta is one-shot (creation only), so reanchor
+                    # always starts fresh: start=value, delta=0.
+                    if period in self._pending_start_reanchor:
+                        data["start"] = value
+                        data["end"] = value
+                        self._pending_start_reanchor.discard(period)
+                        updated = True
+
                     # Delta support: initialize start if missing
-                    if data.get("start") is None:
+                    elif data.get("start") is None:
                         initial_delta = self._configured_initials.get(period, {}).get("delta")
                         if initial_delta is not None:
                             data["start"] = value - initial_delta
@@ -622,29 +638,20 @@ class MaxMinDataUpdateCoordinator(DataUpdateCoordinator):
                         period,
                     )
 
-                # Apply configured initial values as floor/ceiling after reset
-                initials = self._configured_initials.get(period, {})
-                initial_max = initials.get("max")
-                initial_min = initials.get("min")
-
-                # Max: use whichever is higher between seed and configured initial
-                if reset_seed is not None and initial_max is not None:
-                    self.tracked_data[period]["max"] = max(reset_seed, initial_max)
-                elif initial_max is not None:
-                    self.tracked_data[period]["max"] = initial_max
-                else:
-                    self.tracked_data[period]["max"] = reset_seed
-
-                # Min: use whichever is lower between seed and configured initial
-                if reset_seed is not None and initial_min is not None:
-                    self.tracked_data[period]["min"] = min(reset_seed, initial_min)
-                elif initial_min is not None:
-                    self.tracked_data[period]["min"] = initial_min
-                else:
-                    self.tracked_data[period]["min"] = reset_seed
+                # Reset max/min to seed — initial values are one-shot
+                # (only applied at entry creation, not on period resets)
+                self.tracked_data[period]["max"] = reset_seed
+                self.tracked_data[period]["min"] = reset_seed
 
                 # Canonical: last_reset is the period start, not the wall-clock moment
                 self.tracked_data[period]["last_reset"] = self._get_period_start(now, period)
+                # Mark the period for re-anchoring BEFORE start/end assignment
+                # so that if anything below throws, the reanchor is still pending.
+                self._pending_start_reanchor.add(period)
+                # Use seed so delta=0 immediately (never unavailable), but the
+                # reanchor mark ensures the first real sensor update will
+                # overwrite start/end with the truly current value.  This avoids
+                # a race condition when the source also resets at midnight.
                 self.tracked_data[period]["start"] = reset_seed
                 self.tracked_data[period]["end"] = reset_seed
 
@@ -728,25 +735,5 @@ class MaxMinDataUpdateCoordinator(DataUpdateCoordinator):
                     if b_data.get("min") is None or n_min_propagate < b_data["min"]:
                         b_data["min"] = n_min_propagate
 
-        # After applying consistency, re-enforce configured initial values as absolute floors/ceilings.
-        # This prevents consistency propagation from Daily (e.g. 13.0) overriding 
-        # a user-configured Yearly Initial (e.g. 45.0).
-        updated_any = False
-        for period, initials in self._configured_initials.items():
-            if period not in self.tracked_data:
-                continue
-            data = self.tracked_data[period]
-            initial_max = initials.get("max")
-            initial_min = initials.get("min")
-
-            if initial_max is not None and (data.get("max") is None or data["max"] < initial_max):
-                data["max"] = initial_max
-                updated_any = True
-                _LOGGER.info("Initial value enforcement: %s Max floor set to %s (current was %s)", period, initial_max, data.get("max"))
-            if initial_min is not None and (data.get("min") is None or data["min"] > initial_min):
-                data["min"] = initial_min
-                updated_any = True
-                _LOGGER.info("Initial value enforcement: %s Min ceiling set to %s (current was %s)", period, initial_min, data.get("min"))
-        
-        if updated_any:
-            self.async_set_updated_data({})
+        # Initial values are one-shot (applied at entry creation only),
+        # so no re-enforcement after consistency propagation.

@@ -104,10 +104,10 @@ def coordinator():
 def test_delta_sensor(coordinator, config_entry, hass):
     """Test delta sensor basic functionality."""
     coordinator.hass = hass
-    sensor = DeltaSensor(coordinator, config_entry, "Test Daily Delta", PERIOD_DAILY)
+    sensor = DeltaSensor(coordinator, config_entry, "Test Daily (Delta)", PERIOD_DAILY)
     assert sensor.native_value == 2.0
     assert sensor.available is True
-    assert sensor.name == "Test Daily Delta"
+    assert sensor.name == "Test Daily (Delta)"
     assert sensor.unique_id == "test_entry_daily_delta"
     assert sensor.native_unit_of_measurement == "°C"
     attrs = sensor.extra_state_attributes
@@ -222,10 +222,10 @@ def test_max_sensor(coordinator, config_entry, hass):
     # Set hass on coordinator
     coordinator.hass = hass
     
-    sensor = MaxSensor(coordinator, config_entry, "Test Daily Max", PERIOD_DAILY)
+    sensor = MaxSensor(coordinator, config_entry, "Test Daily (Max)", PERIOD_DAILY)
     assert sensor.native_value == 15.0
     assert sensor.available is True
-    assert sensor.name == "Test Daily Max"
+    assert sensor.name == "Test Daily (Max)"
     assert sensor.unique_id == "test_entry_daily_max"
     assert sensor.native_unit_of_measurement == "°C"
 
@@ -234,10 +234,10 @@ def test_min_sensor(coordinator, config_entry, hass):
     """Test min sensor."""
     coordinator.hass = hass
     
-    sensor = MinSensor(coordinator, config_entry, "Test Daily Min", PERIOD_DAILY)
+    sensor = MinSensor(coordinator, config_entry, "Test Daily (Min)", PERIOD_DAILY)
     assert sensor.native_value == 5.0
     assert sensor.available is True
-    assert sensor.name == "Test Daily Min"
+    assert sensor.name == "Test Daily (Min)"
     assert sensor.unique_id == "test_entry_daily_min"
     assert sensor.native_unit_of_measurement == "°C"
 

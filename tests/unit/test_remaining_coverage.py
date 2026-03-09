@@ -514,7 +514,7 @@ async def test_sensor_async_setup_entry_friendly_name_fallback(hass):
 
     assert async_add_entities.called
     entities = async_add_entities.call_args[0][0]
-    assert entities[0].name == "My Friendly Sensor Daily Max"
+    assert entities[0].name == "My Friendly Sensor Daily (Max)"
 
 
 # ---------------------------------------------------------------------------

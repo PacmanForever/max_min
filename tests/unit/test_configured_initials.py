@@ -61,7 +61,7 @@ def _make_config_entry(periods=None, initial_max=None, initial_min=None, period_
 
 
 def test_restore_max_below_configured_initial(hass):
-    """Test that restored max value below configured initial is overridden."""
+    """Test that restored max below initial is kept (initials are one-shot, not enforced on restore)."""
     config_entry = _make_config_entry(
         periods=[PERIOD_YEARLY],
         period_initials={PERIOD_YEARLY: {"max": 45.0}},
@@ -77,16 +77,15 @@ def test_restore_max_below_configured_initial(hass):
         last_reset=datetime(2026, 1, 1, 0, 0, 0, tzinfo=timezone.utc),
     )
 
-    # The configured initial (45.0) should be enforced as floor
+    # Initials are one-shot: 45.0 was set in __init__, restore 13.107 < 45.0 → keeps 45.0
     assert coordinator.tracked_data[PERIOD_YEARLY]["max"] == 45.0
 
 
 def test_enforce_max_floor_after_data_corruption(hass):
-    """Test enforcement when tracked_data max drops below configured initial.
+    """Test that restore does NOT re-enforce initials (one-shot semantics).
 
-    Simulates a scenario where tracked_data gets a value below the configured
-    initial (e.g. after a reset or data corruption), then restore triggers
-    enforcement.
+    After __init__ seeds max=45.0, if tracked_data is manually set to 10.0
+    and restore brings 12.0, the result is 12.0 (restore wins, no enforcement).
     """
     config_entry = _make_config_entry(
         periods=[PERIOD_YEARLY],
@@ -95,26 +94,20 @@ def test_enforce_max_floor_after_data_corruption(hass):
     coordinator = MaxMinDataUpdateCoordinator(hass, config_entry)
 
     # Manually set tracked_data below the configured initial
-    # (simulates post-reset or corrupted state)
     coordinator.tracked_data[PERIOD_YEARLY]["max"] = 10.0
 
-    # Restore with value still below configured initial
+    # Restore with value above current but below initial
     coordinator.update_restored_data(
         PERIOD_YEARLY, "max", 12.0,
         last_reset=datetime(2026, 1, 1, 0, 0, 0, tzinfo=timezone.utc),
     )
 
-    # Value was 10, restore sets it to 12 (12 > 10), but enforcement
-    # brings it back up to 45 (configured floor)
-    assert coordinator.tracked_data[PERIOD_YEARLY]["max"] == 45.0
+    # Initials are one-shot: no enforcement on restore. 12 > 10 → max=12
+    assert coordinator.tracked_data[PERIOD_YEARLY]["max"] == 12.0
 
 
 def test_enforce_min_ceiling_after_data_corruption(hass):
-    """Test enforcement when tracked_data min rises above configured initial.
-
-    Simulates a scenario where tracked_data gets a value above the configured
-    initial min (e.g. after a reset), then restore triggers enforcement.
-    """
+    """Test that restore does NOT re-enforce initials for min (one-shot semantics)."""
     config_entry = _make_config_entry(
         periods=[PERIOD_YEARLY],
         period_initials={PERIOD_YEARLY: {"min": -5.0}},
@@ -124,15 +117,14 @@ def test_enforce_min_ceiling_after_data_corruption(hass):
     # Manually set tracked_data above the configured initial min
     coordinator.tracked_data[PERIOD_YEARLY]["min"] = 10.0
 
-    # Restore with value still above configured initial
+    # Restore with value below current but above initial
     coordinator.update_restored_data(
         PERIOD_YEARLY, "min", 8.0,
         last_reset=datetime(2026, 1, 1, 0, 0, 0, tzinfo=timezone.utc),
     )
 
-    # Value was 10, restore sets it to 8 (8 < 10), but enforcement
-    # brings it back down to -5.0 (configured ceiling)
-    assert coordinator.tracked_data[PERIOD_YEARLY]["min"] == -5.0
+    # Initials are one-shot: no enforcement on restore. 8 < 10 → min=8
+    assert coordinator.tracked_data[PERIOD_YEARLY]["min"] == 8.0
 
 
 def test_restore_max_above_configured_initial(hass):
@@ -154,7 +146,7 @@ def test_restore_max_above_configured_initial(hass):
 
 
 def test_restore_min_above_configured_initial(hass):
-    """Test that restored min value above configured initial is overridden."""
+    """Test restore min above initial: restore does not re-enforce (one-shot)."""
     config_entry = _make_config_entry(
         periods=[PERIOD_YEARLY],
         period_initials={PERIOD_YEARLY: {"min": -5.0}},
@@ -164,17 +156,17 @@ def test_restore_min_above_configured_initial(hass):
     # Verify initial min is set
     assert coordinator.tracked_data[PERIOD_YEARLY]["min"] == -5.0
 
-    # Manually set min above configured so restoration triggers enforcement
+    # Manually set min above configured so restoration scenario is clear
     coordinator.tracked_data[PERIOD_YEARLY]["min"] = 20.0
 
-    # Simulate restore with a higher value (e.g. 3.0, still above -5)
+    # Simulate restore with a value (3.0) still above initial (-5.0)
     coordinator.update_restored_data(
         PERIOD_YEARLY, "min", 3.0,
         last_reset=datetime(2026, 1, 1, 0, 0, 0, tzinfo=timezone.utc),
     )
 
-    # The configured initial (-5.0) should be enforced as ceiling
-    assert coordinator.tracked_data[PERIOD_YEARLY]["min"] == -5.0
+    # Initials are one-shot: 3.0 < 20.0 → min=3.0 (no enforcement back to -5.0)
+    assert coordinator.tracked_data[PERIOD_YEARLY]["min"] == 3.0
 
 
 def test_restore_min_below_configured_initial(hass):
@@ -229,7 +221,7 @@ def test_no_configured_initial_does_not_enforce(hass):
 
 
 def test_configured_initial_zero_is_enforced(hass):
-    """Test that configured initial value of 0.0 is correctly enforced (not treated as None)."""
+    """Test that configured initial value of 0.0 works at creation (one-shot)."""
     config_entry = _make_config_entry(
         periods=[PERIOD_DAILY],
         period_initials={PERIOD_DAILY: {"max": 0.0}},
@@ -238,12 +230,12 @@ def test_configured_initial_zero_is_enforced(hass):
 
     assert coordinator.tracked_data[PERIOD_DAILY]["max"] == 0.0
 
-    # Restore with a negative value — should keep it since -5 < 0
+    # Restore with a negative value — no enforcement, but -5 < 0 so max stays 0
     coordinator.update_restored_data(
         PERIOD_DAILY, "max", -5.0,
         last_reset=datetime(2026, 2, 8, 0, 0, 0, tzinfo=timezone.utc),
     )
-    # -5.0 < 0.0 → enforced back to 0.0
+    # -5.0 < 0.0 (current) → max stays 0.0 (restore only updates if more extreme)
     assert coordinator.tracked_data[PERIOD_DAILY]["max"] == 0.0
 
 
@@ -299,10 +291,9 @@ def test_restore_without_last_reset_applied_when_period_not_initialized(hass):
 
 
 def test_perform_reset_enforces_initial_max(hass):
-    """Test that _perform_reset applies configured initial max as floor.
+    """Test that _perform_reset uses seed only (initials are one-shot).
 
-    When sensor value (13.107) is below configured initial max (45.0),
-    the reset should use the configured initial instead.
+    After reset, max = seed. Initials do NOT act as floor on resets.
     """
     config_entry = _make_config_entry(
         periods=[PERIOD_YEARLY],
@@ -323,26 +314,21 @@ def test_perform_reset_enforces_initial_max(hass):
             datetime(2026, 1, 1, 0, 0, 0, tzinfo=timezone.utc), PERIOD_YEARLY
         )
 
-    # Max should be 45.0 (configured initial), not 13.107
-    assert coordinator.tracked_data[PERIOD_YEARLY]["max"] == 45.0
-    # start/end should be the actual sensor value
+    # Max should be seed (13.107), NOT 45.0 (initials are one-shot)
+    assert coordinator.tracked_data[PERIOD_YEARLY]["max"] == 13.107
     assert coordinator.tracked_data[PERIOD_YEARLY]["start"] == 13.107
     assert coordinator.tracked_data[PERIOD_YEARLY]["end"] == 13.107
 
 
 def test_perform_reset_enforces_initial_min(hass):
-    """Test that _perform_reset applies configured initial min as ceiling.
-
-    When sensor value (10.0) is above configured initial min (-5.0),
-    the reset should use the configured initial instead.
-    """
+    """Test that _perform_reset uses seed only for min (initials are one-shot)."""
     config_entry = _make_config_entry(
         periods=[PERIOD_YEARLY],
         period_initials={PERIOD_YEARLY: {"min": -5.0}},
     )
     coordinator = MaxMinDataUpdateCoordinator(hass, config_entry)
 
-    # Sensor currently reads 10.0 (above configured initial min of -5.0)
+    # Sensor currently reads 10.0
     hass.states.get.return_value = Mock(
         state="10.0", attributes={"friendly_name": "Test"}
     )
@@ -352,8 +338,8 @@ def test_perform_reset_enforces_initial_min(hass):
             datetime(2026, 1, 1, 0, 0, 0, tzinfo=timezone.utc), PERIOD_YEARLY
         )
 
-    # Min should be -5.0 (configured initial), not 10.0
-    assert coordinator.tracked_data[PERIOD_YEARLY]["min"] == -5.0
+    # Min should be seed (10.0), NOT -5.0 (initials are one-shot)
+    assert coordinator.tracked_data[PERIOD_YEARLY]["min"] == 10.0
 
 
 def test_perform_reset_keeps_sensor_value_when_more_extreme_than_initial(hass):
@@ -393,24 +379,26 @@ def test_perform_reset_keeps_sensor_value_when_more_extreme_than_initial(hass):
 
 
 def test_perform_reset_with_sensor_unavailable_uses_initial(hass):
-    """Test that _perform_reset uses configured initial when sensor is unavailable."""
+    """Test _perform_reset when sensor unavailable: seed is None, max/min=None."""
     config_entry = _make_config_entry(
         periods=[PERIOD_DAILY],
         period_initials={PERIOD_DAILY: {"max": 45.0, "min": -5.0}},
     )
     coordinator = MaxMinDataUpdateCoordinator(hass, config_entry)
 
-    # Sensor unavailable → current_val = None
+    # Sensor unavailable → seed = fallback to end_val or None
     hass.states.get.return_value = Mock(state="unavailable", attributes={})
+    # No end value → seed is None
+    coordinator.tracked_data[PERIOD_DAILY]["end"] = None
 
     with patch("custom_components.max_min.coordinator.async_track_point_in_time"):
         coordinator._perform_reset(
             datetime(2026, 2, 9, 0, 0, 0, tzinfo=timezone.utc), PERIOD_DAILY
         )
 
-    # With sensor unavailable, should still apply configured initials
-    assert coordinator.tracked_data[PERIOD_DAILY]["max"] == 45.0
-    assert coordinator.tracked_data[PERIOD_DAILY]["min"] == -5.0
+    # With sensor unavailable and no end_val, seed=None → max/min=None
+    assert coordinator.tracked_data[PERIOD_DAILY]["max"] is None
+    assert coordinator.tracked_data[PERIOD_DAILY]["min"] is None
 
 
 def test_perform_reset_without_initials_uses_sensor_value(hass):
@@ -433,7 +421,7 @@ def test_perform_reset_without_initials_uses_sensor_value(hass):
 
 
 def test_perform_reset_initial_max_zero_is_enforced(hass):
-    """Test that configured initial max of 0.0 is correctly enforced after reset."""
+    """Test that reset with initial 0.0 uses seed, not initial (one-shot)."""
     config_entry = _make_config_entry(
         periods=[PERIOD_DAILY],
         period_initials={PERIOD_DAILY: {"max": 0.0}},
@@ -450,8 +438,8 @@ def test_perform_reset_initial_max_zero_is_enforced(hass):
             datetime(2026, 2, 9, 0, 0, 0, tzinfo=timezone.utc), PERIOD_DAILY
         )
 
-    # Max should be 0.0 (configured floor), not -3.5
-    assert coordinator.tracked_data[PERIOD_DAILY]["max"] == 0.0
+    # Max should be seed (-3.5), NOT 0.0 (initials are one-shot)
+    assert coordinator.tracked_data[PERIOD_DAILY]["max"] == -3.5
 
 
 # ---------------------------------------------------------------------------

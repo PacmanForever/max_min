@@ -1,6 +1,18 @@
 
 
 
+# 0.3.47 - 2026-03-09
+## Fixed
+- **Delta race condition at reset**: Reset now uses conservative seed + re-anchor on first real sensor update, preventing stale values when source sensor also resets at midnight.
+- **Seed rounding inconsistency**: `_compute_reset_seed` now applies `round(..., 4)` matching `_handle_sensor_change`, preventing floating-point drift in delta calculations.
+- **Dead zone froze max/min/end**: Dead zone window now correctly updates max, min, and end values — only skips start initialization to avoid race conditions.
+- **Legacy migration corruption**: Removed v0.3.40 migration code that re-applied `initial_delta` offset on every restart/reload, progressively corrupting start values.
+- **Fallback seed rounding**: `_compute_reset_seed` fallback to `end_val` now rounds consistently.
+- **Stale restore on delete+recreate**: Sensors now store `config_entry_id` in state attributes and skip restore when the entry ID doesn't match, preventing old values from overriding new initial values.
+## Changed
+- **Initial values are one-shot**: Configured initial values now only apply at entry creation (seeding). They no longer act as persistent floor/ceiling on resets, restores, or consistency checks.
+- **Sensor name labels**: Changed from `Max`/`Min`/`Delta` to `(Max)`/`(Min)`/`(Delta)` for clearer display.
+
 # 0.3.46 - 2026-03-07
 ## Fixed
 - **Surgical reset double-reload**: Moving `CONF_RESET_HISTORY` cleanup before update listener registration prevents a second reload that overwrites initial values with stale restored data.

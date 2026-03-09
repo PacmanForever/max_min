@@ -68,8 +68,8 @@ async def test_sensor_setup(hass, config_entry):
     assert async_add_entities.called
     entities = async_add_entities.call_args[0][0]
     assert len(entities) == 2
-    assert entities[0].name == "Test Sensor Daily Max"
-    assert entities[1].name == "Test Sensor Daily Min"
+    assert entities[0].name == "Test Sensor Daily (Max)"
+    assert entities[1].name == "Test Sensor Daily (Min)"
 
 
 @pytest.mark.asyncio

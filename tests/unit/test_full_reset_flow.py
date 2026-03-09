@@ -110,7 +110,7 @@ async def test_reset_with_unavailable_source_uses_last_end_fallback(hass, config
     with patch("custom_components.max_min.coordinator.async_track_point_in_time"):
         coordinator._perform_reset(now, PERIOD_DAILY)
 
-    # Daily period starts from last known source value, not previous-day max
+    # Daily period: start/end use seed, re-anchored on first update
     assert coordinator.tracked_data[PERIOD_DAILY]["max"] == 0.0
     assert coordinator.tracked_data[PERIOD_DAILY]["min"] == 0.0
     assert coordinator.tracked_data[PERIOD_DAILY]["start"] == 0.0

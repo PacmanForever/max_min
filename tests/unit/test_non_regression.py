@@ -409,7 +409,7 @@ def test_nr14_surgical_reset():
 
 @freeze_time("2026-02-22 00:00:00", tz_offset=0)
 def test_nr15_initial_value_enforcement():
-    """After reset, configured initials act as floor/ceiling."""
+    """After reset, initials are one-shot: max/min = seed."""
     hass = _hass("13.0")
     entry = _entry()
     entry.data["daily_initial_max"] = 45.0
@@ -426,11 +426,10 @@ def test_nr15_initial_value_enforcement():
         coordinator._perform_reset(now, PERIOD_DAILY)
 
     data = coordinator.tracked_data[PERIOD_DAILY]
-    # seed=13.0, initial_max=45.0 → max(13.0, 45.0) = 45.0
-    assert data["max"] == 45.0
-    # seed=13.0, initial_min=-5.0 → min(13.0, -5.0) = -5.0
-    assert data["min"] == -5.0
-    # start/end always reflect the actual seed
+    # seed=13.0, initials are one-shot → max=seed, min=seed
+    assert data["max"] == 13.0
+    assert data["min"] == 13.0
+    # start/end use seed, will be re-anchored on first sensor update
     assert data["start"] == 13.0
     assert data["end"] == 13.0
 
@@ -652,17 +651,15 @@ async def test_nr20_delta_legacy_state_migration(hass):
     with patch("custom_components.max_min.sensor.RestoreEntity.async_get_last_state", return_value=mock_last_state):
         await sensor.async_added_to_hass()
 
-    # Verify the coordinator's start value was offset
-    # start should be 1000.0 - 35.0 = 965.0
-    assert coord.tracked_data["weekly"]["start"] == 965.0
+    # Legacy migration removed (was harmful — corrupted start after resets).
+    # Now start is restored as-is.
+    assert coord.tracked_data["weekly"]["start"] == 1000.0
     assert coord.tracked_data["weekly"]["end"] == 1001.8
 
-    # Verify the sensor's native value is now 1001.8 - 965.0 = 36.8
-    assert sensor.native_value == pytest.approx(36.8)
+    # native_value = end - start = 1001.8 - 1000.0 = 1.8
+    assert sensor.native_value == pytest.approx(1.8)
 
-    # Now simulate a state that was ALREADY migrated (or created in v0.3.39)
-    # raw_delta = 1001.8 - 965.0 = 36.8
-    # Since 36.8 >= 35, it should NOT trigger the migration again.
+    # Simulate already-migrated state (start already offset)
     mock_last_state_migrated = State(
         "sensor.test_delta",
         "36.8",
@@ -679,7 +676,7 @@ async def test_nr20_delta_legacy_state_migration(hass):
     with patch("custom_components.max_min.sensor.RestoreEntity.async_get_last_state", return_value=mock_last_state_migrated):
         await sensor.async_added_to_hass()
 
-    # Verify the coordinator's start value was NOT offset again
+    # Restored as-is
     assert coord.tracked_data["weekly"]["start"] == 965.0
     assert coord.tracked_data["weekly"]["end"] == 1001.8
     assert sensor.native_value == pytest.approx(36.8)

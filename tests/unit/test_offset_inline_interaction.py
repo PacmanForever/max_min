@@ -92,8 +92,8 @@ async def test_inline_reset_blocked_within_offset_window(hass, config_entry_offs
     # Inline reset must NOT have fired — the scheduled listener must remain
     cancel_mock.assert_not_called()
 
-    # The old max/min from yesterday must still be present (offset dead zone skips updates)
-    assert coordinator.tracked_data[PERIOD_DAILY]["max"] == 100.0
+    # Dead zone still updates max/min/end to keep values accurate
+    assert coordinator.tracked_data[PERIOD_DAILY]["max"] == 105.0
     assert coordinator.tracked_data[PERIOD_DAILY]["min"] == 5.0
 
 
@@ -111,8 +111,8 @@ async def test_inline_reset_blocked_at_offset_boundary(hass, config_entry_offset
         coordinator._handle_sensor_change(event)
 
     cancel_mock.assert_not_called()
-    # Dead zone still active → values unchanged
-    assert coordinator.tracked_data[PERIOD_DAILY]["max"] == 100.0
+    # Dead zone still active, but max/min/end are updated
+    assert coordinator.tracked_data[PERIOD_DAILY]["max"] == 105.0
 
 
 # ---------------------------------------------------------------------------
@@ -203,6 +203,6 @@ async def test_offset_dead_zone_with_realistic_last_reset(hass, config_entry_off
     with patch("custom_components.max_min.coordinator.async_track_point_in_time"):
         coordinator._handle_sensor_change(event)
 
-    # Value must NOT have changed — dead zone is active
-    assert coordinator.tracked_data[PERIOD_DAILY]["max"] == 100.0
+    # Dead zone is active but max/min/end are still updated
+    assert coordinator.tracked_data[PERIOD_DAILY]["max"] == 200.0
     assert coordinator.tracked_data[PERIOD_DAILY]["min"] == 5.0

@@ -80,7 +80,10 @@ async def test_offset_dead_zone_ignore_updates(hass, config_entry):
     coordinator._next_resets = {
         PERIOD_DAILY: datetime(2023, 1, 2, 0, 0, 0, tzinfo=timezone.utc)
     }
-    coordinator.tracked_data[PERIOD_DAILY] = {"max": 10.0, "min": 10.0}
+    coordinator.tracked_data[PERIOD_DAILY] = {
+        "max": 10.0, "min": 10.0, "start": 10.0, "end": 10.0,
+        "last_reset": datetime(2023, 1, 1, 0, 0, 0, tzinfo=timezone.utc),
+    }
     
     with patch("custom_components.max_min.coordinator.async_track_point_in_time"):
         # CASE 1: Normal time (Safe zone)
@@ -100,8 +103,8 @@ async def test_offset_dead_zone_ignore_updates(hass, config_entry):
             event.data = {"new_state": Mock(state="30.0", attributes={"state_class": "total_increasing"})}
             coordinator._handle_sensor_change(event)
             
-            # Should NOT update (still 20.0)
-            assert coordinator.tracked_data[PERIOD_DAILY]["max"] == 20.0
+            # Dead zone updates max/min/end to keep values accurate
+            assert coordinator.tracked_data[PERIOD_DAILY]["max"] == 30.0
 
         # CASE 3: Inside Dead Zone (After)
         # 2023-01-02 00:00:05 - 5s after reset (Unsafe, inside 10s offset)
@@ -110,8 +113,8 @@ async def test_offset_dead_zone_ignore_updates(hass, config_entry):
             event.data = {"new_state": Mock(state="40.0", attributes={"state_class": "total_increasing"})}
             coordinator._handle_sensor_change(event)
             
-            # Should NOT update (still 20.0)
-            assert coordinator.tracked_data[PERIOD_DAILY]["max"] == 20.0
+            # Dead zone updates max/min/end to keep values accurate
+            assert coordinator.tracked_data[PERIOD_DAILY]["max"] == 40.0
 
         # CASE 4: Normal time (After Safe Zone)
         # 2023-01-02 00:00:15 - 15s after reset (Safe)
