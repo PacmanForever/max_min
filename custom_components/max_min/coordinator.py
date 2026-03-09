@@ -110,8 +110,8 @@ class MaxMinDataUpdateCoordinator(DataUpdateCoordinator):
             _LOGGER.debug("Period %s: Initial Max=%s, Min=%s, Delta=%s", period, p_initial_max, p_initial_min, p_initial_delta)
 
             self.tracked_data[period] = {
-                "max": p_initial_max,
-                "min": p_initial_min,
+                "max": None,
+                "min": None,
                 "start": None,
                 "end": None
             }
@@ -131,6 +131,10 @@ class MaxMinDataUpdateCoordinator(DataUpdateCoordinator):
         # after a reset.  Avoids race conditions with sensors that also reset at
         # midnight while keeping delta=0 (not unavailable) immediately after reset.
         self._pending_start_reanchor: set[str] = set()
+        # Periods that received valid restored data from RestoreEntity.
+        # Used by apply_pending_initials to skip initial enforcement for
+        # periods that already have correct restored state.
+        self._restore_accepted: set[str] = set()
         
         # Start Watchdog (every 1 minute)
         # It ensures that if a reset timer failed or was missed, we catch up eventually.
@@ -155,30 +159,6 @@ class MaxMinDataUpdateCoordinator(DataUpdateCoordinator):
 
     def get_value(self, period, type_):
         """Get value for specific period and type."""
-        # Force a look at the latest config entry data/options to be absolutely sure
-        if self.config_entry:
-            key = f"{period}_initial_{type_}"
-            # Check options first (from OptionsFlow), then data (from ConfigFlow)
-            # Use explicit None check to handle potential empty dict entry properly
-            init_val = self.config_entry.options.get(key)
-            if init_val is None:
-                init_val = self.config_entry.data.get(key)
-                
-            if init_val is not None:
-                try:
-                    init_val = _as_float(init_val)
-                    current_val = self.tracked_data.get(period, {}).get(type_)
-                    if type_ == "max":
-                        if current_val is None or current_val < init_val:
-                            _LOGGER.debug("get_value(%s, %s) returning initial %s over current %s", period, type_, init_val, current_val)
-                            return init_val
-                    elif type_ == "min":
-                        if current_val is None or current_val > init_val:
-                            _LOGGER.debug("get_value(%s, %s) returning initial %s over current %s", period, type_, init_val, current_val)
-                            return init_val
-                except (ValueError, TypeError):
-                    pass
-
         if period in self.tracked_data:
             return self.tracked_data[period].get(type_)
         return None
@@ -372,6 +352,10 @@ class MaxMinDataUpdateCoordinator(DataUpdateCoordinator):
             # Now we allow restoration if the value is more extreme or data is empty.
             _LOGGER.debug("[%s] Restoring %s %s without last_reset info", self.config_entry.title, period, type_)
 
+        # Mark this period as having received valid restore data.
+        # apply_pending_initials() will skip periods with valid restores.
+        self._restore_accepted.add(period)
+
         # Only update if the restored value extends the current range (or initializes it)
         # Note: stored data might have been initialized by current sensor state in first_refresh
         # If restored value is "more extreme", we keep it.
@@ -424,15 +408,6 @@ class MaxMinDataUpdateCoordinator(DataUpdateCoordinator):
                             data["start"] = current_value
                     if data.get("end") is None:
                         data["end"] = current_value
-                    
-                    # Enforce configured initial values as floor/ceiling
-                    initials = self._configured_initials.get(period, {})
-                    initial_max = initials.get("max")
-                    initial_min = initials.get("min")
-                    if initial_max is not None and (data["max"] is None or data["max"] < initial_max):
-                        data["max"] = initial_max
-                    if initial_min is not None and (data["min"] is None or data["min"] > initial_min):
-                        data["min"] = initial_min
 
                 self._check_consistency()
             except ValueError:
@@ -452,6 +427,55 @@ class MaxMinDataUpdateCoordinator(DataUpdateCoordinator):
         self._unsub_sensor_state_listener = async_track_state_change_event(
             self.hass, [self.sensor_entity], self._handle_sensor_change
         )
+
+    @callback
+    def apply_pending_initials(self):
+        """Apply configured initial values for periods that had NO valid restore.
+
+        Called from async_setup_entry AFTER platform setup (i.e. after
+        RestoreEntity has had a chance to restore state).  Only applies
+        initials for periods where no valid state was restored — this makes
+        initials truly one-shot: they seed a brand-new entry but never
+        override correctly restored data on restart.
+        """
+        state = self.hass.states.get(self.sensor_entity)
+        current_value = None
+        if state and state.state not in (None, "unknown", "unavailable"):
+            try:
+                current_value = round(float(state.state), 4)
+            except ValueError:
+                pass
+
+        applied = False
+        for period, initials in self._configured_initials.items():
+            if period in self._restore_accepted:
+                continue  # Valid restore ran; don't override with initials
+
+            data = self.tracked_data.get(period)
+            if data is None:
+                continue
+
+            initial_max = initials.get("max")
+            initial_min = initials.get("min")
+            initial_delta = initials.get("delta")
+
+            if initial_max is not None and (data["max"] is None or data["max"] < initial_max):
+                data["max"] = initial_max
+                applied = True
+            if initial_min is not None and (data["min"] is None or data["min"] > initial_min):
+                data["min"] = initial_min
+                applied = True
+            if initial_delta is not None and current_value is not None:
+                data["start"] = current_value - initial_delta
+                data["end"] = current_value
+                applied = True
+
+        # One-shot: clear so they never interfere again
+        self._configured_initials = {}
+
+        if applied:
+            self._check_consistency()
+            self.async_set_updated_data({})
 
     @callback
     def _handle_sensor_change(self, event):

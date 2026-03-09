@@ -360,7 +360,7 @@ async def test_reset_rescheduling_edge_cases(hass, config_entry):
 
 @pytest.mark.asyncio
 async def test_coordinator_per_period_initial_values(hass, config_entry):
-    """Test coordinator respects per-period initial values."""
+    """Test coordinator respects per-period initial values (one-shot seeding)."""
     config_entry.options = {
         CONF_PERIODS: [PERIOD_DAILY, PERIOD_WEEKLY],
         "daily_initial_max": 20.0,
@@ -374,11 +374,17 @@ async def test_coordinator_per_period_initial_values(hass, config_entry):
     config_entry.data["initial_max"] = 100.0
     config_entry.data["initial_min"] = -100.0
 
-    # Ensure no current state updates overwrite initial values
-    hass.states.get.return_value = None 
+    # Sensor reports 10.0 — between the per-period min/max initials
+    hass.states.get.return_value = Mock(
+        state="10.0", attributes={"friendly_name": "Test"}
+    )
     
     coordinator = MaxMinDataUpdateCoordinator(hass, config_entry)
     await coordinator.async_config_entry_first_refresh()
+
+    # first_refresh only uses sensor value (10.0)
+    # No restore → apply_pending_initials applies per-period initials
+    coordinator.apply_pending_initials()
 
     assert coordinator.get_value(PERIOD_DAILY, TYPE_MAX) == 20.0
     assert coordinator.get_value(PERIOD_DAILY, TYPE_MIN) == 5.0

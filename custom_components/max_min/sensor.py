@@ -209,8 +209,10 @@ class MaxSensor(_BaseMaxMinSensor):
         await super().async_added_to_hass()
         last_state = await self.async_get_last_state()
         if last_state:
-            # Skip restore if state belongs to a different config entry (delete+recreate)
-            if last_state.attributes.get("config_entry_id") not in (None, self._config_entry.entry_id):
+            # Skip restore if state belongs to a different config entry (delete+recreate).
+            # Accept states with no config_entry_id (pre-v0.3.47 backward compat).
+            old_entry_id = last_state.attributes.get("config_entry_id")
+            if old_entry_id is not None and old_entry_id != self._config_entry.entry_id:
                 return
 
             self._attr_native_unit_of_measurement = last_state.attributes.get("unit_of_measurement")
@@ -240,8 +242,10 @@ class MinSensor(_BaseMaxMinSensor):
         await super().async_added_to_hass()
         last_state = await self.async_get_last_state()
         if last_state:
-            # Skip restore if state belongs to a different config entry (delete+recreate)
-            if last_state.attributes.get("config_entry_id") not in (None, self._config_entry.entry_id):
+            # Skip restore if state belongs to a different config entry (delete+recreate).
+            # Accept states with no config_entry_id (pre-v0.3.47 backward compat).
+            old_entry_id = last_state.attributes.get("config_entry_id")
+            if old_entry_id is not None and old_entry_id != self._config_entry.entry_id:
                 return
 
             self._attr_native_unit_of_measurement = last_state.attributes.get("unit_of_measurement")
@@ -284,8 +288,10 @@ class DeltaSensor(_BaseMaxMinSensor):
         await super().async_added_to_hass()
         last_state = await self.async_get_last_state()
         if last_state:
-            # Skip restore if state belongs to a different config entry (delete+recreate)
-            if last_state.attributes.get("config_entry_id") not in (None, self._config_entry.entry_id):
+            # Skip restore if state belongs to a different config entry (delete+recreate).
+            # Accept states with no config_entry_id (pre-v0.3.47 backward compat).
+            old_entry_id = last_state.attributes.get("config_entry_id")
+            if old_entry_id is not None and old_entry_id != self._config_entry.entry_id:
                 return
 
             self._attr_native_unit_of_measurement = last_state.attributes.get("unit_of_measurement")

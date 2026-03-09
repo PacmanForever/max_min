@@ -27,6 +27,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     # Forward setup to platforms
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 
+    # Apply initial values AFTER platform setup (i.e. after RestoreEntity
+    # has had a chance to restore state).  This ensures user-configured
+    # initials always win over stale restored values.
+    coordinator.apply_pending_initials()
+
     # Surgical Reset Cleanup:
     # Clear the one-shot reset list BEFORE registering the update listener so
     # that async_update_entry does NOT trigger a second reload.  The coordinator

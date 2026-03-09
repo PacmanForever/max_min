@@ -1,6 +1,14 @@
 
 
 
+# 0.3.48 - 2026-03-09
+## Fixed
+- **Initials re-applied on every restart**: Root cause — `__init__` seeded `tracked_data` with initial values, `first_refresh` enforced them as floor/ceiling, and `get_value()` perpetually returned them over real data. All three paths now removed. Initials only apply via `apply_pending_initials()` for periods without a valid restore.
+- **Restore guard too strict**: `!= entry_id` rejected pre-v0.3.47 states (which have no `config_entry_id` attribute). Changed to permissive guard that only rejects when `config_entry_id` is present AND different (backward compatible).
+## Added
+- **`_restore_accepted` tracking**: `update_restored_data()` marks periods that received valid restored state. `apply_pending_initials()` skips those periods, ensuring initials are truly one-shot (creation only, never on restart).
+- **4 regression tests**: Restart does not re-apply max/min initials, restart after reset does not re-bleed initials, restart does not recompute delta start, surgical reset blocks restore and enables initial.
+
 # 0.3.47 - 2026-03-09
 ## Fixed
 - **Delta race condition at reset**: Reset now uses conservative seed + re-anchor on first real sensor update, preventing stale values when source sensor also resets at midnight.

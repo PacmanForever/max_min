@@ -250,8 +250,7 @@ class TestDeltaPersistence:
         # Mock last state with start/end attributes
         last_state = Mock()
         last_state.state = "5.0"
-        last_state.attributes = {
-            "start_value": 10.0,
+        last_state.attributes = {            "config_entry_id": "test",            "start_value": 10.0,
             "end_value": 15.0,
             "last_reset": "2026-02-10T00:00:00+00:00"
         }
@@ -312,7 +311,7 @@ class TestDeltaPersistence:
         # Mock restoration
         last_state = Mock()
         last_state.state = "5.0"
-        last_state.attributes = {"start_value": 10.0, "end_value": 15.0}
+        last_state.attributes = {"config_entry_id": "test", "start_value": 10.0, "end_value": 15.0}
         sensor.async_get_last_state = AsyncMock(return_value=last_state)
 
         await sensor.async_added_to_hass()
@@ -377,6 +376,7 @@ class TestDeltaPersistence:
         last_state = Mock()
         last_state.state = "5.0"
         last_state.attributes = {
+            "config_entry_id": "test",
             "unit_of_measurement": "kWh",
             "device_class": "energy",
             "start_value": 10.0,
@@ -421,7 +421,7 @@ class TestHistoryPreservation:
         assert coordinator.tracked_data[PERIOD_DAILY]["max"] == 50.0
 
     def test_initial_values_survive_first_refresh(self):
-        """Test that configured initial values are not overwritten by first_refresh."""
+        """Test that configured initial values are applied for new entries (no restore)."""
         ha = Mock()
         
         entry = Mock()
@@ -439,7 +439,11 @@ class TestHistoryPreservation:
 
         coordinator = MaxMinDataUpdateCoordinator(ha, entry)
 
-        # After initialization, max should be 45 (the floor), not 13
+        # After __init__, max is None (not seeded)
+        assert coordinator.tracked_data[PERIOD_YEARLY]["max"] is None
+
+        # No restore happened → apply_pending_initials applies the initial
+        coordinator.apply_pending_initials()
         assert coordinator.get_value(PERIOD_YEARLY, "max") == 45.0
 
     def test_restored_value_not_overwritten_by_current(self):
@@ -470,11 +474,11 @@ class TestHistoryPreservation:
         assert coordinator.get_value(PERIOD_DAILY, "max") == 50.0
 
 
-class TestInitialValueEnforcement:
-    """Test that initial values are always enforced (v0.3.20+)."""
+class TestInitialValueOneShot:
+    """Test that initial values are one-shot, not perpetually enforced (v0.3.47+)."""
 
-    def test_get_value_enforces_floor_for_max(self):
-        """Test that get_value returns initial max if internal value is lower."""
+    def test_get_value_returns_tracked_data_for_max(self):
+        """get_value returns tracked_data directly, not enforcing initials."""
         ha = Mock()
         ha.states.get.return_value = Mock(state="10.0", attributes={})
         
@@ -489,14 +493,14 @@ class TestInitialValueEnforcement:
 
         coordinator = MaxMinDataUpdateCoordinator(ha, entry)
         
-        # Manually set internal value to something lower
+        # Manually set tracked value
         coordinator.tracked_data[PERIOD_YEARLY]["max"] = 13.0
 
-        # get_value should return the configured floor
-        assert coordinator.get_value(PERIOD_YEARLY, "max") == 45.0
+        # get_value returns tracked value, NOT the initial
+        assert coordinator.get_value(PERIOD_YEARLY, "max") == 13.0
 
-    def test_get_value_enforces_ceiling_for_min(self):
-        """Test that get_value returns initial min if internal value is higher."""
+    def test_get_value_returns_tracked_data_for_min(self):
+        """get_value returns tracked_data directly, not enforcing initials."""
         ha = Mock()
         ha.states.get.return_value = Mock(state="10.0", attributes={})
         
@@ -511,14 +515,14 @@ class TestInitialValueEnforcement:
 
         coordinator = MaxMinDataUpdateCoordinator(ha, entry)
         
-        # Manually set internal value to something higher
+        # Manually set tracked value
         coordinator.tracked_data[PERIOD_DAILY]["min"] = 20.0
 
-        # get_value should return the configured ceiling
-        assert coordinator.get_value(PERIOD_DAILY, "min") == 5.0
+        # get_value returns tracked value, NOT the initial
+        assert coordinator.get_value(PERIOD_DAILY, "min") == 20.0
 
-    def test_consistency_cannot_override_initials(self):
-        """Test that cross-period consistency cannot override configured initials."""
+    def test_consistency_propagates_without_initial_override(self):
+        """Cross-period consistency propagates freely without initial interference."""
         ha = Mock()
         ha.states.get.return_value = Mock(state="10.0", attributes={})
         
@@ -540,6 +544,6 @@ class TestInitialValueEnforcement:
         # Trigger consistency check
         coordinator._check_consistency()
 
-        # Even if consistency tries to propagate 15 to yearly,
-        # get_value should still return the configured floor
-        assert coordinator.get_value(PERIOD_YEARLY, "max") == 45.0
+        # Consistency propagates daily max (15) to yearly;
+        # get_value returns the tracked value, not the initial
+        assert coordinator.get_value(PERIOD_YEARLY, "max") == 15.0

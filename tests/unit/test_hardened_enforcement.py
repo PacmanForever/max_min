@@ -66,15 +66,16 @@ def test_reset_history_flag():
     entry.entry_id = "test_entry"
 
     coordinator = MaxMinDataUpdateCoordinator(hass, entry)
-    # Simulator sensor restoration
+    # Simulator sensor restoration (blocked by reset_history)
     coordinator.update_restored_data(PERIOD_YEARLY, "max", 100.0)
     
-    # Should be at Initial value, NOT restored 100.0
-    # Because __init__ sets it to 45.0 and update_restored_data is blocked
+    # Restore was blocked → period NOT in _restore_accepted
+    # apply_pending_initials applies the initial
+    coordinator.apply_pending_initials()
+
     val = coordinator.tracked_data[PERIOD_YEARLY]["max"]
     assert val == 45.0, f"Expected 45.0 (Initial), got {val} (restoration was probably NOT blocked)"
     
-    # But get_value still reports 45.0
     assert coordinator.get_value(PERIOD_YEARLY, "max") == 45.0
     print("✓ Reset history flag OK")
 
@@ -102,10 +103,14 @@ def test_surgical_reset_automatic():
     coordinator.update_restored_data(PERIOD_DAILY, "max", 10.0)
     coordinator.update_restored_data(PERIOD_YEARLY, "max", 10.0)
     
+    # Daily was restored (accepted), Yearly was blocked (surgery)
+    # apply_pending_initials: daily skipped (restored), yearly applied (not restored)
+    coordinator.apply_pending_initials()
+
     # Daily should be 10 (Restored)
     assert coordinator.tracked_data[PERIOD_DAILY]["max"] == 10.0
     
-    # Yearly should be 45 (Restored 10 was IGNORED because it was in reset_history)
+    # Yearly should be 45 (Restored 10 was IGNORED, initial applied)
     assert coordinator.tracked_data[PERIOD_YEARLY]["max"] == 45.0
     
     print("✓ Surgical reset OK")

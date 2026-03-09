@@ -642,6 +642,7 @@ async def test_nr20_delta_legacy_state_migration(hass):
         "sensor.test_delta",
         "35.0", # In v0.3.38, it showed max(1.8, 35) = 35
         attributes={
+            "config_entry_id": "test_entry",
             "start_value": 1000.0,
             "end_value": 1001.8,
             "last_reset": now.isoformat()
@@ -664,6 +665,7 @@ async def test_nr20_delta_legacy_state_migration(hass):
         "sensor.test_delta",
         "36.8",
         attributes={
+            "config_entry_id": "test_entry",
             "start_value": 965.0,
             "end_value": 1001.8,
             "last_reset": now.isoformat()
@@ -712,6 +714,7 @@ async def test_nr21_delta_legacy_state_migration_partial_restore(hass):
         "sensor.test_delta",
         "35.0",
         attributes={
+            "config_entry_id": "test_entry",
             "start_value": 1000.0,
             "last_reset": now.isoformat()
         }
@@ -731,6 +734,7 @@ async def test_nr21_delta_legacy_state_migration_partial_restore(hass):
         "sensor.test_delta",
         "35.0",
         attributes={
+            "config_entry_id": "test_entry",
             "end_value": 1001.8,
             "last_reset": now.isoformat()
         }

@@ -76,7 +76,7 @@ async def test_max_sensor_restores_state(mock_coordinator, mock_config_entry):
     # Mock last state
     last_state = Mock()
     last_state.state = "25.5"
-    last_state.attributes = {}
+    last_state.attributes = {"config_entry_id": "test_entry"}
     sensor.async_get_last_state = AsyncMock(return_value=last_state)
     
     # Spy on coordinator
@@ -96,7 +96,7 @@ async def test_min_sensor_restores_state(mock_coordinator, mock_config_entry):
     # Mock last state
     last_state = Mock()
     last_state.state = "-5.0"
-    last_state.attributes = {}
+    last_state.attributes = {"config_entry_id": "test_entry"}
     sensor.async_get_last_state = AsyncMock(return_value=last_state)
     
     # Spy on coordinator
