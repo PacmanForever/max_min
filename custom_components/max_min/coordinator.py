@@ -328,19 +328,33 @@ class MaxMinDataUpdateCoordinator(DataUpdateCoordinator):
         data = self.tracked_data[period]
         
         # Check if the restored data is stale (from previous period)
-        # If last_reset is provided, we check against current period start.
+        # Accept if last_reset is within the same period (year, month, week, day)
         if last_reset:
             if isinstance(last_reset, str):
                 last_reset = dt_util.parse_datetime(last_reset)
-            
+
             if last_reset:
                 now = dt_util.now()
                 period_start = self._get_period_start(now, period)
-                
-                # If the restored point is older than the current period start, ignore it
-                # Unless we are in "All Time" which never expires
-                if period != PERIOD_ALL_TIME and period_start and last_reset < period_start:
-                    _LOGGER.debug("Ignoring restored data for %s (stale): %s < %s", period, last_reset, period_start)
+                # Determine if last_reset is in the same period as now
+                same_period = False
+                if period == PERIOD_YEARLY:
+                    same_period = last_reset.year == now.year
+                elif period == PERIOD_MONTHLY:
+                    same_period = (last_reset.year == now.year and last_reset.month == now.month)
+                elif period == PERIOD_WEEKLY:
+                    # ISO week: (year, week)
+                    same_period = (last_reset.isocalendar()[:2] == now.isocalendar()[:2])
+                elif period == PERIOD_DAILY:
+                    same_period = (last_reset.date() == now.date())
+                elif period == PERIOD_ALL_TIME:
+                    same_period = True
+                else:
+                    # Fallback: compare with period_start as before
+                    same_period = last_reset >= period_start if period_start else True
+
+                if not same_period:
+                    _LOGGER.warning("Ignoring restored data for %s: last_reset %s is from a previous period (now=%s)", period, last_reset, now)
                     return
 
                 # If the restored last_reset is newer than what we have, take it
