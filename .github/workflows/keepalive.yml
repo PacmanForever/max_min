@@ -8,8 +8,24 @@ jobs:
   keepalive:
     runs-on: ubuntu-latest
     permissions:
-      actions: write
       contents: write
     steps:
       - uses: actions/checkout@v4
-      - uses: gautamkrishnar/keepalive-workflow@v2
+      - name: Keep repository active
+        run: |
+          set -e
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          mkdir -p .github
+          date -u +"%Y-%m-%dT%H:%M:%SZ" > .github/.keepalive
+
+          git add .github/.keepalive
+
+          if git diff --cached --quiet; then
+            echo "No keepalive changes to commit"
+            exit 0
+          fi
+
+          git commit -m "chore(ci): keepalive [skip ci]"
+          git push
