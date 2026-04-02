@@ -324,6 +324,21 @@ class DeltaSensor(_BaseMaxMinSensor):
                     except ValueError:
                         pass
 
+                # If both start/end are missing but we still have a numeric
+                # restored delta and last_reset, reconstruct boundaries from
+                # the current source value to avoid a transient delta=0 after restart.
+                if start is None and end is None and last_reset:
+                    try:
+                        restored_delta = _as_float(last_state.state)
+                        source_state = self.coordinator.hass.states.get(self.coordinator.sensor_entity)
+                        if source_state and source_state.state not in (None, "unknown", "unavailable"):
+                            end_f = _as_float(source_state.state)
+                            start_f = end_f - restored_delta
+                            self.coordinator.update_restored_data(self.period, "start", start_f, last_reset)
+                            self.coordinator.update_restored_data(self.period, "end", end_f, last_reset)
+                    except (ValueError, TypeError):
+                        pass
+
     @property
     def extra_state_attributes(self):
         """Return delta-specific attributes (start, end, last_reset)."""

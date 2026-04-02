@@ -745,3 +745,46 @@ async def test_nr21_delta_legacy_state_migration_partial_restore(hass):
 
     assert coord.tracked_data["weekly"]["start"] is None
     assert coord.tracked_data["weekly"]["end"] == 1001.8
+
+
+@pytest.mark.asyncio
+async def test_nr22_delta_restore_reconstructs_boundaries_when_attrs_missing(hass):
+    """If restored delta lacks start/end attrs, rebuild boundaries from source value."""
+    from custom_components.max_min.sensor import DeltaSensor
+    from custom_components.max_min.coordinator import MaxMinDataUpdateCoordinator
+    from homeassistant.core import State
+    from unittest.mock import patch, MagicMock
+    import homeassistant.util.dt as dt_util
+
+    config_entry = MagicMock()
+    config_entry.options = {}
+    config_entry.data = {"sensor_entity": "sensor.test", "periods": ["weekly"], "offset": 0}
+    config_entry.entry_id = "test_entry"
+
+    # Current source state used to reconstruct end_value on startup.
+    hass.states.get.return_value = State("sensor.test", "121.6", {"friendly_name": "Test"})
+
+    coord = MaxMinDataUpdateCoordinator(hass, config_entry)
+    coord.tracked_data["weekly"] = {"max": None, "min": None, "start": None, "end": None, "last_reset": None}
+
+    sensor = DeltaSensor(coord, config_entry, "Test Delta", "weekly")
+    sensor.hass = hass
+    sensor.entity_id = "sensor.test_delta"
+
+    now = dt_util.now()
+    # State has only delta + last_reset, but missing start/end attributes.
+    mock_last_state = State(
+        "sensor.test_delta",
+        "18.4",
+        attributes={
+            "config_entry_id": "test_entry",
+            "last_reset": now.isoformat(),
+        },
+    )
+
+    with patch("custom_components.max_min.sensor.RestoreEntity.async_get_last_state", return_value=mock_last_state):
+        await sensor.async_added_to_hass()
+
+    assert coord.tracked_data["weekly"]["end"] == pytest.approx(121.6)
+    assert coord.tracked_data["weekly"]["start"] == pytest.approx(103.2)
+    assert sensor.native_value == pytest.approx(18.4)

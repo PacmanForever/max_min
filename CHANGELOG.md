@@ -1,4 +1,8 @@
 
+# 0.3.50 - 2026-04-02
+## Fixed
+- **Delta restore reconstructs boundaries when attributes missing**: After a Home Assistant restart, if a delta sensor's restored state lacked `start_value`/`end_value` attributes (e.g. from older states), the sensor was re-anchoring start/end to the current source value, causing a transient delta=0 in the graph. The restore path now reconstructs boundaries from the restored delta value and the current source reading (`end = source`, `start = end - delta`), preserving continuity across restarts.
+
 # 0.3.49 - 2026-03-23
 ## Fixed
 - **Restore accepts same-period state**: Restored data is now accepted if `last_reset` is within the same period (year, month, week, day) instead of requiring an exact match to the period start. This prevents unwanted resets to zero for yearly/monthly/weekly/daily sensors after Home Assistant restarts, ensuring continuity for all period types. Logs a warning if restore is rejected for being from a previous period.
