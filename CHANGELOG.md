@@ -1,4 +1,12 @@
 
+# 0.3.51 - 2026-04-06
+## Fixed
+- **Timezone-safe restore period validation**: Restored `last_reset` values are now normalized to local time and validated using real period windows (`period_start <= ts < next_period_start`). This prevents valid restored states from being incorrectly rejected as stale, which could trigger phantom resets.
+- **Delta continuity on partial restore**: If a restored Delta state has only the numeric state (missing `start_value`/`end_value` and `last_reset`), boundaries are now reconstructed from the live source value (`end = source`, `start = end - delta`) to avoid restart/reload drops to `0`.
+## Added
+- **Reset diagnostics in entity attributes**: Sensors now expose `last_reset_reason` and `last_reset_triggered_at` to make root-cause analysis of resets immediate (scheduler/watchdog/inline/backup/early_offset).
+- **Regression coverage**: Added tests for timezone restore acceptance, Delta reconstruction without `last_reset`, and reset diagnostics attributes.
+
 # 0.3.50 - 2026-04-02
 ## Fixed
 - **Delta restore reconstructs boundaries when attributes missing**: After a Home Assistant restart, if a delta sensor's restored state lacked `start_value`/`end_value` attributes (e.g. from older states), the sensor was re-anchoring start/end to the current source value, causing a transient delta=0 in the graph. The restore path now reconstructs boundaries from the restored delta value and the current source reading (`end = source`, `start = end - delta`), preserving continuity across restarts.

@@ -73,6 +73,37 @@ async def test_sensor_extra_state_attributes(coordinator, mock_config_entry):
     attrs = sensor.extra_state_attributes
     assert "last_reset" not in attrs
 
+
+def test_extra_state_attributes_include_reset_diagnostics(hass):
+    """Sensor attributes expose reset diagnostics for troubleshooting."""
+    from custom_components.max_min.const import CONF_PERIODS, CONF_TYPES, TYPE_MAX
+
+    entry = Mock()
+    entry.entry_id = "entry1"
+    entry.data = {
+        CONF_SENSOR_ENTITY: "sensor.test",
+        CONF_PERIODS: [PERIOD_DAILY],
+        CONF_TYPES: [TYPE_MAX],
+    }
+    entry.options = {}
+
+    coordinator = MaxMinDataUpdateCoordinator(hass, entry)
+    now = datetime(2023, 1, 1, 0, 0, 10, tzinfo=timezone.utc)
+    coordinator.tracked_data[PERIOD_DAILY] = {
+        "max": 10.0,
+        "min": 5.0,
+        "start": 5.0,
+        "end": 10.0,
+        "last_reset": datetime(2023, 1, 1, 0, 0, 0, tzinfo=timezone.utc),
+        "last_reset_reason": "watchdog",
+        "last_reset_triggered_at": now,
+    }
+
+    sensor = MaxSensor(coordinator, entry, "Test Max", PERIOD_DAILY)
+    attrs = sensor.extra_state_attributes
+    assert attrs["last_reset_reason"] == "watchdog"
+    assert attrs["last_reset_triggered_at"] == now.isoformat()
+
 @pytest.mark.asyncio
 async def test_coordinator_unload(coordinator):
     """Test async_unload."""

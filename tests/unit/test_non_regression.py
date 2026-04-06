@@ -75,6 +75,8 @@ def test_nr01_reset_at_exact_midnight():
     data = coordinator.tracked_data[PERIOD_DAILY]
     # last_reset == period_start, NOT wall-clock now
     assert data["last_reset"] == datetime(2026, 2, 22, 0, 0, 0, tzinfo=timezone.utc)
+    assert data["last_reset_reason"] == "scheduler"
+    assert data["last_reset_triggered_at"] == now
     assert data["max"] == 5.0
     assert data["min"] == 5.0
     assert data["start"] == 5.0
@@ -788,3 +790,42 @@ async def test_nr22_delta_restore_reconstructs_boundaries_when_attrs_missing(has
     assert coord.tracked_data["weekly"]["end"] == pytest.approx(121.6)
     assert coord.tracked_data["weekly"]["start"] == pytest.approx(103.2)
     assert sensor.native_value == pytest.approx(18.4)
+
+
+@pytest.mark.asyncio
+async def test_nr23_delta_restore_reconstructs_without_last_reset(hass):
+    """If restored delta has no attrs and no last_reset, keep continuity from source."""
+    from custom_components.max_min.sensor import DeltaSensor
+    from custom_components.max_min.coordinator import MaxMinDataUpdateCoordinator
+    from homeassistant.core import State
+    from unittest.mock import patch, MagicMock
+
+    config_entry = MagicMock()
+    config_entry.options = {}
+    config_entry.data = {"sensor_entity": "sensor.test", "periods": ["weekly"], "offset": 0}
+    config_entry.entry_id = "test_entry"
+
+    hass.states.get.return_value = State("sensor.test", "240.5", {"friendly_name": "Test"})
+
+    coord = MaxMinDataUpdateCoordinator(hass, config_entry)
+    coord.tracked_data["weekly"] = {"max": None, "min": None, "start": None, "end": None, "last_reset": None}
+
+    sensor = DeltaSensor(coord, config_entry, "Test Delta", "weekly")
+    sensor.hass = hass
+    sensor.entity_id = "sensor.test_delta"
+
+    # Restored entity state contains only delta value (legacy or trimmed recorder attrs).
+    mock_last_state = State(
+        "sensor.test_delta",
+        "14.3",
+        attributes={
+            "config_entry_id": "test_entry",
+        },
+    )
+
+    with patch("custom_components.max_min.sensor.RestoreEntity.async_get_last_state", return_value=mock_last_state):
+        await sensor.async_added_to_hass()
+
+    assert coord.tracked_data["weekly"]["end"] == pytest.approx(240.5)
+    assert coord.tracked_data["weekly"]["start"] == pytest.approx(226.2)
+    assert sensor.native_value == pytest.approx(14.3)

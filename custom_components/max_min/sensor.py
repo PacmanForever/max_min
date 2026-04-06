@@ -192,6 +192,12 @@ class _BaseMaxMinSensor(CoordinatorEntity, SensorEntity, RestoreEntity):
         last_reset = self.coordinator.get_value(self.period, "last_reset")
         if last_reset:
             attrs["last_reset"] = last_reset.isoformat()
+        last_reset_reason = self.coordinator.get_value(self.period, "last_reset_reason")
+        if last_reset_reason:
+            attrs["last_reset_reason"] = last_reset_reason
+        last_reset_triggered_at = self.coordinator.get_value(self.period, "last_reset_triggered_at")
+        if last_reset_triggered_at and hasattr(last_reset_triggered_at, "isoformat"):
+            attrs["last_reset_triggered_at"] = last_reset_triggered_at.isoformat()
         return attrs
 
 
@@ -325,9 +331,11 @@ class DeltaSensor(_BaseMaxMinSensor):
                         pass
 
                 # If both start/end are missing but we still have a numeric
-                # restored delta and last_reset, reconstruct boundaries from
-                # the current source value to avoid a transient delta=0 after restart.
-                if start is None and end is None and last_reset:
+                # restored delta, reconstruct boundaries from the current source
+                # value to avoid a transient delta=0 after restart/reload.
+                # last_reset is passed when available and validated in coordinator;
+                # when absent we still prefer continuity over a forced re-seed to 0.
+                if start is None and end is None:
                     try:
                         restored_delta = _as_float(last_state.state)
                         source_state = self.coordinator.hass.states.get(self.coordinator.sensor_entity)

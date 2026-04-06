@@ -113,7 +113,9 @@ class MaxMinDataUpdateCoordinator(DataUpdateCoordinator):
                 "max": None,
                 "min": None,
                 "start": None,
-                "end": None
+                "end": None,
+                "last_reset_reason": None,
+                "last_reset_triggered_at": None,
             }
             self._configured_initials[period] = {
                 "max": p_initial_max,
@@ -234,6 +236,22 @@ class MaxMinDataUpdateCoordinator(DataUpdateCoordinator):
 
         return last_reset
 
+    @staticmethod
+    def _is_timestamp_in_period(timestamp: datetime, now: datetime, period: str) -> bool:
+        """Return True when timestamp belongs to the current period of now."""
+        if period == PERIOD_ALL_TIME:
+            return True
+
+        period_start = MaxMinDataUpdateCoordinator._get_period_start(now, period)
+        if period_start is None:
+            return True
+
+        next_period_start = MaxMinDataUpdateCoordinator._compute_next_reset(period_start, period)
+        if next_period_start is None:
+            return timestamp >= period_start
+
+        return period_start <= timestamp < next_period_start
+
     def _compute_reset_seed(self, period) -> float | None:
         """Compute the seed value for a period reset.
 
@@ -322,7 +340,9 @@ class MaxMinDataUpdateCoordinator(DataUpdateCoordinator):
                 "min": None, 
                 "start": None, 
                 "end": None, 
-                "last_reset": None
+                "last_reset": None,
+                "last_reset_reason": None,
+                "last_reset_triggered_at": None,
             }
             
         data = self.tracked_data[period]
@@ -330,36 +350,25 @@ class MaxMinDataUpdateCoordinator(DataUpdateCoordinator):
         # Check if the restored data is stale (from previous period)
         # Accept if last_reset is within the same period (year, month, week, day)
         if last_reset:
-            if isinstance(last_reset, str):
-                last_reset = dt_util.parse_datetime(last_reset)
-
+            now_local = dt_util.as_local(dt_util.now())
+            last_reset = self._normalize_last_reset(last_reset, now_local.tzinfo)
             if last_reset:
-                now = dt_util.now()
-                period_start = self._get_period_start(now, period)
-                # Determine if last_reset is in the same period as now
-                same_period = False
-                if period == PERIOD_YEARLY:
-                    same_period = last_reset.year == now.year
-                elif period == PERIOD_MONTHLY:
-                    same_period = (last_reset.year == now.year and last_reset.month == now.month)
-                elif period == PERIOD_WEEKLY:
-                    # ISO week: (year, week)
-                    same_period = (last_reset.isocalendar()[:2] == now.isocalendar()[:2])
-                elif period == PERIOD_DAILY:
-                    same_period = (last_reset.date() == now.date())
-                elif period == PERIOD_ALL_TIME:
-                    same_period = True
-                else:
-                    # Fallback: compare with period_start as before
-                    same_period = last_reset >= period_start if period_start else True
+                last_reset_local = dt_util.as_local(last_reset)
+                same_period = self._is_timestamp_in_period(last_reset_local, now_local, period)
 
                 if not same_period:
-                    _LOGGER.warning("Ignoring restored data for %s: last_reset %s is from a previous period (now=%s)", period, last_reset, now)
+                    _LOGGER.warning(
+                        "Ignoring restored data for %s: last_reset %s is from a previous period (now=%s)",
+                        period,
+                        last_reset_local,
+                        now_local,
+                    )
                     return
 
                 # If the restored last_reset is newer than what we have, take it
-                if data.get("last_reset") is None or last_reset > data["last_reset"]:
-                    data["last_reset"] = last_reset
+                current_last_reset = self._normalize_last_reset(data.get("last_reset"), now_local.tzinfo)
+                if current_last_reset is None or last_reset_local > current_last_reset:
+                    data["last_reset"] = last_reset_local
         else:
             # No last_reset info from restored state.
             # We used to be conservative here, but that caused data loss during updates.
@@ -508,6 +517,8 @@ class MaxMinDataUpdateCoordinator(DataUpdateCoordinator):
                         self.tracked_data[period] = {
                             "max": None, "min": None, "start": None, "end": None,
                             "last_reset": self._get_period_start(now, period),
+                            "last_reset_reason": None,
+                            "last_reset_triggered_at": None,
                         }
 
                     data = self.tracked_data[period]
@@ -683,6 +694,8 @@ class MaxMinDataUpdateCoordinator(DataUpdateCoordinator):
 
                 # Canonical: last_reset is the period start, not the wall-clock moment
                 self.tracked_data[period]["last_reset"] = self._get_period_start(now, period)
+                self.tracked_data[period]["last_reset_reason"] = reason
+                self.tracked_data[period]["last_reset_triggered_at"] = now
                 # Mark the period for re-anchoring BEFORE start/end assignment
                 # so that if anything below throws, the reanchor is still pending.
                 self._pending_start_reanchor.add(period)

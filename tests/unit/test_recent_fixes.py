@@ -2,6 +2,7 @@
 from unittest.mock import Mock, AsyncMock
 import pytest
 from datetime import datetime
+from zoneinfo import ZoneInfo
 
 from custom_components.max_min.const import (
     CONF_SENSOR_ENTITY,
@@ -392,6 +393,52 @@ class TestDeltaPersistence:
 
 class TestHistoryPreservation:
     """Test history preservation across reloads (v0.3.24)."""
+
+    def test_restore_accepts_utc_last_reset_in_same_local_day(self):
+        """Restore must accept UTC timestamps that are same local period.
+
+        Example: 2026-04-02T22:00:00+00:00 is 2026-04-03 00:00 local in Europe/Madrid.
+        This belongs to the SAME local daily period and must not be rejected as stale.
+        """
+        from homeassistant.util import dt as dt_util
+
+        old_tz = dt_util.DEFAULT_TIME_ZONE
+        try:
+            dt_util.set_default_time_zone(ZoneInfo("Europe/Madrid"))
+
+            ha = Mock()
+            ha.states.get.return_value = Mock(state="10.0", attributes={})
+
+            entry = Mock()
+            entry.entry_id = "test"
+            entry.data = {
+                CONF_SENSOR_ENTITY: "sensor.test",
+                CONF_PERIODS: [PERIOD_DAILY],
+                CONF_TYPES: [TYPE_MAX],
+            }
+            entry.options = {}
+
+            coordinator = MaxMinDataUpdateCoordinator(ha, entry)
+            coordinator.tracked_data[PERIOD_DAILY]["max"] = 5.0
+
+            with pytest.MonkeyPatch.context() as mp:
+                mp.setattr(
+                    "custom_components.max_min.coordinator.dt_util.now",
+                    lambda: datetime(2026, 4, 3, 1, 30, 0, tzinfo=ZoneInfo("Europe/Madrid")),
+                )
+                coordinator.update_restored_data(
+                    PERIOD_DAILY,
+                    "max",
+                    42.0,
+                    last_reset="2026-04-02T22:00:00+00:00",
+                )
+
+            assert coordinator.tracked_data[PERIOD_DAILY]["max"] == 42.0
+            assert coordinator.tracked_data[PERIOD_DAILY]["last_reset"] == datetime(
+                2026, 4, 3, 0, 0, 0, tzinfo=ZoneInfo("Europe/Madrid")
+            )
+        finally:
+            dt_util.set_default_time_zone(old_tz)
 
     def test_restore_without_last_reset_allowed(self):
         """Test that restoration works even without last_reset metadata."""
