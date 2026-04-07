@@ -1,4 +1,10 @@
 
+# 0.3.52 - 2026-04-07
+## Fixed
+- **Startup ordering: delta sensors no longer drop to 0 on HA restart**. When the source sensor is unavailable at boot (common), the watchdog and state listener were running *before* RestoreEntity had restored state. This caused a false reset (`last_reset=None` → `_is_reset_due=True` → `_pending_start_reanchor` set), and the first real state change overwrote the restored `start`/`end` with the current value, wiping the delta to 0. Fix: moved startup catch-up and all listeners to a new `start_listeners()` method called *after* platform setup. The periodic watchdog timer is also deferred to `start_listeners()`.
+- **Safety net in `update_restored_data()`**: accepting valid restored `start`/`end` now clears `_pending_start_reanchor` for that period, preventing stale reanchor flags from overriding restored data.
+- **Watchdog leak on unload**: `async_unload()` now properly cancels the periodic watchdog timer.
+
 # 0.3.51 - 2026-04-06
 ## Fixed
 - **Timezone-safe restore period validation**: Restored `last_reset` values are now normalized to local time and validated using real period windows (`period_start <= ts < next_period_start`). This prevents valid restored states from being incorrectly rejected as stale, which could trigger phantom resets.

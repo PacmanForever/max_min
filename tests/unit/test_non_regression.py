@@ -129,6 +129,8 @@ async def test_nr03_catchup_after_restart():
     with patch("custom_components.max_min.coordinator.async_track_point_in_time"), \
          patch("custom_components.max_min.coordinator.async_track_state_change_event"):
         await coordinator.async_config_entry_first_refresh()
+        # Catch-up is deferred to start_listeners (after entity restore)
+        coordinator.start_listeners()
 
     data = coordinator.tracked_data[PERIOD_DAILY]
     assert data["last_reset"] == datetime(2026, 2, 22, 0, 0, 0, tzinfo=timezone.utc)
@@ -829,3 +831,58 @@ async def test_nr23_delta_restore_reconstructs_without_last_reset(hass):
     assert coord.tracked_data["weekly"]["end"] == pytest.approx(240.5)
     assert coord.tracked_data["weekly"]["start"] == pytest.approx(226.2)
     assert sensor.native_value == pytest.approx(14.3)
+
+
+# ===================================================================
+# NR-16  Delta survives restart when source unavailable at boot
+# ===================================================================
+
+@pytest.mark.asyncio
+@freeze_time("2026-04-07 18:30:00", tz_offset=0)
+async def test_nr16_delta_survives_restart_source_unavailable():
+    """Delta must NOT drop to 0 when source sensor is unavailable at startup.
+
+    Regression test for the bug where:
+    1. first_refresh sees source as unavailable → last_reset never set
+    2. _check_watchdog triggers a false reset → _pending_start_reanchor set
+    3. Entity restore correctly sets start/end
+    4. But first state change honoured _pending_start_reanchor → start=end=current → delta=0
+    """
+    hass = _hass("unavailable")
+
+    entry = _entry()
+    coordinator = MaxMinDataUpdateCoordinator(hass, entry)
+
+    with patch("custom_components.max_min.coordinator.async_track_point_in_time"), \
+         patch("custom_components.max_min.coordinator.async_track_state_change_event"):
+        await coordinator.async_config_entry_first_refresh()
+
+    # After first_refresh with unavailable source, no false reset should have
+    # happened (catch-up is deferred to start_listeners).
+    assert PERIOD_DAILY not in coordinator._pending_start_reanchor
+
+    # Simulate entity restore (as RestoreEntity would do after platform setup)
+    coordinator.update_restored_data(PERIOD_DAILY, "start", 100.0, "2026-04-07T00:00:00+00:00")
+    coordinator.update_restored_data(PERIOD_DAILY, "end", 110.5, "2026-04-07T00:00:00+00:00")
+
+    # Now start listeners (as __init__.py does after platform setup)
+    with patch("custom_components.max_min.coordinator.async_track_point_in_time"), \
+         patch("custom_components.max_min.coordinator.async_track_state_change_event"):
+        coordinator.start_listeners()
+
+    # No false reset should have happened (last_reset is current period)
+    assert PERIOD_DAILY not in coordinator._pending_start_reanchor
+
+    # Delta must be preserved
+    assert coordinator.get_value(PERIOD_DAILY, "start") == 100.0
+    assert coordinator.get_value(PERIOD_DAILY, "end") == 110.5
+
+    # Simulate first sensor state change after boot
+    hass.states.get.return_value = Mock(state="111.0", attributes={"friendly_name": "Test"})
+    event = Mock()
+    event.data = {"new_state": Mock(state="111.0", attributes={})}
+    coordinator._handle_sensor_change(event)
+
+    # Delta must NOT have dropped to 0
+    assert coordinator.get_value(PERIOD_DAILY, "start") == 100.0
+    assert coordinator.get_value(PERIOD_DAILY, "end") == 111.0

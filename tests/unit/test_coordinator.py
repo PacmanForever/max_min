@@ -93,7 +93,7 @@ async def test_coordinator_initialization_invalid_value(hass, config_entry):
 @pytest.mark.asyncio
 @freeze_time("2026-02-19 09:00:00")
 async def test_first_refresh_forces_missed_reset_catchup(hass, config_entry):
-    """First refresh should immediately force overdue resets."""
+    """start_listeners should immediately force overdue resets after restore."""
     hass.states.get.return_value = Mock(state="unavailable", attributes={})
 
     coordinator = MaxMinDataUpdateCoordinator(hass, config_entry)
@@ -108,6 +108,9 @@ async def test_first_refresh_forces_missed_reset_catchup(hass, config_entry):
     with patch("custom_components.max_min.coordinator.async_track_point_in_time"), \
          patch.object(coordinator, "_perform_reset") as mock_reset:
         await coordinator.async_config_entry_first_refresh()
+        # Catch-up is deferred to start_listeners (after entity restore)
+        mock_reset.assert_not_called()
+        coordinator.start_listeners()
 
     mock_reset.assert_called_once()
     args, kwargs = mock_reset.call_args

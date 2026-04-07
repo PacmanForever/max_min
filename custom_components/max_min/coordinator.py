@@ -1,4 +1,32 @@
-"""Data coordinator for Max Min integration."""
+"""Data coordinator for Max Min integration.
+
+Startup ordering (CRITICAL — update if behaviour changes)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+At HA restart the source sensor is usually *unavailable* when our
+integration loads.  The setup sequence MUST be:
+
+  1. __init__          — build tracked_data, NO timers, NO listeners.
+  2. first_refresh     — seed tracked_data from source (if available),
+                         schedule reset timers.  Does NOT run catch-up
+                         and does NOT register the state listener.
+  3. forward_entry_setups → RestoreEntity restores start/end/last_reset
+                            into tracked_data via update_restored_data().
+  4. start_listeners() — run startup catch-up (_check_watchdog), start
+                         the periodic watchdog, and register the state
+                         change listener.  ONLY called AFTER step 3.
+  5. apply_pending_initials() — enforce configured initial values for
+                                periods that had no valid restore.
+
+If step 4 runs before step 3, a false reset fires (last_reset is still
+None → _is_reset_due returns True), _pending_start_reanchor is set,
+and the first real state change wipes start/end → delta drops to 0.
+
+Safety nets:
+  - update_restored_data() clears _pending_start_reanchor when it
+    accepts valid start/end data, so even if ordering is violated the
+    restored values survive.
+  - async_unload() cancels the periodic watchdog timer.
+"""
 
 from datetime import datetime, timedelta
 import logging
@@ -137,12 +165,6 @@ class MaxMinDataUpdateCoordinator(DataUpdateCoordinator):
         # Used by apply_pending_initials to skip initial enforcement for
         # periods that already have correct restored state.
         self._restore_accepted: set[str] = set()
-        
-        # Start Watchdog (every 1 minute)
-        # It ensures that if a reset timer failed or was missed, we catch up eventually.
-        self._watchdog_unsub = async_track_time_interval(
-            self.hass, self._check_watchdog, WATCHDOG_INTERVAL
-        )
 
     @callback
     def _check_watchdog(self, now):
@@ -399,6 +421,9 @@ class MaxMinDataUpdateCoordinator(DataUpdateCoordinator):
             # We always trust restored start/end values if they passed the staleness check
             # because they represent the true period boundaries from before the restart.
             data[type_] = value
+            # Safety net: if a premature reset marked this period for
+            # re-anchoring, the valid restored data takes precedence.
+            self._pending_start_reanchor.discard(period)
 
         self._check_consistency()
 
@@ -441,10 +466,28 @@ class MaxMinDataUpdateCoordinator(DataUpdateCoordinator):
         # Schedule resets
         self._schedule_resets()
 
+        # NOTE: startup catch-up and state listener are deferred to
+        # start_listeners(), called from __init__.py AFTER platform
+        # setup so that RestoreEntity has already restored state.
+
+    @callback
+    def start_listeners(self):
+        """Start state tracking and run startup catch-up.
+
+        Must be called AFTER platform setup so that RestoreEntity has
+        already restored start/end/last_reset.  Running the watchdog
+        before restore causes false resets that wipe delta values.
+        """
         # Startup catch-up: if a period reset was missed while HA/integration
-        # was down, enforce it immediately without waiting for the next
-        # watchdog tick or source state change.
+        # was down, enforce it immediately.
         self._check_watchdog(dt_util.now())
+
+        # Start periodic watchdog (every 1 minute) to catch missed resets.
+        # Must be started here (not in __init__) to avoid false resets
+        # before RestoreEntity has restored state.
+        self._watchdog_unsub = async_track_time_interval(
+            self.hass, self._check_watchdog, WATCHDOG_INTERVAL
+        )
 
         # Listen to sensor changes
         self._unsub_sensor_state_listener = async_track_state_change_event(
@@ -726,7 +769,11 @@ class MaxMinDataUpdateCoordinator(DataUpdateCoordinator):
             unsub()
         self._reset_listeners = {}
         self._backup_reset_listeners = {}
-            
+
+        if self._watchdog_unsub:
+            self._watchdog_unsub()
+            self._watchdog_unsub = None
+
         if self._unsub_sensor_state_listener:
             self._unsub_sensor_state_listener()
             self._unsub_sensor_state_listener = None

@@ -1,4 +1,22 @@
-"""Max Min integration for Home Assistant."""
+"""Max Min integration for Home Assistant.
+
+Setup ordering contract (CRITICAL — update if behaviour changes)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+The startup sequence is intentionally ordered to avoid a race condition
+that wipes delta sensor values after a HA restart:
+
+  1. Create coordinator and run first_refresh (seeds data, schedules
+     reset timers, but does NOT start the watchdog or state listener).
+  2. Forward platform setup — RestoreEntity restores saved state.
+  3. start_listeners() — runs startup catch-up and starts listeners.
+  4. apply_pending_initials() — enforces configured initial values.
+
+If step 3 runs before step 2, the watchdog sees last_reset=None,
+triggers a false period reset, and the first state change after boot
+overwrites restored start/end with the current value → delta=0.
+
+See coordinator.py module docstring for full details.
+"""
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
@@ -26,6 +44,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     # Forward setup to platforms
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
+
+    # Start state tracking AFTER platform setup so that RestoreEntity
+    # has already restored state.  Running the watchdog before restore
+    # causes false resets that wipe delta values on restart.
+    coordinator.start_listeners()
 
     # Apply initial values AFTER platform setup (i.e. after RestoreEntity
     # has had a chance to restore state).  This ensures user-configured
