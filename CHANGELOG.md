@@ -1,4 +1,8 @@
 
+# 0.3.54 - 2026-04-30
+## Fixed
+- **Pytest 9 test compatibility**: Overrode the Home Assistant test plugin's autouse `enable_event_loop_debug` fixture with a local synchronous fixture so synchronous tests no longer fail setup with `PytestRemovedIn9Warning`.
+
 # 0.3.53 - 2026-04-30
 ## Improved
 - Refactored the coordinator, sensor restore flow, and config flow into smaller internal helpers without changing reset semantics.
