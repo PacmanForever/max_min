@@ -1,3 +1,5 @@
+"""Tests for sensor entities, source attribute inheritance, and edge cases."""
+
 def test_delta_sensor_missing_start_end():
 
     def test_delta_sensor_device_class_and_state_class():
@@ -61,12 +63,14 @@ def test_delta_sensor_missing_start_end():
     assert sensor.available is True
 """Test sensor platform."""
 
+from datetime import datetime, timezone
 from unittest.mock import Mock, patch
 
 import pytest
 
 from custom_components.max_min.const import (
-    CONF_SENSOR_ENTITY, 
+    CONF_PERIODS,
+    CONF_SENSOR_ENTITY,
     CONF_DEVICE_ID,
     PERIOD_DAILY,
     TYPE_MAX,
@@ -334,3 +338,54 @@ async def test_min_sensor_no_device_info(coordinator):
     
     sensor = MinSensor(coordinator, config_entry, "Test Min", PERIOD_DAILY)
     assert sensor.device_info is None
+
+
+def test_sensor_extra_state_attributes(hass):
+    """Max and min sensors expose last_reset when available."""
+    entry = Mock()
+    entry.entry_id = "test_entry"
+    entry.title = "Test"
+    entry.data = {CONF_SENSOR_ENTITY: "sensor.demo_entity"}
+    entry.options = {}
+
+    coordinator = MaxMinDataUpdateCoordinator(hass, entry)
+    now = datetime(2023, 1, 1, 0, 0, 0, tzinfo=timezone.utc)
+    coordinator.tracked_data[PERIOD_DAILY] = {"max": 10.0, "min": 5.0, "last_reset": now}
+
+    max_sensor = MaxSensor(coordinator, entry, "Test Max", PERIOD_DAILY)
+    min_sensor = MinSensor(coordinator, entry, "Test Min", PERIOD_DAILY)
+
+    assert max_sensor.extra_state_attributes["last_reset"] == now.isoformat()
+    assert min_sensor.extra_state_attributes["last_reset"] == now.isoformat()
+
+    coordinator.tracked_data[PERIOD_DAILY]["last_reset"] = None
+    assert "last_reset" not in max_sensor.extra_state_attributes
+
+
+def test_extra_state_attributes_include_reset_diagnostics(hass):
+    """Sensor attributes expose reset diagnostics for troubleshooting."""
+    entry = Mock()
+    entry.entry_id = "entry1"
+    entry.data = {
+        CONF_SENSOR_ENTITY: "sensor.test",
+        CONF_PERIODS: [PERIOD_DAILY],
+        "types": [TYPE_MAX],
+    }
+    entry.options = {}
+
+    coordinator = MaxMinDataUpdateCoordinator(hass, entry)
+    now = datetime(2023, 1, 1, 0, 0, 10, tzinfo=timezone.utc)
+    coordinator.tracked_data[PERIOD_DAILY] = {
+        "max": 10.0,
+        "min": 5.0,
+        "start": 5.0,
+        "end": 10.0,
+        "last_reset": datetime(2023, 1, 1, 0, 0, 0, tzinfo=timezone.utc),
+        "last_reset_reason": "watchdog",
+        "last_reset_triggered_at": now,
+    }
+
+    sensor = MaxSensor(coordinator, entry, "Test Max", PERIOD_DAILY)
+    attrs = sensor.extra_state_attributes
+    assert attrs["last_reset_reason"] == "watchdog"
+    assert attrs["last_reset_triggered_at"] == now.isoformat()

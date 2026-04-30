@@ -3,10 +3,15 @@
 from unittest.mock import AsyncMock, MagicMock, Mock
 
 import pytest
+import voluptuous as vol
 from homeassistant import config_entries
 from homeassistant.data_entry_flow import FlowResult, FlowResultType
 
-from custom_components.max_min.config_flow import MaxMinConfigFlow, MaxMinOptionsFlow
+from custom_components.max_min.config_flow import (
+    MaxMinConfigFlow,
+    MaxMinOptionsFlow,
+    _coerce_localized_float,
+)
 from custom_components.max_min.const import (
     CONF_PERIODS,
     CONF_SENSOR_ENTITY,
@@ -84,6 +89,11 @@ async def test_config_flow_duplicate_unique_id(hass):
     assert result["reason"] == "already_configured"
 
 
+def test_coerce_localized_float_accepts_decimal_comma():
+    """Localized decimal comma values are normalized before float conversion."""
+    assert _coerce_localized_float("3,14") == pytest.approx(3.14)
+
+
 @pytest.mark.asyncio
 async def test_get_options_flow(hass):
     """Test get options flow."""
@@ -103,6 +113,40 @@ async def test_config_flow_user_form(hass):
 
     assert result["type"] == FlowResultType.FORM
     assert result["step_id"] == "user"
+
+
+@pytest.mark.asyncio
+async def test_config_flow_user_form_uses_default_values(hass):
+    """The initial form exposes the documented default periods and types."""
+    flow = MaxMinConfigFlow()
+    flow.hass = Mock()
+
+    result = await flow.async_step_user()
+
+    schema = result["data_schema"].schema
+    periods_key = next(key for key in schema if isinstance(key, vol.Marker) and key.schema == CONF_PERIODS)
+    types_key = next(key for key in schema if isinstance(key, vol.Marker) and key.schema == CONF_TYPES)
+
+    assert periods_key.default() == [PERIOD_DAILY]
+    assert types_key.default() == [TYPE_MAX, TYPE_MIN]
+
+
+@pytest.mark.asyncio
+async def test_config_flow_duplicate_unique_id_abort_returned(hass):
+    """Abort results from the unique-id check are returned unchanged."""
+    flow = MaxMinConfigFlow()
+    flow.hass = Mock()
+    flow.async_set_unique_id = AsyncMock()
+    abort_result = {"type": FlowResultType.ABORT, "reason": "already_configured"}
+    flow._abort_if_unique_id_configured = Mock(return_value=abort_result)
+
+    result = await flow.async_step_user({
+        CONF_SENSOR_ENTITY: "sensor.test",
+        CONF_PERIODS: [PERIOD_DAILY],
+        CONF_TYPES: [TYPE_MAX],
+    })
+
+    assert result is abort_result
 
 
 @pytest.mark.asyncio

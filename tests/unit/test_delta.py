@@ -1,11 +1,12 @@
 """Test Delta sensor implementation."""
-from unittest.mock import Mock, patch
+from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 from homeassistant.const import STATE_UNAVAILABLE, STATE_UNKNOWN
 from homeassistant.helpers.update_coordinator import UpdateFailed
 
 from custom_components.max_min.const import (
+    CONF_DEVICE_ID,
     CONF_PERIODS,
     CONF_SENSOR_ENTITY,
     CONF_TYPES,
@@ -302,3 +303,265 @@ async def test_reanchor_respects_initial_delta(hass):
 
     sensor = DeltaSensor(coordinator, entry, "Delta", PERIOD_DAILY)
     assert sensor.native_value == pytest.approx(0.0)
+
+
+@pytest.mark.asyncio
+async def test_delta_sensor_restores_start_end(hass):
+    """DeltaSensor restores start and end values from state attributes."""
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={
+            CONF_SENSOR_ENTITY: "sensor.test",
+            CONF_PERIODS: [PERIOD_DAILY],
+            CONF_TYPES: [TYPE_DELTA],
+        },
+        title="Test Sensor",
+        unique_id="sensor.test",
+    )
+    coordinator = MaxMinDataUpdateCoordinator(hass, entry)
+    coordinator.update_restored_data = Mock(wraps=coordinator.update_restored_data)
+
+    sensor = DeltaSensor(coordinator, entry, "Test Delta", PERIOD_DAILY)
+    last_state = Mock()
+    last_state.state = "5.0"
+    last_state.attributes = {
+        "config_entry_id": entry.entry_id,
+        "start_value": 10.0,
+        "end_value": 15.0,
+        "last_reset": "2026-02-10T00:00:00+00:00",
+    }
+    sensor.async_get_last_state = AsyncMock(return_value=last_state)
+
+    await sensor.async_added_to_hass()
+
+    assert coordinator.update_restored_data.call_count == 2
+    coordinator.update_restored_data.assert_any_call(
+        PERIOD_DAILY, "start", 10.0, "2026-02-10T00:00:00+00:00"
+    )
+    coordinator.update_restored_data.assert_any_call(
+        PERIOD_DAILY, "end", 15.0, "2026-02-10T00:00:00+00:00"
+    )
+
+
+def test_coordinator_restores_start_end_values(hass):
+    """Coordinator stores restored delta boundaries."""
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={
+            CONF_SENSOR_ENTITY: "sensor.test",
+            CONF_PERIODS: [PERIOD_DAILY],
+            CONF_TYPES: [TYPE_DELTA],
+        },
+        title="Test Sensor",
+        unique_id="sensor.test",
+    )
+    coordinator = MaxMinDataUpdateCoordinator(hass, entry)
+
+    coordinator.update_restored_data(PERIOD_DAILY, "start", 100.0)
+    coordinator.update_restored_data(PERIOD_DAILY, "end", 150.0)
+
+    assert coordinator.tracked_data[PERIOD_DAILY]["start"] == 100.0
+    assert coordinator.tracked_data[PERIOD_DAILY]["end"] == 150.0
+
+
+@pytest.mark.asyncio
+async def test_delta_sensor_available_after_restore(hass):
+    """Delta sensor stays available and computes the restored delta."""
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={
+            CONF_SENSOR_ENTITY: "sensor.test",
+            CONF_PERIODS: [PERIOD_DAILY],
+            CONF_TYPES: [TYPE_DELTA],
+        },
+        title="Test Sensor",
+        unique_id="sensor.test",
+    )
+    coordinator = MaxMinDataUpdateCoordinator(hass, entry)
+    sensor = DeltaSensor(coordinator, entry, "Test Delta", PERIOD_DAILY)
+
+    last_state = Mock()
+    last_state.state = "5.0"
+    last_state.attributes = {
+        "config_entry_id": entry.entry_id,
+        "start_value": 10.0,
+        "end_value": 15.0,
+    }
+    sensor.async_get_last_state = AsyncMock(return_value=last_state)
+
+    await sensor.async_added_to_hass()
+
+    assert sensor.available is True
+    assert sensor.native_value == 5.0
+
+
+@pytest.mark.asyncio
+async def test_delta_sensor_ignores_invalid_restored_values(hass):
+    """DeltaSensor gracefully ignores invalid restored boundaries."""
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={
+            CONF_SENSOR_ENTITY: "sensor.test",
+            CONF_PERIODS: [PERIOD_DAILY],
+            CONF_TYPES: [TYPE_DELTA],
+        },
+        title="Test Sensor",
+        unique_id="sensor.test",
+    )
+    coordinator = MaxMinDataUpdateCoordinator(hass, entry)
+    sensor = DeltaSensor(coordinator, entry, "Test Delta", PERIOD_DAILY)
+
+    last_state = Mock()
+    last_state.state = "5.0"
+    last_state.attributes = {
+        "start_value": "invalid",
+        "end_value": "also_invalid",
+    }
+    sensor.async_get_last_state = AsyncMock(return_value=last_state)
+
+    await sensor.async_added_to_hass()
+
+    assert sensor.available is True
+    assert sensor.native_value is None
+
+
+@pytest.mark.asyncio
+async def test_delta_sensor_restores_unit_and_keeps_it_if_source_unavailable():
+    """Delta keeps the restored unit during startup unavailability."""
+    ha = Mock()
+    ha.states.get.return_value = Mock(state="unavailable", attributes={})
+
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={
+            CONF_SENSOR_ENTITY: "sensor.test",
+            CONF_PERIODS: [PERIOD_DAILY],
+            CONF_TYPES: [TYPE_DELTA],
+        },
+        title="Test Sensor",
+        unique_id="sensor.test",
+    )
+    coordinator = MaxMinDataUpdateCoordinator(ha, entry)
+    sensor = DeltaSensor(coordinator, entry, "Test Delta", PERIOD_DAILY)
+
+    last_state = Mock()
+    last_state.state = "5.0"
+    last_state.attributes = {
+        "config_entry_id": entry.entry_id,
+        "unit_of_measurement": "kWh",
+        "device_class": "energy",
+        "start_value": 10.0,
+        "end_value": 15.0,
+    }
+    sensor.async_get_last_state = AsyncMock(return_value=last_state)
+
+    await sensor.async_added_to_hass()
+
+    assert sensor.native_unit_of_measurement == "kWh"
+
+
+@pytest.mark.asyncio
+async def test_delta_sensor_async_added_to_hass(hass):
+    """DeltaSensor.async_added_to_hass completes without error."""
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={
+            CONF_SENSOR_ENTITY: "sensor.test",
+            CONF_PERIODS: [PERIOD_DAILY],
+            CONF_TYPES: [TYPE_DELTA],
+        },
+        title="Test Sensor",
+        unique_id="sensor.test",
+    )
+    coordinator = MaxMinDataUpdateCoordinator(hass, entry)
+    sensor = DeltaSensor(coordinator, entry, "Test Delta", PERIOD_DAILY)
+
+    with patch.object(DeltaSensor.__mro__[1], "async_added_to_hass", new_callable=AsyncMock):
+        await sensor.async_added_to_hass()
+
+
+def test_delta_sensor_device_class_with_attributes(hass):
+    """DeltaSensor.device_class reads from source entity attributes."""
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={
+            CONF_SENSOR_ENTITY: "sensor.test",
+            CONF_PERIODS: [PERIOD_DAILY],
+            CONF_TYPES: [TYPE_DELTA],
+        },
+        title="Test Sensor",
+        unique_id="sensor.test",
+    )
+    coordinator = MaxMinDataUpdateCoordinator(hass, entry)
+    hass.states.get.return_value = Mock(
+        state="10.0",
+        attributes={"device_class": "temperature"},
+    )
+    sensor = DeltaSensor(coordinator, entry, "Test Delta", PERIOD_DAILY)
+    assert sensor.device_class == "temperature"
+
+
+def test_delta_sensor_state_class_always_measurement(hass):
+    """DeltaSensor.state_class always returns measurement."""
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={
+            CONF_SENSOR_ENTITY: "sensor.test",
+            CONF_PERIODS: [PERIOD_DAILY],
+            CONF_TYPES: [TYPE_DELTA],
+        },
+        title="Test Sensor",
+        unique_id="sensor.test",
+    )
+    coordinator = MaxMinDataUpdateCoordinator(hass, entry)
+    hass.states.get.return_value = Mock(
+        state="10.0",
+        attributes={"state_class": "total_increasing"},
+    )
+    sensor = DeltaSensor(coordinator, entry, "Test Delta", PERIOD_DAILY)
+    assert sensor.state_class == "measurement"
+
+
+def test_delta_sensor_device_info_with_device(hass):
+    """DeltaSensor.device_info returns info when device exists."""
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={
+            CONF_SENSOR_ENTITY: "sensor.test",
+            CONF_PERIODS: [PERIOD_DAILY],
+            CONF_TYPES: [TYPE_DELTA],
+            CONF_DEVICE_ID: "dev_123",
+        },
+        title="Test Sensor",
+        unique_id="sensor.test",
+    )
+    coordinator = MaxMinDataUpdateCoordinator(hass, entry)
+
+    mock_device = Mock()
+    mock_device.identifiers = {("test", "123")}
+    mock_device.connections = set()
+
+    with patch("custom_components.max_min.sensor.dr.async_get") as mock_dr:
+        mock_dr.return_value.async_get.return_value = mock_device
+        sensor = DeltaSensor(coordinator, entry, "Test Delta", PERIOD_DAILY)
+        info = sensor.device_info
+
+    assert info is not None
+    assert info["identifiers"] == {("test", "123")}
+
+
+def test_delta_sensor_device_info_no_device(hass):
+    """DeltaSensor.device_info returns None when no device_id."""
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={
+            CONF_SENSOR_ENTITY: "sensor.test",
+            CONF_PERIODS: [PERIOD_DAILY],
+            CONF_TYPES: [TYPE_DELTA],
+        },
+        title="Test Sensor",
+        unique_id="sensor.test",
+    )
+    coordinator = MaxMinDataUpdateCoordinator(hass, entry)
+    sensor = DeltaSensor(coordinator, entry, "Test Delta", PERIOD_DAILY)
+    assert sensor.device_info is None

@@ -137,14 +137,7 @@ class MaxMinDataUpdateCoordinator(DataUpdateCoordinator):
 
             _LOGGER.debug("Period %s: Initial Max=%s, Min=%s, Delta=%s", period, p_initial_max, p_initial_min, p_initial_delta)
 
-            self.tracked_data[period] = {
-                "max": None,
-                "min": None,
-                "start": None,
-                "end": None,
-                "last_reset_reason": None,
-                "last_reset_triggered_at": None,
-            }
+            self.tracked_data[period] = self._default_period_data()
             self._configured_initials[period] = {
                 "max": p_initial_max,
                 "min": p_initial_min,
@@ -208,6 +201,29 @@ class MaxMinDataUpdateCoordinator(DataUpdateCoordinator):
             is_cumulative,
         )
         self._schedule_resets()
+
+    @staticmethod
+    def _default_period_data(last_reset=None):
+        """Create a fresh tracked-data dictionary for one period."""
+        return {
+            "max": None,
+            "min": None,
+            "start": None,
+            "end": None,
+            "last_reset": last_reset,
+            "last_reset_reason": None,
+            "last_reset_triggered_at": None,
+        }
+
+    def _get_source_float(self) -> float | None:
+        """Read the current source sensor value as a rounded float, or None."""
+        state = self.hass.states.get(self.sensor_entity)
+        if state and state.state not in (None, "unknown", "unavailable"):
+            try:
+                return round(float(state.state), 4)
+            except (ValueError, TypeError):
+                pass
+        return None
     
     @staticmethod
     def _get_period_start(now, period):
@@ -283,12 +299,9 @@ class MaxMinDataUpdateCoordinator(DataUpdateCoordinator):
         and the HA history graph shows a clean break at the period
         boundary instead of a flat line of the previous maximum.
         """
-        state = self.hass.states.get(self.sensor_entity)
-        if state and state.state not in (None, "unknown", "unavailable"):
-            try:
-                return round(float(state.state), 4)
-            except ValueError:
-                pass
+        value = self._get_source_float()
+        if value is not None:
+            return value
         # Fallback: use last known end value regardless of sensor type.
         # For cumulative sensors this preserves the meter reading.
         # For measurement sensors this avoids a None seed that would
@@ -299,7 +312,7 @@ class MaxMinDataUpdateCoordinator(DataUpdateCoordinator):
         if isinstance(end_val, str):
             try:
                 return round(float(end_val), 4)
-            except ValueError:
+            except (ValueError, TypeError):
                 pass
         return None
 
@@ -348,24 +361,20 @@ class MaxMinDataUpdateCoordinator(DataUpdateCoordinator):
         self._perform_reset(now, period, reason=reason)
         return True
 
+    def _should_skip_history(self, period, type_) -> bool:
+        """Return True when restore/propagation should skip a period/type pair."""
+        return "all" in self.reset_history or f"{period}_{type_}" in self.reset_history
+
     def update_restored_data(self, period, type_, value, last_reset=None):
         """Update data from restored state."""
         # Check if this specific sensor or all sensors should skip history restore
         check_type = "delta" if type_ in ("start", "end") else type_
-        if "all" in self.reset_history or f"{period}_{check_type}" in self.reset_history:
+        if self._should_skip_history(period, check_type):
             _LOGGER.debug("[%s] Skipping restore for %s %s (surgical reset triggered by config change)", self.config_entry.title, period, type_)
             return
 
         if period not in self.tracked_data:
-            self.tracked_data[period] = {
-                "max": None, 
-                "min": None, 
-                "start": None, 
-                "end": None, 
-                "last_reset": None,
-                "last_reset_reason": None,
-                "last_reset_triggered_at": None,
-            }
+            self.tracked_data[period] = self._default_period_data()
             
         data = self.tracked_data[period]
         
@@ -433,11 +442,8 @@ class MaxMinDataUpdateCoordinator(DataUpdateCoordinator):
         state = self.hass.states.get(self.sensor_entity)
         self._sync_source_cumulative_mode(state)
         if state and state.state not in (None, "unknown", "unavailable"):
-            try:
-                raw_value = float(state.state)
-                # Avoid float precision noise by rounding to 4 decimals
-                # but we'll try to be more surgical in the update loop
-                current_value = round(raw_value, 4)
+            current_value = self._get_source_float()
+            if current_value is not None:
                 now = dt_util.now()
                 # Initialize info for all periods
                 for period, data in self.tracked_data.items():
@@ -458,7 +464,7 @@ class MaxMinDataUpdateCoordinator(DataUpdateCoordinator):
                         data["end"] = current_value
 
                 self._check_consistency()
-            except ValueError:
+            else:
                 _LOGGER.warning("Sensor %s has non-numeric state: %s", self.sensor_entity, state.state)
         else:
             _LOGGER.warning("Sensor %s is not available", self.sensor_entity)
@@ -504,13 +510,7 @@ class MaxMinDataUpdateCoordinator(DataUpdateCoordinator):
         initials truly one-shot: they seed a brand-new entry but never
         override correctly restored data on restart.
         """
-        state = self.hass.states.get(self.sensor_entity)
-        current_value = None
-        if state and state.state not in (None, "unknown", "unavailable"):
-            try:
-                current_value = round(float(state.state), 4)
-            except ValueError:
-                pass
+        current_value = self._get_source_float()
 
         applied = False
         for period, initials in self._configured_initials.items():
@@ -543,6 +543,65 @@ class MaxMinDataUpdateCoordinator(DataUpdateCoordinator):
             self._check_consistency()
             self.async_set_updated_data({})
 
+    def _handle_offset_deadzone(self, period, data, value, now) -> tuple[bool, bool]:
+        """Handle updates that arrive during the cumulative offset dead zone."""
+        if period not in self._next_resets or self.offset <= 0 or not self._source_is_cumulative:
+            return False, False
+
+        reset_time = self._next_resets[period]
+        if not (
+            now >= reset_time - timedelta(seconds=self.offset)
+            and now <= reset_time + timedelta(seconds=self.offset)
+        ):
+            return False, False
+
+        if data["max"] is not None and value < data["max"]:
+            _LOGGER.debug("Early reset detected for %s. Triggering reset now.", period)
+            self._perform_reset(now, period, reason="early_offset")
+            return True, False
+
+        changed = False
+        if data["max"] is None or value > data["max"]:
+            data["max"] = value
+            changed = True
+        if data["min"] is None or value < data["min"]:
+            data["min"] = value
+            changed = True
+        if data.get("end") != value:
+            data["end"] = value
+            changed = True
+        return True, changed
+
+    def _update_period_normal(self, period, data, value) -> bool:
+        """Apply the standard max/min/delta update flow to one period."""
+        changed = False
+
+        if data["max"] is None or value > data["max"]:
+            data["max"] = value
+            changed = True
+        if data["min"] is None or value < data["min"]:
+            data["min"] = value
+            changed = True
+
+        if period in self._pending_start_reanchor:
+            data["start"] = value
+            data["end"] = value
+            self._pending_start_reanchor.discard(period)
+            changed = True
+        elif data.get("start") is None:
+            initial_delta = self._configured_initials.get(period, {}).get("delta")
+            if initial_delta is not None:
+                data["start"] = value - initial_delta
+            else:
+                data["start"] = value
+            changed = True
+
+        if data.get("end") != value:
+            data["end"] = value
+            changed = True
+
+        return changed
+
     @callback
     def _handle_sensor_change(self, event):
         """Handle sensor state change."""
@@ -557,15 +616,11 @@ class MaxMinDataUpdateCoordinator(DataUpdateCoordinator):
 
                 for period in self.periods:
                     if period not in self.tracked_data:
-                        self.tracked_data[period] = {
-                            "max": None, "min": None, "start": None, "end": None,
-                            "last_reset": self._get_period_start(now, period),
-                            "last_reset_reason": None,
-                            "last_reset_triggered_at": None,
-                        }
+                        self.tracked_data[period] = self._default_period_data(
+                            last_reset=self._get_period_start(now, period)
+                        )
 
                     data = self.tracked_data[period]
-                    is_cumulative = self._source_is_cumulative
 
                     # 0. Inline period-boundary reset detection
                     # If a sensor update arrives after the period boundary but before
@@ -577,61 +632,13 @@ class MaxMinDataUpdateCoordinator(DataUpdateCoordinator):
                             # After reset, data has been re-initialised – refresh ref
                             data = self.tracked_data[period]
 
-                    # 1. Early Reset Detection (Offset Window)
-                    # If we are in the offset "dead zone" (waiting for reset) and the sensor drops,
-                    # we trigger the reset immediately instead of ignoring the data.
-                    if period in self._next_resets and self.offset > 0 and is_cumulative:
-                        reset_time = self._next_resets[period]
-                        if (now >= reset_time - timedelta(seconds=self.offset) and 
-                            now <= reset_time + timedelta(seconds=self.offset)):
-                            
-                            # If cumulative sensor drops during dead zone, it's a reset
-                            if data["max"] is not None and value < data["max"]:
-                                _LOGGER.debug("Early reset detected for %s. Triggering reset now.", period)
-                                self._perform_reset(now, period, reason="early_offset")
-                                continue
+                    handled, changed = self._handle_offset_deadzone(period, data, value, now)
+                    if handled:
+                        if changed:
+                            updated = True
+                        continue
 
-                            # No drop: update max/min/end so values stay accurate
-                            if data["max"] is None or value > data["max"]:
-                                data["max"] = value
-                                updated = True
-                            if data["min"] is None or value < data["min"]:
-                                data["min"] = value
-                                updated = True
-                            if data.get("end") != value:
-                                data["end"] = value
-                                updated = True
-                            continue
-                    
-                    # Normal update logic
-                    if data["max"] is None or value > data["max"]:
-                        data["max"] = value
-                        updated = True
-                    if data["min"] is None or value < data["min"]:
-                        data["min"] = value
-                        updated = True
-
-                    # Delta support: re-anchor start after reset
-                    # Initial delta is one-shot (creation only), so reanchor
-                    # always starts fresh: start=value, delta=0.
-                    if period in self._pending_start_reanchor:
-                        data["start"] = value
-                        data["end"] = value
-                        self._pending_start_reanchor.discard(period)
-                        updated = True
-
-                    # Delta support: initialize start if missing
-                    elif data.get("start") is None:
-                        initial_delta = self._configured_initials.get(period, {}).get("delta")
-                        if initial_delta is not None:
-                            data["start"] = value - initial_delta
-                        else:
-                            data["start"] = value
-                        updated = True
-
-                    # Delta support: update end value
-                    if data.get("end") != value:
-                        data["end"] = value
+                    if self._update_period_normal(period, data, value):
                         updated = True
 
                 if updated:
@@ -811,17 +818,8 @@ class MaxMinDataUpdateCoordinator(DataUpdateCoordinator):
                     continue
                 
                 # Skip propagation to periods undergoing surgical reset
-                if "all" in self.reset_history or f"{broader_p}_max" in self.reset_history:
-                    # Don't propagate max to this period
-                    n_max_propagate = None
-                else:
-                    n_max_propagate = n_max
-                    
-                if "all" in self.reset_history or f"{broader_p}_min" in self.reset_history:
-                    # Don't propagate min to this period
-                    n_min_propagate = None
-                else:
-                    n_min_propagate = n_min
+                n_max_propagate = None if self._should_skip_history(broader_p, "max") else n_max
+                n_min_propagate = None if self._should_skip_history(broader_p, "min") else n_min
                 
                 b_data = self.tracked_data[broader_p]
                 

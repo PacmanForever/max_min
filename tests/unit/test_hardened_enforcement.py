@@ -1,3 +1,5 @@
+"""Tests and manual checks for hardened initial value enforcement behavior."""
+
 import pytest
 from unittest.mock import MagicMock
 from custom_components.max_min.coordinator import MaxMinDataUpdateCoordinator

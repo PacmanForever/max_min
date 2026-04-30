@@ -13,10 +13,10 @@ Thank you for your interest in contributing to Max Min! We welcome contributions
 
 1. Fork the repository.
 2. Clone your fork: `git clone https://github.com/PacmanForever/max_min.git`
-3. Create a virtual environment: `python -m venv venv`
+3. Create a virtual environment: `python3 -m venv venv`
 4. Activate it: `source venv/bin/activate` (Linux/Mac) or `venv\Scripts\activate` (Windows)
-5. Install dependencies: `pip install -r requirements-test.txt`
-6. Install Home Assistant: `pip install homeassistant`
+5. Install dependencies: `./venv/bin/python3 -m pip install -r requirements-test.txt`
+6. Install Home Assistant if needed by your environment: `./venv/bin/python3 -m pip install homeassistant`
 
 ## Code Standards
 
@@ -29,14 +29,14 @@ Thank you for your interest in contributing to Max Min! We welcome contributions
 
 - Write unit tests for new functionality.
 - Write component tests for HA integration.
-- Aim for >95% code coverage.
-- Run tests: `python -m pytest`
+- Aim for >99% code coverage.
+- Run the full suite: `./venv/bin/python3 -m pytest`
 
 ## Pull Requests
 
 1. Create a feature branch: `git checkout -b feature/your-feature`
 2. Make your changes.
-3. Run tests and ensure they pass.
+3. Run the full test suite and ensure it passes before opening the PR.
 4. Update documentation if needed.
 5. Commit with clear messages.
 6. Push to your fork.

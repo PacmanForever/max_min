@@ -1,3 +1,5 @@
+"""Tests for watchdog scheduling, fallback resets, and listener robustness."""
+
 import pytest
 from datetime import datetime, timedelta, timezone
 from unittest.mock import Mock, patch, call

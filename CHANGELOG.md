@@ -1,4 +1,11 @@
 
+# 0.3.53 - 2026-04-30
+## Improved
+- Refactored the coordinator, sensor restore flow, and config flow into smaller internal helpers without changing reset semantics.
+- Consolidated legacy patch-style tests into canonical test modules and kept the suite at full coverage.
+## Changed
+- Updated the README and contribution guide to match current behavior for one-shot initial values, delta restore continuity, dead-zone handling, and the recommended test command.
+
 # 0.3.52 - 2026-04-07
 ## Fixed
 - **Startup ordering: delta sensors no longer drop to 0 on HA restart**. When the source sensor is unavailable at boot (common), the watchdog and state listener were running *before* RestoreEntity had restored state. This caused a false reset (`last_reset=None` → `_is_reset_due=True` → `_pending_start_reanchor` set), and the first real state change overwrote the restored `start`/`end` with the current value, wiping the delta to 0. Fix: moved startup catch-up and all listeners to a new `start_listeners()` method called *after* platform setup. The periodic watchdog timer is also deferred to `start_listeners()`.

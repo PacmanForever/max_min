@@ -56,6 +56,53 @@ def _coerce_localized_float(value):
     return float(value)
 
 
+def _build_initial_values_schema(periods, types):
+    """Build the schema dict for initial values."""
+    schema = {}
+    initial_number_selector = selector.NumberSelector(
+        selector.NumberSelectorConfig(mode="box", step="any")
+    )
+    for period in periods:
+        if TYPE_MIN in types:
+            schema[vol.Optional(f"{period}_{CONF_INITIAL_MIN}")] = initial_number_selector
+        if TYPE_MAX in types:
+            schema[vol.Optional(f"{period}_{CONF_INITIAL_MAX}")] = initial_number_selector
+        if TYPE_DELTA in types:
+            schema[vol.Optional(f"{period}_{CONF_INITIAL_DELTA}")] = initial_number_selector
+    return schema
+
+
+def _validate_initial_values(user_input, periods):
+    """Validate that initial_min does not exceed initial_max for each period."""
+    errors = {}
+    for period in periods:
+        initial_min = user_input.get(f"{period}_{CONF_INITIAL_MIN}")
+        initial_max = user_input.get(f"{period}_{CONF_INITIAL_MAX}")
+        if initial_min is not None and initial_max is not None and initial_min > initial_max:
+            errors["base"] = "min_greater_than_max"
+            errors[f"{period}_{CONF_INITIAL_MIN}"] = "min_greater_than_max"
+    return errors
+
+
+def _build_entry_title(hass, sensor_entity, types):
+    """Build a human-readable entry title from the source sensor and selected types."""
+    sensor_name = sensor_entity
+    if hass:
+        state = hass.states.get(sensor_entity)
+        if state and state.name:
+            sensor_name = state.name
+
+    suffixes = []
+    if TYPE_MAX in types:
+        suffixes.append("Max")
+    if TYPE_MIN in types:
+        suffixes.append("Min")
+    if TYPE_DELTA in types:
+        suffixes.append("Delta")
+    suffix = "/".join(suffixes) if suffixes else "Max/Min"
+    return f"{sensor_name} ({suffix})"
+
+
 class MaxMinConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     """Handle a config flow for Max Min."""
 
@@ -139,62 +186,23 @@ class MaxMinConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
     async def async_step_optional_settings(self, user_input=None):
         """Handle optional settings step."""
-        errors = {}
         periods = _sorted_periods(self.data.get(CONF_PERIODS, [PERIOD_DAILY]))
         types = self.data.get(CONF_TYPES, [TYPE_MAX, TYPE_MIN])
 
         if user_input is not None:
-             # Validate min < max for each period
-            for period in periods:
-                initial_min = user_input.get(f"{period}_{CONF_INITIAL_MIN}")
-                initial_max = user_input.get(f"{period}_{CONF_INITIAL_MAX}")
-
-                if initial_min is not None and initial_max is not None and initial_min > initial_max:
-                    errors["base"] = "min_greater_than_max"
-                    errors[f"{period}_{CONF_INITIAL_MIN}"] = "min_greater_than_max"
+            errors = _validate_initial_values(user_input, periods)
 
             if not errors:
                 # Filter out None/empty values so they don't overwrite if not intentional
                 # But for ConfigFlow (new entry), we just merge everything
                 final_data = {**self.data, **{k: v for k, v in user_input.items() if v is not None}}
-                
-                # Create a better title
-                sensor_entity = self.data[CONF_SENSOR_ENTITY]
-                sensor_name = sensor_entity
-                if self.hass:
-                    state = self.hass.states.get(sensor_entity)
-                    if state and state.name:
-                        sensor_name = state.name
-
-                suffixes = []
-                if TYPE_MAX in types:
-                    suffixes.append("Max")
-                if TYPE_MIN in types:
-                    suffixes.append("Min")
-                if TYPE_DELTA in types:
-                    suffixes.append("Delta")
-                
-                suffix = "/".join(suffixes) if suffixes else "Max/Min"
-
-                title = f"{sensor_name} ({suffix})"
+                title = _build_entry_title(self.hass, self.data[CONF_SENSOR_ENTITY], types)
                 
                 return self.async_create_entry(title=title, data=final_data)
+        else:
+            errors = {}
         
-        # Build schema
-        schema = {}
-        initial_number_selector = selector.NumberSelector(
-            selector.NumberSelectorConfig(mode="box", step="any")
-        )
-        for period in periods:
-            if TYPE_MIN in types:
-                key = f"{period}_{CONF_INITIAL_MIN}"
-                schema[vol.Optional(key)] = initial_number_selector
-            if TYPE_MAX in types:
-                key = f"{period}_{CONF_INITIAL_MAX}"
-                schema[vol.Optional(key)] = initial_number_selector
-            if TYPE_DELTA in types:
-                key = f"{period}_{CONF_INITIAL_DELTA}"
-                schema[vol.Optional(key)] = initial_number_selector
+        schema = _build_initial_values_schema(periods, types)
         
         # If no settings are relevant, skip this step
         if not schema:
@@ -292,20 +300,12 @@ class MaxMinOptionsFlow(config_entries.OptionsFlow):
 
     async def async_step_optional_settings(self, user_input=None):
         """Manage optional settings."""
-        errors = {}
         # Get current configuration (merging existing + new from init step)
         periods = _sorted_periods(self.options.get(CONF_PERIODS, self._config_entry.options.get(CONF_PERIODS, self._config_entry.data.get(CONF_PERIODS, [PERIOD_DAILY]))))
         types = self.options.get(CONF_TYPES, self._config_entry.options.get(CONF_TYPES, self._config_entry.data.get(CONF_TYPES, [TYPE_MAX, TYPE_MIN])))
 
         if user_input is not None:
-             # Validate min < max for each period
-            for period in periods:
-                initial_min = user_input.get(f"{period}_{CONF_INITIAL_MIN}")
-                initial_max = user_input.get(f"{period}_{CONF_INITIAL_MAX}")
-
-                if initial_min is not None and initial_max is not None and initial_min > initial_max:
-                    errors["base"] = "min_greater_than_max"
-                    errors[f"{period}_{CONF_INITIAL_MIN}"] = "min_greater_than_max"
+            errors = _validate_initial_values(user_input, periods)
             
             if not errors:
                 # Detect changes in initial values to trigger surgical history resets
@@ -342,43 +342,15 @@ class MaxMinOptionsFlow(config_entries.OptionsFlow):
                 if self.hass:
                     sensor_entity = self._config_entry.data.get(CONF_SENSOR_ENTITY)
                     if sensor_entity:
-                        sensor_name = sensor_entity
-                        state = self.hass.states.get(sensor_entity)
-                        if state and state.name:
-                            sensor_name = state.name
-
-                        suffixes = []
-                        if TYPE_MAX in types:
-                            suffixes.append("Max")
-                        if TYPE_MIN in types:
-                            suffixes.append("Min")
-                        if TYPE_DELTA in types:
-                            suffixes.append("Delta")
-                        suffix = "/".join(suffixes) if suffixes else "Max/Min"
-                        
-                        new_title = f"{sensor_name} ({suffix})"
+                        new_title = _build_entry_title(self.hass, sensor_entity, types)
                         if new_title != self._config_entry.title:
                             self.hass.config_entries.async_update_entry(self._config_entry, title=new_title)
 
                 return self.async_create_entry(title="", data=self.options)
+        else:
+            errors = {}
 
-        # Build schema
-        schema = {}
-        initial_number_selector = selector.NumberSelector(
-            selector.NumberSelectorConfig(mode="box", step="any")
-        )
-        for period in periods:
-            if TYPE_MIN in types:
-                key = f"{period}_{CONF_INITIAL_MIN}"
-                schema[vol.Optional(key)] = initial_number_selector
-                
-            if TYPE_MAX in types:
-                key = f"{period}_{CONF_INITIAL_MAX}"
-                schema[vol.Optional(key)] = initial_number_selector
-
-            if TYPE_DELTA in types:
-                key = f"{period}_{CONF_INITIAL_DELTA}"
-                schema[vol.Optional(key)] = initial_number_selector
+        schema = _build_initial_values_schema(periods, types)
 
         return self.async_show_form(
             step_id="optional_settings",

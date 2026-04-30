@@ -10,6 +10,7 @@ from unittest.mock import Mock, patch
 import pytest
 from freezegun import freeze_time
 from homeassistant.util import dt as dt_util
+from conftest import make_config_entry, make_mock_hass
 
 from custom_components.max_min.coordinator import MaxMinDataUpdateCoordinator
 from custom_components.max_min.const import (
@@ -30,28 +31,11 @@ from custom_components.max_min.const import (
 # ---------------------------------------------------------------------------
 
 def _entry(periods=None, types=None, offset=0, **extra):
-    entry = Mock()
-    entry.data = {
-        CONF_SENSOR_ENTITY: "sensor.test",
-        CONF_PERIODS: periods or [PERIOD_DAILY],
-        CONF_TYPES: types or [TYPE_MAX, TYPE_MIN],
-        CONF_OFFSET: offset,
-    }
-    entry.options = {}
-    entry.entry_id = "test_entry"
-    entry.title = "Test"
-    return entry
+    return make_config_entry(periods=periods, types=types, offset=offset, **extra)
 
 
 def _hass(state="10.0", state_class=None):
-    hass = Mock()
-    hass.config.time_zone = timezone.utc
-    hass.data = {}
-    attrs = {"friendly_name": "Test Sensor"}
-    if state_class:
-        attrs["state_class"] = state_class
-    hass.states.get.return_value = Mock(state=state, attributes=attrs)
-    return hass
+    return make_mock_hass(state=state, state_class=state_class)
 
 
 # ===================================================================

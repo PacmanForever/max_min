@@ -7,7 +7,7 @@
 [![Component Tests](https://github.com/PacmanForever/max_min/actions/workflows/tests_component.yml/badge.svg)](https://github.com/PacmanForever/max_min/actions/workflows/tests_component.yml)
 [![Validate HACS](https://github.com/PacmanForever/max_min/actions/workflows/validate_hacs.yml/badge.svg)](https://github.com/PacmanForever/max_min/actions/workflows/validate_hacs.yml)
 [![Validate Hassfest](https://github.com/PacmanForever/max_min/actions/workflows/validate_hassfest.yml/badge.svg)](https://github.com/PacmanForever/max_min/actions/workflows/validate_hassfest.yml)
-[![Home Assistant](https://img.shields.io/badge/home%20assistant-2024.1.0+-blue)](https://www.home-assistant.io)
+[![Home Assistant](https://img.shields.io/badge/home%20assistant-2024.4.0+-blue)](https://www.home-assistant.io)
 
 > **Important**  
 > Beta: This integration is in beta phase. Correct functioning is not guaranteed and may contain errors; use it at your own risk.
@@ -19,7 +19,7 @@ A custom Home Assistant integration that creates max and min sensors based on a 
 - **Max/Min/Delta Sensors**: Creates sensors that maintain the maximum, minimum or delta (change) value of a source sensor during a specified period
 - **Configurable Periods**: Daily, weekly, monthly, yearly or all time (never resets)
 - **Flexibility**: Create individual sensors (only max, only min, or delta) or any combination
-- **Automatic Reset**: At the end of each period, sensors reset to the current value of the source sensor (Max/Min) or zero (Delta)
+- **Automatic Reset**: At the end of each period, sensors start a new cycle from a fresh seed derived from the current source value, preserving continuity for Max, Min and Delta tracking
 - **Real-time Updates**: Sensors update immediately when the source sensor value changes
 
 ## Installation
@@ -63,7 +63,7 @@ This offset/dead-zone behavior is applied to **cumulative sources** (`state_clas
 For standard measurement sensors, resets happen at the exact period boundary.
 
 - **How it works (cumulative only)**: If you set an offset of e.g. 10 seconds, the period reset for cumulative sources will be delayed by 10 seconds (e.g., at 00:00:10).
-- **Dead Zone (cumulative only)**: Updates received during the window `[Reset Time - Offset]` to `[Reset Time + Offset]` will be ignored.
+- **Dead Zone (cumulative only)**: Updates received during the window `[Reset Time - Offset]` to `[Reset Time + Offset]` are handled conservatively. The integration avoids anchoring a new start value too early, while still protecting max/min/end tracking around the boundary.
 - **Why use it?**: This prevents data from the previous period (arriving late) from counting towards the new period, and prevents values from near-instantaneous restarts just before midnight from overwriting the day's true min/max.
 
 ## Reliability
@@ -86,11 +86,13 @@ To ensure data consistency even in edge cases, Max Min implements several fail-s
 
 You can set initial values for Max, Min and Delta sensors when configuring the integration. This is useful for migrating from other integrations or when you want to start with known baseline values.
 
-- **Initial Max**: Set a starting maximum value. The sensor will only update if the source sensor exceeds this value. This value is enforced as a floor — restored values below it will be raised back to the configured initial.
-- **Initial Min**: Set a starting minimum value. The sensor will only update if the source sensor goes below this value. This value is enforced as a ceiling — restored values above it will be lowered back to the configured initial.
-- **Initial Delta**: Set a starting delta value. The sensor will show this value until the real computed delta (end − start) exceeds it. This value is enforced as a floor — useful when replacing another integration mid-period.
+- **Initial Max**: Sets the initial max value for a new period when there is no valid restored state yet.
+- **Initial Min**: Sets the initial min value for a new period when there is no valid restored state yet.
+- **Initial Delta**: Sets the initial delta seed for a new period when there is no valid restored state yet.
 
-If no initial values are set, the sensors will start with the first value received from the source sensor. Leave the fields empty to disable enforcement.
+Initial values are a one-time seed. They are applied on creation, or after a deliberate per-period reset in options, but they are not re-enforced on every restart or reload. If a valid state from the current period is restored, that restored state wins.
+
+If no initial values are set, the sensors will start with the first value received from the source sensor. Leave the fields empty to disable seeding.
 
 ## How it works
 
@@ -127,12 +129,12 @@ You can use these sensors in automations, for example:
 
 When Home Assistant restarts, the Max Min integration restores its state:
 
-- **State restoration**: Max and Min sensors use Home Assistant's `RestoreEntity` to recover the last known value and `last_reset` timestamp on startup.
+- **State restoration**: Max, Min and Delta sensors use Home Assistant's `RestoreEntity` data to recover the last known value and period metadata on startup.
 - **Stale data protection**: If the restored data belongs to a previous period (based on `last_reset`), it is discarded and the sensor starts fresh with the current source value.
 - **Reset is reprogrammed**: The reset timer is recalculated based on the current time.
 - **Inline reset safety net**: If a sensor update arrives after a period boundary but before the scheduled reset fires, the integration detects the stale `last_reset` and resets inline.
-- **Sensors unavailable**: If the source sensor is not available during restart, sensors will show "Unavailable".
-- **Delta sensors**: Delta values (start/end) are not restored; they reinitialize from the current source value after restart.
+- **Startup continuity**: If the source sensor is temporarily unavailable during restart, previously restored values remain in place and live tracking resumes when the source recovers.
+- **Delta sensors**: Delta boundaries are restored when available. If an older state is missing `start_value`/`end_value`, the integration reconstructs them from the restored delta and the live source value to preserve continuity.
 
 ## Troubleshooting
 

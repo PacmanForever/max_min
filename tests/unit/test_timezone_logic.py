@@ -1,3 +1,5 @@
+"""Tests for timezone-aware period boundary calculations and DST behavior."""
+
 import pytest
 from datetime import datetime, timedelta, timezone
 from importlib import import_module

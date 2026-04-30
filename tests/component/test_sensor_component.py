@@ -5,9 +5,9 @@ from unittest.mock import AsyncMock, Mock
 import pytest
 
 from custom_components.max_min import DOMAIN
-from custom_components.max_min.const import CONF_PERIODS, CONF_SENSOR_ENTITY, CONF_TYPES, PERIOD_DAILY, TYPE_MAX, TYPE_MIN
+from custom_components.max_min.const import CONF_PERIODS, CONF_SENSOR_ENTITY, CONF_TYPES, PERIOD_DAILY, TYPE_DELTA, TYPE_MAX, TYPE_MIN
 from custom_components.max_min.coordinator import MaxMinDataUpdateCoordinator
-from custom_components.max_min.sensor import async_setup_entry
+from custom_components.max_min.sensor import DeltaSensor, async_setup_entry
 from unittest.mock import patch
 
 @pytest.fixture
@@ -120,3 +120,99 @@ async def test_device_cleanup(hass, config_entry):
         
         # Verify device was updated to remove config entry connection
         mock_dev_reg.async_update_device.assert_called_with("old_device_id", remove_config_entry_id=config_entry.entry_id)
+
+
+@pytest.mark.asyncio
+async def test_sensor_setup_periods_string(hass, config_entry):
+    """async_setup_entry coerces periods from string to list."""
+    config_entry.data[CONF_PERIODS] = "daily"
+    config_entry.data[CONF_TYPES] = [TYPE_MAX]
+    config_entry.options = {}
+
+    coordinator = Mock(spec=MaxMinDataUpdateCoordinator)
+    coordinator.get_value.return_value = 10.0
+    coordinator.hass = hass
+    config_entry.runtime_data = coordinator
+
+    async_add_entities = Mock()
+
+    with patch("homeassistant.helpers.entity_registry.async_get") as mock_er_get, \
+         patch("homeassistant.helpers.device_registry.async_get") as mock_dr_get, \
+         patch("homeassistant.helpers.entity_registry.async_entries_for_config_entry", return_value=[]):
+        mock_registry = Mock()
+        mock_registry.async_get.return_value = Mock(name="Temp", original_name="Temp Orig")
+        mock_er_get.return_value = mock_registry
+
+        mock_dev_reg = Mock()
+        mock_dev_reg.devices = {}
+        mock_dr_get.return_value = mock_dev_reg
+
+        await async_setup_entry(hass, config_entry, async_add_entities)
+
+    entities = async_add_entities.call_args[0][0]
+    assert len(entities) == 1
+
+
+@pytest.mark.asyncio
+async def test_sensor_setup_friendly_name_fallback(hass, config_entry):
+    """async_setup_entry falls back to the source friendly_name."""
+    config_entry.options = {}
+
+    coordinator = Mock(spec=MaxMinDataUpdateCoordinator)
+    coordinator.get_value.return_value = 10.0
+    coordinator.hass = hass
+    config_entry.runtime_data = coordinator
+
+    hass.states.get.return_value = Mock(
+        state="10.0",
+        attributes={"friendly_name": "My Friendly Sensor"},
+    )
+
+    async_add_entities = Mock()
+
+    with patch("homeassistant.helpers.entity_registry.async_get") as mock_er_get, \
+         patch("homeassistant.helpers.device_registry.async_get") as mock_dr_get, \
+         patch("homeassistant.helpers.entity_registry.async_entries_for_config_entry", return_value=[]):
+        mock_registry = Mock()
+        mock_registry.async_get.return_value = None
+        mock_er_get.return_value = mock_registry
+
+        mock_dev_reg = Mock()
+        mock_dev_reg.devices = {}
+        mock_dr_get.return_value = mock_dev_reg
+
+        await async_setup_entry(hass, config_entry, async_add_entities)
+
+    entities = async_add_entities.call_args[0][0]
+    assert entities[0].name == "My Friendly Sensor Daily (Max)"
+
+
+@pytest.mark.asyncio
+async def test_sensor_setup_creates_delta_entity(hass, config_entry):
+    """async_setup_entry creates DeltaSensor when delta is configured."""
+    config_entry.data[CONF_TYPES] = [TYPE_DELTA]
+    config_entry.options = {}
+
+    coordinator = Mock(spec=MaxMinDataUpdateCoordinator)
+    coordinator.get_value.return_value = 0.0
+    coordinator.hass = hass
+    config_entry.runtime_data = coordinator
+
+    async_add_entities = Mock()
+
+    with patch("homeassistant.helpers.entity_registry.async_get") as mock_er_get, \
+         patch("homeassistant.helpers.device_registry.async_get") as mock_dr_get, \
+         patch("homeassistant.helpers.entity_registry.async_entries_for_config_entry", return_value=[]):
+        mock_registry = Mock()
+        mock_registry.async_get.return_value = Mock(name="Temp", original_name="Temp Orig")
+        mock_er_get.return_value = mock_registry
+
+        mock_dev_reg = Mock()
+        mock_dev_reg.devices = {}
+        mock_dr_get.return_value = mock_dev_reg
+
+        await async_setup_entry(hass, config_entry, async_add_entities)
+
+    entities = async_add_entities.call_args[0][0]
+    assert len(entities) == 1
+    assert isinstance(entities[0], DeltaSensor)

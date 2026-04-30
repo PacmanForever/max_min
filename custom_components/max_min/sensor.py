@@ -200,6 +200,31 @@ class _BaseMaxMinSensor(CoordinatorEntity, SensorEntity, RestoreEntity):
             attrs["last_reset_triggered_at"] = last_reset_triggered_at.isoformat()
         return attrs
 
+    async def async_added_to_hass(self) -> None:
+        """Restore previous state on startup."""
+        await super().async_added_to_hass()
+        last_state = await self.async_get_last_state()
+        if not last_state:
+            return
+
+        old_entry_id = last_state.attributes.get("config_entry_id")
+        if old_entry_id is not None and old_entry_id != self._config_entry.entry_id:
+            return
+
+        self._attr_native_unit_of_measurement = last_state.attributes.get("unit_of_measurement")
+        self._attr_device_class = last_state.attributes.get("device_class")
+        self._restore_sensor_data(last_state)
+
+    def _restore_sensor_data(self, last_state) -> None:
+        """Restore type-specific data from a previous state."""
+        if last_state.state not in (None, "unknown", "unavailable"):
+            try:
+                value = float(last_state.state)
+                last_reset = last_state.attributes.get("last_reset")
+                self.coordinator.update_restored_data(self.period, self._value_key, value, last_reset)
+            except ValueError:
+                pass
+
 
 # ---------------------------------------------------------------------------
 # Concrete sensor classes
@@ -209,28 +234,6 @@ class MaxSensor(_BaseMaxMinSensor):
     """Representation of a Max sensor."""
 
     _value_key = "max"
-
-    async def async_added_to_hass(self) -> None:
-        """Restore previous state on startup."""
-        await super().async_added_to_hass()
-        last_state = await self.async_get_last_state()
-        if last_state:
-            # Skip restore if state belongs to a different config entry (delete+recreate).
-            # Accept states with no config_entry_id (pre-v0.3.47 backward compat).
-            old_entry_id = last_state.attributes.get("config_entry_id")
-            if old_entry_id is not None and old_entry_id != self._config_entry.entry_id:
-                return
-
-            self._attr_native_unit_of_measurement = last_state.attributes.get("unit_of_measurement")
-            self._attr_device_class = last_state.attributes.get("device_class")
-
-            if last_state.state not in (None, "unknown", "unavailable"):
-                try:
-                    value = float(last_state.state)
-                    last_reset = last_state.attributes.get("last_reset")
-                    self.coordinator.update_restored_data(self.period, self._value_key, value, last_reset)
-                except ValueError:
-                    pass
 
     @property
     def native_value(self):
@@ -242,28 +245,6 @@ class MinSensor(_BaseMaxMinSensor):
     """Representation of a Min sensor."""
 
     _value_key = "min"
-
-    async def async_added_to_hass(self) -> None:
-        """Restore previous state on startup."""
-        await super().async_added_to_hass()
-        last_state = await self.async_get_last_state()
-        if last_state:
-            # Skip restore if state belongs to a different config entry (delete+recreate).
-            # Accept states with no config_entry_id (pre-v0.3.47 backward compat).
-            old_entry_id = last_state.attributes.get("config_entry_id")
-            if old_entry_id is not None and old_entry_id != self._config_entry.entry_id:
-                return
-
-            self._attr_native_unit_of_measurement = last_state.attributes.get("unit_of_measurement")
-            self._attr_device_class = last_state.attributes.get("device_class")
-
-            if last_state.state not in (None, "unknown", "unavailable"):
-                try:
-                    value = float(last_state.state)
-                    last_reset = last_state.attributes.get("last_reset")
-                    self.coordinator.update_restored_data(self.period, self._value_key, value, last_reset)
-                except ValueError:
-                    pass
 
     @property
     def native_value(self):
@@ -289,63 +270,44 @@ class DeltaSensor(_BaseMaxMinSensor):
             except (ValueError, TypeError):
                 pass
 
-    async def async_added_to_hass(self) -> None:
-        """Restore previous state on startup."""
-        await super().async_added_to_hass()
-        last_state = await self.async_get_last_state()
-        if last_state:
-            # Skip restore if state belongs to a different config entry (delete+recreate).
-            # Accept states with no config_entry_id (pre-v0.3.47 backward compat).
-            old_entry_id = last_state.attributes.get("config_entry_id")
-            if old_entry_id is not None and old_entry_id != self._config_entry.entry_id:
-                return
+    def _restore_sensor_data(self, last_state) -> None:
+        """Restore delta start/end values from a previous state."""
+        start = last_state.attributes.get("start_value")
+        end = last_state.attributes.get("end_value")
+        last_reset = last_state.attributes.get("last_reset")
 
-            self._attr_native_unit_of_measurement = last_state.attributes.get("unit_of_measurement")
-            self._attr_device_class = last_state.attributes.get("device_class")
+        if start is not None and end is not None:
+            try:
+                start_f = float(start)
+                end_f = float(end)
+                self.coordinator.update_restored_data(self.period, "start", start_f, last_reset)
+                self.coordinator.update_restored_data(self.period, "end", end_f, last_reset)
+            except ValueError:
+                pass
+            return
 
-            # Restore start/end from attributes
-            start = last_state.attributes.get("start_value")
-            end = last_state.attributes.get("end_value")
-            last_reset = last_state.attributes.get("last_reset")
-            
-            if start is not None and end is not None:
-                try:
-                    start_f = float(start)
-                    end_f = float(end)
+        if start is not None:
+            try:
+                self.coordinator.update_restored_data(self.period, "start", float(start), last_reset)
+            except ValueError:
+                pass
+        if end is not None:
+            try:
+                self.coordinator.update_restored_data(self.period, "end", float(end), last_reset)
+            except ValueError:
+                pass
 
+        if start is None and end is None:
+            try:
+                restored_delta = _as_float(last_state.state)
+                source_state = self.coordinator.hass.states.get(self.coordinator.sensor_entity)
+                if source_state and source_state.state not in (None, "unknown", "unavailable"):
+                    end_f = _as_float(source_state.state)
+                    start_f = end_f - restored_delta
                     self.coordinator.update_restored_data(self.period, "start", start_f, last_reset)
                     self.coordinator.update_restored_data(self.period, "end", end_f, last_reset)
-                except ValueError:
-                    pass
-            else:
-                # Fallback if only one is present (rare)
-                if start is not None:
-                    try:
-                        self.coordinator.update_restored_data(self.period, "start", float(start), last_reset)
-                    except ValueError:
-                        pass
-                if end is not None:
-                    try:
-                        self.coordinator.update_restored_data(self.period, "end", float(end), last_reset)
-                    except ValueError:
-                        pass
-
-                # If both start/end are missing but we still have a numeric
-                # restored delta, reconstruct boundaries from the current source
-                # value to avoid a transient delta=0 after restart/reload.
-                # last_reset is passed when available and validated in coordinator;
-                # when absent we still prefer continuity over a forced re-seed to 0.
-                if start is None and end is None:
-                    try:
-                        restored_delta = _as_float(last_state.state)
-                        source_state = self.coordinator.hass.states.get(self.coordinator.sensor_entity)
-                        if source_state and source_state.state not in (None, "unknown", "unavailable"):
-                            end_f = _as_float(source_state.state)
-                            start_f = end_f - restored_delta
-                            self.coordinator.update_restored_data(self.period, "start", start_f, last_reset)
-                            self.coordinator.update_restored_data(self.period, "end", end_f, last_reset)
-                    except (ValueError, TypeError):
-                        pass
+            except (ValueError, TypeError):
+                pass
 
     @property
     def extra_state_attributes(self):

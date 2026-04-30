@@ -1,6 +1,10 @@
 """Test restore state functionality."""
-from unittest.mock import Mock, patch, AsyncMock
+from datetime import datetime
+from unittest.mock import AsyncMock, Mock, patch
+from zoneinfo import ZoneInfo
+
 import pytest
+from homeassistant.util import dt as dt_util
 
 from custom_components.max_min.const import (
     CONF_SENSOR_ENTITY,
@@ -124,3 +128,107 @@ async def test_sensor_restore_invalid_state(mock_coordinator, mock_config_entry)
     await sensor.async_added_to_hass()
     
     mock_coordinator.update_restored_data.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_sensor_restore_value_error(mock_coordinator, mock_config_entry):
+    """ValueError during restore is ignored for max and min sensors."""
+    last_state = Mock()
+    last_state.state = "invalid_float"
+    last_state.attributes = {}
+
+    max_sensor = MaxSensor(mock_coordinator, mock_config_entry, "Test Max", PERIOD_DAILY)
+    max_sensor.async_get_last_state = AsyncMock(return_value=last_state)
+    await max_sensor.async_added_to_hass()
+
+    min_sensor = MinSensor(mock_coordinator, mock_config_entry, "Test Min", PERIOD_DAILY)
+    min_sensor.async_get_last_state = AsyncMock(return_value=last_state)
+    await min_sensor.async_added_to_hass()
+
+
+def test_restore_accepts_utc_last_reset_in_same_local_day():
+    """Restore accepts UTC timestamps that are still in the same local period."""
+    old_tz = dt_util.DEFAULT_TIME_ZONE
+    try:
+        dt_util.set_default_time_zone(ZoneInfo("Europe/Madrid"))
+
+        ha = Mock()
+        ha.states.get.return_value = Mock(state="10.0", attributes={})
+
+        entry = Mock()
+        entry.entry_id = "test"
+        entry.data = {
+            CONF_SENSOR_ENTITY: "sensor.test",
+            CONF_PERIODS: [PERIOD_DAILY],
+            CONF_TYPES: [TYPE_MAX],
+        }
+        entry.options = {}
+
+        coordinator = MaxMinDataUpdateCoordinator(ha, entry)
+        coordinator.tracked_data[PERIOD_DAILY]["max"] = 5.0
+
+        with pytest.MonkeyPatch.context() as mp:
+            mp.setattr(
+                "custom_components.max_min.coordinator.dt_util.now",
+                lambda: datetime(2026, 4, 3, 1, 30, 0, tzinfo=ZoneInfo("Europe/Madrid")),
+            )
+            coordinator.update_restored_data(
+                PERIOD_DAILY,
+                "max",
+                42.0,
+                last_reset="2026-04-02T22:00:00+00:00",
+            )
+
+        assert coordinator.tracked_data[PERIOD_DAILY]["max"] == 42.0
+        assert coordinator.tracked_data[PERIOD_DAILY]["last_reset"] == datetime(
+            2026, 4, 3, 0, 0, 0, tzinfo=ZoneInfo("Europe/Madrid")
+        )
+    finally:
+        dt_util.set_default_time_zone(old_tz)
+
+
+def test_restore_without_last_reset_allowed():
+    """Historical restore remains allowed even without last_reset metadata."""
+    ha = Mock()
+    ha.states.get.return_value = Mock(state="10.0", attributes={})
+
+    entry = Mock()
+    entry.entry_id = "test"
+    entry.data = {
+        CONF_SENSOR_ENTITY: "sensor.test",
+        CONF_PERIODS: [PERIOD_DAILY],
+        CONF_TYPES: [TYPE_MAX],
+    }
+    entry.options = {}
+
+    coordinator = MaxMinDataUpdateCoordinator(ha, entry)
+    coordinator.tracked_data[PERIOD_DAILY]["max"] = 10.0
+    coordinator.tracked_data[PERIOD_DAILY]["last_reset"] = datetime.now()
+
+    coordinator.update_restored_data(PERIOD_DAILY, "max", 50.0, last_reset=None)
+
+    assert coordinator.tracked_data[PERIOD_DAILY]["max"] == 50.0
+
+
+def test_restored_value_not_overwritten_by_current():
+    """A restored historical max must win over the current source value."""
+    ha = Mock()
+
+    entry = Mock()
+    entry.entry_id = "test"
+    entry.data = {
+        CONF_SENSOR_ENTITY: "sensor.test",
+        CONF_PERIODS: [PERIOD_DAILY],
+        CONF_TYPES: [TYPE_MAX],
+    }
+    entry.options = {}
+
+    ha.states.get.return_value = Mock(state="10.0", attributes={})
+
+    coordinator = MaxMinDataUpdateCoordinator(ha, entry)
+
+    assert coordinator.tracked_data[PERIOD_DAILY]["max"] is None
+
+    coordinator.update_restored_data(PERIOD_DAILY, "max", 50.0)
+
+    assert coordinator.get_value(PERIOD_DAILY, "max") == 50.0

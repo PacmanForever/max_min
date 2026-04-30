@@ -1,32 +1,32 @@
 
+"""Tests for cross-period consistency propagation and surgical reset guards."""
+
 import pytest
 from datetime import datetime, timezone
 from unittest.mock import Mock, MagicMock
+from conftest import make_config_entry, make_mock_hass
 
 from custom_components.max_min.coordinator import MaxMinDataUpdateCoordinator
 from custom_components.max_min.const import (
-    CONF_SENSOR_ENTITY, CONF_PERIODS, CONF_TYPES, 
-    PERIOD_YEARLY, PERIOD_ALL_TIME, TYPE_MAX, TYPE_MIN,
-    PERIOD_DAILY, PERIOD_WEEKLY, PERIOD_MONTHLY
+    CONF_PERIODS,
+    CONF_RESET_HISTORY,
+    CONF_SENSOR_ENTITY,
+    CONF_TYPES,
+    PERIOD_YEARLY,
+    PERIOD_ALL_TIME,
+    TYPE_MAX,
+    TYPE_MIN,
+    PERIOD_DAILY,
+    PERIOD_WEEKLY,
+    PERIOD_MONTHLY,
 )
 
 @pytest.fixture
 def hass():
-    hass = Mock()
-    hass.config.time_zone = timezone.utc
-    return hass
+    return make_mock_hass(state=None)
 
 def _make_entry(periods):
-    entry = MagicMock()
-    entry.data = {
-        CONF_SENSOR_ENTITY: "sensor.test",
-        CONF_PERIODS: periods,
-        CONF_TYPES: [TYPE_MAX, TYPE_MIN],
-    }
-    entry.options = {}
-    entry.entry_id = "test_entry"
-    entry.title = "Test"
-    return entry
+    return make_config_entry(periods=periods, types=[TYPE_MAX, TYPE_MIN])
 
 def test_cross_period_consistency_propagation(hass):
     # Setup with Yearly and All-time
@@ -88,3 +88,81 @@ def test_max_consistency_propagation(hass):
     
     # Weekly must be at least 40
     assert coordinator.get_value(PERIOD_WEEKLY, "max") == 40.0
+
+
+def test_reset_only_changed_sensor(hass):
+    """Only periods outside reset_history should accept restored values."""
+    entry = make_config_entry(periods=[PERIOD_DAILY, PERIOD_YEARLY], types=[TYPE_MAX])
+    entry.options = {CONF_RESET_HISTORY: ["yearly_max"]}
+
+    coordinator = MaxMinDataUpdateCoordinator(hass, entry)
+
+    coordinator.update_restored_data(PERIOD_DAILY, "max", 50.0)
+    coordinator.update_restored_data(PERIOD_YEARLY, "max", 50.0)
+
+    assert coordinator.tracked_data[PERIOD_DAILY]["max"] == 50.0
+    assert coordinator.tracked_data[PERIOD_YEARLY]["max"] is None
+
+
+def test_no_reset_when_list_empty(hass):
+    """Empty reset_history keeps normal restoration behavior."""
+    entry = make_config_entry(periods=[PERIOD_DAILY], types=[TYPE_MAX])
+    entry.options = {CONF_RESET_HISTORY: []}
+
+    coordinator = MaxMinDataUpdateCoordinator(hass, entry)
+    coordinator.update_restored_data(PERIOD_DAILY, "max", 100.0)
+
+    assert coordinator.tracked_data[PERIOD_DAILY]["max"] == 100.0
+
+
+def test_consistency_respects_reset_history(hass):
+    """Consistency propagation does not bypass surgical reset history."""
+    entry = make_config_entry(
+        periods=[PERIOD_DAILY, PERIOD_YEARLY],
+        types=[TYPE_MAX, TYPE_MIN],
+    )
+    entry.options = {CONF_RESET_HISTORY: ["yearly_max", "yearly_min"]}
+
+    coordinator = MaxMinDataUpdateCoordinator(hass, entry)
+    coordinator.tracked_data[PERIOD_DAILY]["max"] = 50.0
+    coordinator.tracked_data[PERIOD_DAILY]["min"] = 5.0
+
+    assert coordinator.tracked_data[PERIOD_YEARLY]["max"] is None
+    assert coordinator.tracked_data[PERIOD_YEARLY]["min"] is None
+
+    coordinator._check_consistency()
+
+    assert coordinator.tracked_data[PERIOD_YEARLY]["max"] is None
+    assert coordinator.tracked_data[PERIOD_YEARLY]["min"] is None
+
+
+def test_consistency_propagates_when_not_in_reset_history(hass):
+    """Consistency propagation works normally outside reset_history."""
+    entry = make_config_entry(
+        periods=[PERIOD_DAILY, PERIOD_YEARLY],
+        types=[TYPE_MAX, TYPE_MIN],
+    )
+    entry.options = {CONF_RESET_HISTORY: []}
+
+    coordinator = MaxMinDataUpdateCoordinator(hass, entry)
+    coordinator.tracked_data[PERIOD_DAILY]["max"] = 50.0
+    coordinator.tracked_data[PERIOD_DAILY]["min"] = 5.0
+
+    coordinator._check_consistency()
+
+    assert coordinator.tracked_data[PERIOD_YEARLY]["max"] == 50.0
+    assert coordinator.tracked_data[PERIOD_YEARLY]["min"] == 5.0
+
+
+def test_consistency_propagates_without_initial_override(hass):
+    """Cross-period consistency propagates freely without initial interference."""
+    entry = make_config_entry(periods=[PERIOD_DAILY, PERIOD_YEARLY], types=[TYPE_MAX])
+    entry.options = {f"{PERIOD_YEARLY}_initial_max": 45.0}
+
+    coordinator = MaxMinDataUpdateCoordinator(hass, entry)
+    coordinator.tracked_data[PERIOD_DAILY]["max"] = 15.0
+    coordinator.tracked_data[PERIOD_YEARLY]["max"] = None
+
+    coordinator._check_consistency()
+
+    assert coordinator.get_value(PERIOD_YEARLY, "max") == 15.0
