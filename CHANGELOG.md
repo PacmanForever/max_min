@@ -1,4 +1,8 @@
 
+# 0.3.55 - 2026-05-04
+## Fixed
+- **Stale measurement state no longer contaminates broader period resets**: Non-cumulative source sensors that keep yesterday's value after the boundary (for example an inverter-provided daily peak sensor at Monday 00:00) are no longer used to seed weekly/monthly/yearly resets until the source publishes a fresh state in the new period.
+
 # 0.3.54 - 2026-04-30
 ## Fixed
 - **Pytest 9 test compatibility**: Overrode the Home Assistant test plugin's autouse `enable_event_loop_debug` fixture with a local synchronous fixture so synchronous tests no longer fail setup with `PytestRemovedIn9Warning`.

@@ -224,6 +224,49 @@ class MaxMinDataUpdateCoordinator(DataUpdateCoordinator):
             except (ValueError, TypeError):
                 pass
         return None
+
+    @staticmethod
+    def _get_state_timestamp(state, reference_tz):
+        """Return the best available state timestamp normalized to reference_tz."""
+        for attr_name in ("last_reported", "last_updated", "last_changed"):
+            timestamp = getattr(state, attr_name, None)
+            if timestamp is not None:
+                normalized = MaxMinDataUpdateCoordinator._normalize_last_reset(timestamp, reference_tz)
+                if normalized is not None:
+                    return normalized
+        return None
+
+    def _is_source_state_fresh_for_period(self, state, period, now) -> bool:
+        """Return True if the source state was updated during the current period.
+
+        Non-cumulative sensors can expose period-based values (for example a
+        device-provided "daily peak") that keep yesterday's numeric state after
+        midnight until the source publishes again. Using that stale value as the
+        seed for a broader reset (weekly/monthly/...) contaminates the new
+        period. When we can prove the source timestamp is still before the new
+        period start, ignore it and wait for the first fresh update.
+        """
+        if self._source_is_cumulative or period == PERIOD_ALL_TIME:
+            return True
+
+        period_start = self._get_period_start(now, period)
+        if period_start is None:
+            return True
+
+        state_timestamp = self._get_state_timestamp(state, period_start.tzinfo)
+        if state_timestamp is None:
+            return True
+
+        try:
+            return state_timestamp >= period_start
+        except TypeError:
+            _LOGGER.debug(
+                "State timestamp %s for %s could not be compared with period start %s",
+                state_timestamp,
+                self.sensor_entity,
+                period_start,
+            )
+            return True
     
     @staticmethod
     def _get_period_start(now, period):
@@ -290,7 +333,7 @@ class MaxMinDataUpdateCoordinator(DataUpdateCoordinator):
 
         return period_start <= timestamp < next_period_start
 
-    def _compute_reset_seed(self, period) -> float | None:
+    def _compute_reset_seed(self, period, now=None) -> float | None:
         """Compute the seed value for a period reset.
 
         Always tries the live sensor value first.  When the source is
@@ -299,8 +342,17 @@ class MaxMinDataUpdateCoordinator(DataUpdateCoordinator):
         and the HA history graph shows a clean break at the period
         boundary instead of a flat line of the previous maximum.
         """
+        state = self.hass.states.get(self.sensor_entity)
         value = self._get_source_float()
         if value is not None:
+            if now is not None and not self._is_source_state_fresh_for_period(state, period, now):
+                _LOGGER.debug(
+                    "Ignoring stale source state for %s reset: %s last updated at %s before current period",
+                    period,
+                    value,
+                    self._get_state_timestamp(state, now.tzinfo),
+                )
+                return None
             return value
         # Fallback: use last known end value regardless of sensor type.
         # For cumulative sensors this preserves the meter reading.
@@ -718,7 +770,7 @@ class MaxMinDataUpdateCoordinator(DataUpdateCoordinator):
         _LOGGER.debug("Handling period reset for %s - %s (source=%s)", self.config_entry.title, period, reason)
 
         try:
-            reset_seed = self._compute_reset_seed(period)
+            reset_seed = self._compute_reset_seed(period, now)
 
             if period in self.tracked_data:
                 # Log seed provenance when source is unavailable

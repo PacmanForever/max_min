@@ -34,8 +34,13 @@ def _entry(periods=None, types=None, offset=0, **extra):
     return make_config_entry(periods=periods, types=types, offset=offset, **extra)
 
 
-def _hass(state="10.0", state_class=None):
-    return make_mock_hass(state=state, state_class=state_class)
+def _hass(state="10.0", state_class=None, last_updated=None, last_changed=None):
+    hass = make_mock_hass(state=state, state_class=state_class)
+    if last_updated is not None:
+        hass.states.get.return_value.last_updated = last_updated
+    if last_changed is not None:
+        hass.states.get.return_value.last_changed = last_changed
+    return hass
 
 
 # ===================================================================
@@ -154,6 +159,70 @@ def test_nr04_measurement_seed_uses_last_end():
     assert data["min"] == 20.0
     assert data["start"] == 20.0
     assert data["end"] == 20.0
+
+
+@freeze_time("2026-05-04 00:00:00", tz_offset=0)
+def test_nr04b_weekly_reset_ignores_stale_measurement_source():
+    """Weekly reset must ignore a pre-midnight measurement state.
+
+    Real-world case: a device-provided daily peak sensor can still expose
+    Sunday's peak at Monday 00:00 until the inverter publishes again.
+    That stale state must not seed the new weekly max.
+    """
+    stale_timestamp = datetime(2026, 5, 3, 23, 55, 0, tzinfo=timezone.utc)
+    hass = _hass("3603.0", last_updated=stale_timestamp, last_changed=stale_timestamp)
+    coordinator = MaxMinDataUpdateCoordinator(hass, _entry(periods=[PERIOD_WEEKLY]))
+    coordinator._source_is_cumulative = False
+
+    coordinator.tracked_data[PERIOD_WEEKLY] = {
+        "max": 4220.0, "min": 0.0, "start": 0.0, "end": 3603.0,
+        "last_reset": datetime(2026, 4, 27, 0, 0, 0, tzinfo=timezone.utc),
+    }
+
+    now = datetime(2026, 5, 4, 0, 0, 0, tzinfo=timezone.utc)
+    with patch("custom_components.max_min.coordinator.async_track_point_in_time"):
+        coordinator._perform_reset(now, PERIOD_WEEKLY)
+
+    data = coordinator.tracked_data[PERIOD_WEEKLY]
+    assert data["last_reset"] == datetime(2026, 5, 4, 0, 0, 0, tzinfo=timezone.utc)
+    assert data["max"] is None
+    assert data["min"] is None
+    assert data["start"] is None
+    assert data["end"] is None
+
+
+@freeze_time("2026-05-04 08:00:00", tz_offset=0)
+def test_nr04c_weekly_reset_accepts_first_fresh_measurement_update():
+    """After a stale-safe reset, the first fresh value becomes the new weekly max."""
+    fresh_timestamp = datetime(2026, 5, 4, 8, 0, 0, tzinfo=timezone.utc)
+    hass = _hass("1875.0", last_updated=fresh_timestamp, last_changed=fresh_timestamp)
+    coordinator = MaxMinDataUpdateCoordinator(hass, _entry(periods=[PERIOD_WEEKLY]))
+    coordinator._source_is_cumulative = False
+
+    coordinator.tracked_data[PERIOD_WEEKLY] = {
+        "max": None, "min": None, "start": None, "end": None,
+        "last_reset": datetime(2026, 5, 4, 0, 0, 0, tzinfo=timezone.utc),
+    }
+    coordinator._pending_start_reanchor.add(PERIOD_WEEKLY)
+
+    event = Mock()
+    event.data = {
+        "new_state": Mock(
+            state="1875.0",
+            attributes={},
+            last_updated=fresh_timestamp,
+            last_changed=fresh_timestamp,
+        )
+    }
+
+    with patch("custom_components.max_min.coordinator.async_track_point_in_time"):
+        coordinator._handle_sensor_change(event)
+
+    data = coordinator.tracked_data[PERIOD_WEEKLY]
+    assert data["max"] == 1875.0
+    assert data["min"] == 1875.0
+    assert data["start"] == 1875.0
+    assert data["end"] == 1875.0
 
 
 # ===================================================================
