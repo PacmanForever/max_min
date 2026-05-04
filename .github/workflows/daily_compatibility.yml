@@ -20,8 +20,10 @@ jobs:
         id: detect-python
         run: |
           if [ "${{ matrix.ha-version }}" = "dev" ]; then
-            curl -s https://raw.githubusercontent.com/home-assistant/core/dev/pyproject.toml | grep '^requires-python' | cut -d '"' -f2 > .python-version
-            echo "python_version=$(cat .python-version)" >> $GITHUB_OUTPUT
+            raw_spec=$(curl -s https://raw.githubusercontent.com/home-assistant/core/dev/pyproject.toml | grep '^requires-python' | cut -d '"' -f2)
+            python_version=$(printf '%s' "$raw_spec" | python3 -c "import re, sys; specifier = sys.stdin.read().strip(); match = re.search(r'(\\d+)\\.(\\d+)', specifier); assert match, f'Unable to parse Python version from: {specifier}'; print(f'{match.group(1)}.{match.group(2)}')")
+            echo "Detected HA dev Python requirement: $raw_spec -> $python_version"
+            echo "python_version=$python_version" >> $GITHUB_OUTPUT
           else
             echo "python_version=3.13" >> $GITHUB_OUTPUT
           fi
