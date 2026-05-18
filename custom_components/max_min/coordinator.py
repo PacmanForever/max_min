@@ -519,7 +519,10 @@ class MaxMinDataUpdateCoordinator(DataUpdateCoordinator):
             else:
                 _LOGGER.warning("Sensor %s has non-numeric state: %s", self.sensor_entity, state.state)
         else:
-            _LOGGER.warning("Sensor %s is not available", self.sensor_entity)
+            _LOGGER.debug(
+                "Skipping initial seed for %s because the source sensor is not available yet",
+                self.sensor_entity,
+            )
 
         # Schedule resets
         self._schedule_resets()

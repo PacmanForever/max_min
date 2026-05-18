@@ -1,6 +1,7 @@
 """Additional Phase 0 coverage tests for defensive branches."""
 
 from datetime import datetime, timedelta, timezone
+import logging
 from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
@@ -162,6 +163,36 @@ def test_apply_pending_initials_handles_invalid_current_value_and_missing_period
     coordinator.apply_pending_initials()
 
     assert coordinator._configured_initials == {}
+
+
+@pytest.mark.asyncio
+async def test_first_refresh_unavailable_sensor_logs_debug_not_warning(hass, caplog):
+    """Unavailable startup sensors are expected during HA boot and should not warn."""
+    hass.states.get.return_value = Mock(state="unavailable", attributes={})
+    coordinator = MaxMinDataUpdateCoordinator(hass, make_config_entry())
+
+    with patch("custom_components.max_min.coordinator.async_track_point_in_time", return_value=Mock()), \
+         caplog.at_level(logging.DEBUG, logger="custom_components.max_min.coordinator"):
+        await coordinator.async_config_entry_first_refresh()
+
+    assert "Skipping initial seed" in caplog.text
+    assert not any(
+        record.levelno >= logging.WARNING and "is not available" in record.getMessage()
+        for record in caplog.records
+    )
+
+
+@pytest.mark.asyncio
+async def test_first_refresh_non_numeric_state_still_warns(hass, caplog):
+    """Misconfigured numeric sources should keep warning at startup."""
+    hass.states.get.return_value = Mock(state="not-a-number", attributes={})
+    coordinator = MaxMinDataUpdateCoordinator(hass, make_config_entry())
+
+    with patch("custom_components.max_min.coordinator.async_track_point_in_time", return_value=Mock()), \
+         caplog.at_level(logging.WARNING, logger="custom_components.max_min.coordinator"):
+        await coordinator.async_config_entry_first_refresh()
+
+    assert "has non-numeric state" in caplog.text
 
 
 def test_handle_sensor_change_dead_zone_updates_min_path(hass):
