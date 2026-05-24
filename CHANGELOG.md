@@ -1,4 +1,8 @@
 
+# 0.3.56 - 2026-05-24
+## Fixed
+- **Max/min restart continuity across unavailable midnight resets**: Max and Min sensors now persist and restore the period `end_value`, so after a Home Assistant restart the next daily/weekly/monthly/yearly reset can still seed from the last known reading when the source sensor has not published yet. This prevents entities from falling to `unknown` at the boundary until the source updates again.
+
 # 0.3.55 - 2026-05-04
 ## Fixed
 - **Stale measurement state no longer contaminates broader period resets**: Non-cumulative source sensors that keep yesterday's value after the boundary (for example an inverter-provided daily peak sensor at Monday 00:00) are no longer used to seed weekly/monthly/yearly resets until the source publishes a fresh state in the new period.

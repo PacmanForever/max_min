@@ -1,5 +1,5 @@
 """Test restore state functionality."""
-from datetime import datetime
+from datetime import datetime, timezone
 from unittest.mock import AsyncMock, Mock, patch
 from zoneinfo import ZoneInfo
 
@@ -232,3 +232,32 @@ def test_restored_value_not_overwritten_by_current():
     coordinator.update_restored_data(PERIOD_DAILY, "max", 50.0)
 
     assert coordinator.get_value(PERIOD_DAILY, "max") == 50.0
+
+
+@pytest.mark.asyncio
+async def test_max_sensor_restores_end_value_for_unavailable_reset(mock_hass, mock_config_entry):
+    """Max sensor restore keeps period end so unavailable midnight resets stay numeric."""
+    mock_hass.states.get.return_value = Mock(state="unavailable", attributes={})
+    coordinator = MaxMinDataUpdateCoordinator(mock_hass, mock_config_entry)
+
+    sensor = MaxSensor(coordinator, mock_config_entry, "Test Max", PERIOD_DAILY)
+    last_state = Mock()
+    last_state.state = "25.5"
+    last_state.attributes = {
+        "config_entry_id": "test_entry",
+        "end_value": 17.2,
+    }
+    sensor.async_get_last_state = AsyncMock(return_value=last_state)
+
+    await sensor.async_added_to_hass()
+
+    assert coordinator.get_value(PERIOD_DAILY, "end") == 17.2
+
+    now = datetime(2026, 5, 25, 0, 0, 0, tzinfo=timezone.utc)
+    with patch("custom_components.max_min.coordinator.async_track_point_in_time"):
+        coordinator._perform_reset(now, PERIOD_DAILY)
+
+    assert coordinator.tracked_data[PERIOD_DAILY]["max"] == 17.2
+    assert coordinator.tracked_data[PERIOD_DAILY]["min"] == 17.2
+    assert coordinator.tracked_data[PERIOD_DAILY]["start"] == 17.2
+    assert coordinator.tracked_data[PERIOD_DAILY]["end"] == 17.2

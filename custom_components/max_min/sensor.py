@@ -192,6 +192,9 @@ class _BaseMaxMinSensor(CoordinatorEntity, SensorEntity, RestoreEntity):
         last_reset = self.coordinator.get_value(self.period, "last_reset")
         if last_reset:
             attrs["last_reset"] = last_reset.isoformat()
+        end = self.coordinator.get_value(self.period, "end")
+        if end is not None:
+            attrs["end_value"] = end
         last_reset_reason = self.coordinator.get_value(self.period, "last_reset_reason")
         if last_reset_reason:
             attrs["last_reset_reason"] = last_reset_reason
@@ -217,10 +220,17 @@ class _BaseMaxMinSensor(CoordinatorEntity, SensorEntity, RestoreEntity):
 
     def _restore_sensor_data(self, last_state) -> None:
         """Restore type-specific data from a previous state."""
+        last_reset = last_state.attributes.get("last_reset")
+        end = last_state.attributes.get("end_value")
+        if end is not None:
+            try:
+                self.coordinator.update_restored_data(self.period, "end", float(end), last_reset)
+            except ValueError:
+                pass
+
         if last_state.state not in (None, "unknown", "unavailable"):
             try:
                 value = float(last_state.state)
-                last_reset = last_state.attributes.get("last_reset")
                 self.coordinator.update_restored_data(self.period, self._value_key, value, last_reset)
             except ValueError:
                 pass
