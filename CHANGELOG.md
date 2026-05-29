@@ -1,4 +1,8 @@
 
+# 0.3.57 - 2026-05-29
+## Fixed
+- **Max/min unavailable reset seed is now provisional**: When a non-cumulative source sensor is unavailable at the period boundary, Max/Min entities still use the last `end_value` to stay numeric at reset time, but that carried value is now treated as a placeholder only. The first fresh source update in the new period replaces it for both `max` and `min`, so yesterday's closing value no longer survives as today's real extreme.
+
 # 0.3.56 - 2026-05-24
 ## Fixed
 - **Max/min restart continuity across unavailable midnight resets**: Max and Min sensors now persist and restore the period `end_value`, so after a Home Assistant restart the next daily/weekly/monthly/yearly reset can still seed from the last known reading when the source sensor has not published yet. This prevents entities from falling to `unknown` at the boundary until the source updates again.

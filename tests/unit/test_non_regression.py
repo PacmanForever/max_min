@@ -525,6 +525,42 @@ def test_nr16_measurement_seed_fallback():
     assert data["end"] == 0.3
 
 
+@freeze_time("2026-02-22 00:05:00", tz_offset=0)
+def test_nr16b_measurement_fallback_is_replaced_by_first_fresh_update():
+    """Fallback seed for non-cumulative max/min is provisional only.
+
+    If the source is unavailable at reset, the last end value keeps the entity
+    numeric. Once the first fresh source update arrives in the new period, that
+    placeholder must be replaced instead of being kept as the new period max.
+    """
+    hass = _hass("unavailable")
+    coordinator = MaxMinDataUpdateCoordinator(hass, _entry())
+    coordinator._source_is_cumulative = False
+
+    coordinator.tracked_data[PERIOD_DAILY] = {
+        "max": 25.0, "min": 3.0, "start": 5.0, "end": 20.0,
+        "last_reset": datetime(2026, 2, 21, 0, 0, 0, tzinfo=timezone.utc),
+    }
+
+    midnight = datetime(2026, 2, 22, 0, 0, 0, tzinfo=timezone.utc)
+    with patch("custom_components.max_min.coordinator.async_track_point_in_time"):
+        coordinator._perform_reset(midnight, PERIOD_DAILY)
+
+    assert coordinator.tracked_data[PERIOD_DAILY]["max"] == 20.0
+    assert coordinator.tracked_data[PERIOD_DAILY]["min"] == 20.0
+
+    new_state = Mock(state="15.0", attributes={})
+    event = Mock()
+    event.data = {"new_state": new_state}
+    coordinator._handle_sensor_change(event)
+
+    data = coordinator.tracked_data[PERIOD_DAILY]
+    assert data["max"] == 15.0
+    assert data["min"] == 15.0
+    assert data["start"] == 15.0
+    assert data["end"] == 15.0
+
+
 # ===================================================================
 # NR-17  Measurement sensor with NO end_val falls to None
 # ===================================================================

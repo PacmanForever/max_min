@@ -154,6 +154,11 @@ class MaxMinDataUpdateCoordinator(DataUpdateCoordinator):
         # after a reset.  Avoids race conditions with sensors that also reset at
         # midnight while keeping delta=0 (not unavailable) immediately after reset.
         self._pending_start_reanchor: set[str] = set()
+        # Periods whose max/min were seeded from a fallback value because the
+        # non-cumulative source was unavailable at the boundary. The seed keeps
+        # the entity numeric, but the first fresh source update must replace it
+        # instead of treating it as a real extreme for the new period.
+        self._pending_extrema_reanchor: set[str] = set()
         # Periods that received valid restored data from RestoreEntity.
         # Used by apply_pending_initials to skip initial enforcement for
         # periods that already have correct restored state.
@@ -461,6 +466,7 @@ class MaxMinDataUpdateCoordinator(DataUpdateCoordinator):
         # Mark this period as having received valid restore data.
         # apply_pending_initials() will skip periods with valid restores.
         self._restore_accepted.add(period)
+        self._pending_extrema_reanchor.discard(period)
 
         # Only update if the restored value extends the current range (or initializes it)
         # Note: stored data might have been initialized by current sensor state in first_refresh
@@ -631,12 +637,21 @@ class MaxMinDataUpdateCoordinator(DataUpdateCoordinator):
         """Apply the standard max/min/delta update flow to one period."""
         changed = False
 
-        if data["max"] is None or value > data["max"]:
-            data["max"] = value
-            changed = True
-        if data["min"] is None or value < data["min"]:
-            data["min"] = value
-            changed = True
+        if period in self._pending_extrema_reanchor:
+            if data.get("max") != value:
+                data["max"] = value
+                changed = True
+            if data.get("min") != value:
+                data["min"] = value
+                changed = True
+            self._pending_extrema_reanchor.discard(period)
+        else:
+            if data["max"] is None or value > data["max"]:
+                data["max"] = value
+                changed = True
+            if data["min"] is None or value < data["min"]:
+                data["min"] = value
+                changed = True
 
         if period in self._pending_start_reanchor:
             data["start"] = value
@@ -781,6 +796,11 @@ class MaxMinDataUpdateCoordinator(DataUpdateCoordinator):
                 source_available = (
                     state and state.state not in (None, "unknown", "unavailable")
                 )
+                fallback_measurement_seed = (
+                    not self._source_is_cumulative
+                    and not source_available
+                    and reset_seed is not None
+                )
                 if not source_available and reset_seed is not None:
                     _LOGGER.debug(
                         "Reset fallback for %s: source unavailable, using last end value %s",
@@ -804,6 +824,10 @@ class MaxMinDataUpdateCoordinator(DataUpdateCoordinator):
                 # Mark the period for re-anchoring BEFORE start/end assignment
                 # so that if anything below throws, the reanchor is still pending.
                 self._pending_start_reanchor.add(period)
+                if fallback_measurement_seed:
+                    self._pending_extrema_reanchor.add(period)
+                else:
+                    self._pending_extrema_reanchor.discard(period)
                 # Use seed so delta=0 immediately (never unavailable), but the
                 # reanchor mark ensures the first real sensor update will
                 # overwrite start/end with the truly current value.  This avoids
