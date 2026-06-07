@@ -1,3 +1,6 @@
+# 0.3.58 - 2026-06-07
+## Fixed
+- **Daily max/min continuity after midnight**: When a non-cumulative source sensor still exposes yesterday's numeric value just after midnight but has not published a fresh state yet, daily Max/Min entities now fall back to the tracked `end_value` instead of becoming `unknown`. Weekly/monthly/yearly stale-state protection remains unchanged.
 
 # 0.3.57 - 2026-05-29
 ## Fixed

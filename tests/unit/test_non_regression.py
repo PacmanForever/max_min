@@ -225,6 +225,31 @@ def test_nr04c_weekly_reset_accepts_first_fresh_measurement_update():
     assert data["end"] == 1875.0
 
 
+@freeze_time("2026-06-07 00:00:00", tz_offset=0)
+def test_nr04d_daily_reset_uses_last_end_when_measurement_state_is_stale():
+    """Daily reset should stay numeric until the first post-midnight update arrives."""
+    stale_timestamp = datetime(2026, 6, 6, 23, 55, 0, tzinfo=timezone.utc)
+    hass = _hass("12.8", last_updated=stale_timestamp, last_changed=stale_timestamp)
+    coordinator = MaxMinDataUpdateCoordinator(hass, _entry(periods=[PERIOD_DAILY]))
+    coordinator._source_is_cumulative = False
+
+    coordinator.tracked_data[PERIOD_DAILY] = {
+        "max": 21.0, "min": 3.0, "start": 4.5, "end": 12.8,
+        "last_reset": datetime(2026, 6, 6, 0, 0, 0, tzinfo=timezone.utc),
+    }
+
+    now = datetime(2026, 6, 7, 0, 0, 0, tzinfo=timezone.utc)
+    with patch("custom_components.max_min.coordinator.async_track_point_in_time"):
+        coordinator._perform_reset(now, PERIOD_DAILY)
+
+    data = coordinator.tracked_data[PERIOD_DAILY]
+    assert data["last_reset"] == datetime(2026, 6, 7, 0, 0, 0, tzinfo=timezone.utc)
+    assert data["max"] == 12.8
+    assert data["min"] == 12.8
+    assert data["start"] == 12.8
+    assert data["end"] == 12.8
+
+
 # ===================================================================
 # NR-05  Cumulative sí carry-over
 # ===================================================================

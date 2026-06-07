@@ -349,6 +349,18 @@ class MaxMinDataUpdateCoordinator(DataUpdateCoordinator):
         """
         state = self.hass.states.get(self.sensor_entity)
         value = self._get_source_float()
+        fallback_end = self.tracked_data.get(period, {}).get("end")
+
+        def _fallback_end_value():
+            if isinstance(fallback_end, (int, float)):
+                return round(float(fallback_end), 4)
+            if isinstance(fallback_end, str):
+                try:
+                    return round(float(fallback_end), 4)
+                except (ValueError, TypeError):
+                    return None
+            return None
+
         if value is not None:
             if now is not None and not self._is_source_state_fresh_for_period(state, period, now):
                 _LOGGER.debug(
@@ -357,21 +369,15 @@ class MaxMinDataUpdateCoordinator(DataUpdateCoordinator):
                     value,
                     self._get_state_timestamp(state, now.tzinfo),
                 )
+                if period == PERIOD_DAILY:
+                    return _fallback_end_value()
                 return None
             return value
         # Fallback: use last known end value regardless of sensor type.
         # For cumulative sensors this preserves the meter reading.
         # For measurement sensors this avoids a None seed that would
         # make the entity unavailable in HA (graph shows stale line).
-        end_val = self.tracked_data.get(period, {}).get("end")
-        if isinstance(end_val, (int, float)):
-            return round(float(end_val), 4)
-        if isinstance(end_val, str):
-            try:
-                return round(float(end_val), 4)
-            except (ValueError, TypeError):
-                pass
-        return None
+        return _fallback_end_value()
 
     def _is_reset_due(self, now, period) -> bool:
         """Check if a period reset is due based on last_reset and period boundaries."""
