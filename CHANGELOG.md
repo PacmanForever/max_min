@@ -1,3 +1,9 @@
+# 0.3.59 - 2026-06-08
+## Fixed
+- **Surgical initial-value reload regression**: Changing only one initial value (for example `yearly_max` or `all_time_max`) no longer gets canceled when another sensor type from the same period restores successfully during the same reload. Restore acceptance is now tracked per `(period, type)`, so the edited Max/Min initial is applied correctly instead of being re-seeded from the current source value such as `0`.
+## Added
+- **Reload regression coverage**: Added restore-path tests for mixed Max/Min reloads after surgical resets, closing the gap that let this options-flow regression slip through.
+
 # 0.3.58 - 2026-06-07
 ## Fixed
 - **Daily max/min continuity after midnight**: When a non-cumulative source sensor still exposes yesterday's numeric value just after midnight but has not published a fresh state yet, daily Max/Min entities now fall back to the tracked `end_value` instead of becoming `unknown`. Weekly/monthly/yearly stale-state protection remains unchanged.

@@ -159,10 +159,11 @@ class MaxMinDataUpdateCoordinator(DataUpdateCoordinator):
         # the entity numeric, but the first fresh source update must replace it
         # instead of treating it as a real extreme for the new period.
         self._pending_extrema_reanchor: set[str] = set()
-        # Periods that received valid restored data from RestoreEntity.
-        # Used by apply_pending_initials to skip initial enforcement for
-        # periods that already have correct restored state.
-        self._restore_accepted: set[str] = set()
+        # Period/type pairs that received valid restored data from RestoreEntity.
+        # Used by apply_pending_initials to skip initial enforcement only for
+        # the restored sensor type, so a surgical reset of yearly_max does not
+        # get canceled by a valid yearly_min restore from the same period.
+        self._restore_accepted: set[tuple[str, str]] = set()
 
     @callback
     def _check_watchdog(self, now):
@@ -469,9 +470,10 @@ class MaxMinDataUpdateCoordinator(DataUpdateCoordinator):
             # Now we allow restoration if the value is more extreme or data is empty.
             _LOGGER.debug("[%s] Restoring %s %s without last_reset info", self.config_entry.title, period, type_)
 
-        # Mark this period as having received valid restore data.
-        # apply_pending_initials() will skip periods with valid restores.
-        self._restore_accepted.add(period)
+        # Mark only the restored sensor type as accepted.
+        # apply_pending_initials() must still apply initials to other types in
+        # the same period when a surgical reset blocked their restore.
+        self._restore_accepted.add((period, check_type))
         self._pending_extrema_reanchor.discard(period)
 
         # Only update if the restored value extends the current range (or initializes it)
@@ -581,9 +583,6 @@ class MaxMinDataUpdateCoordinator(DataUpdateCoordinator):
 
         applied = False
         for period, initials in self._configured_initials.items():
-            if period in self._restore_accepted:
-                continue  # Valid restore ran; don't override with initials
-
             data = self.tracked_data.get(period)
             if data is None:
                 continue
@@ -592,13 +591,25 @@ class MaxMinDataUpdateCoordinator(DataUpdateCoordinator):
             initial_min = initials.get("min")
             initial_delta = initials.get("delta")
 
-            if initial_max is not None and (data["max"] is None or data["max"] < initial_max):
+            if (
+                initial_max is not None
+                and (period, "max") not in self._restore_accepted
+                and (data["max"] is None or data["max"] < initial_max)
+            ):
                 data["max"] = initial_max
                 applied = True
-            if initial_min is not None and (data["min"] is None or data["min"] > initial_min):
+            if (
+                initial_min is not None
+                and (period, "min") not in self._restore_accepted
+                and (data["min"] is None or data["min"] > initial_min)
+            ):
                 data["min"] = initial_min
                 applied = True
-            if initial_delta is not None and current_value is not None:
+            if (
+                initial_delta is not None
+                and (period, "delta") not in self._restore_accepted
+                and current_value is not None
+            ):
                 data["start"] = current_value - initial_delta
                 data["end"] = current_value
                 applied = True

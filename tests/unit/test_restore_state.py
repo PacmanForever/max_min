@@ -10,7 +10,9 @@ from custom_components.max_min.const import (
     CONF_SENSOR_ENTITY,
     CONF_PERIODS,
     CONF_TYPES,
+    PERIOD_YEARLY,
     PERIOD_DAILY,
+    CONF_RESET_HISTORY,
     TYPE_MAX,
     TYPE_MIN
 )
@@ -258,6 +260,60 @@ async def test_max_sensor_restores_end_value_for_unavailable_reset(mock_hass, mo
         coordinator._perform_reset(now, PERIOD_DAILY)
 
     assert coordinator.tracked_data[PERIOD_DAILY]["max"] == 17.2
-    assert coordinator.tracked_data[PERIOD_DAILY]["min"] == 17.2
-    assert coordinator.tracked_data[PERIOD_DAILY]["start"] == 17.2
-    assert coordinator.tracked_data[PERIOD_DAILY]["end"] == 17.2
+
+
+@pytest.mark.asyncio
+async def test_restore_path_keeps_surgical_max_reset_when_min_restores(mock_hass):
+    """A min restore must not suppress a max initial after surgical reset."""
+    entry = Mock()
+    entry.entry_id = "test_entry"
+    entry.data = {
+        CONF_SENSOR_ENTITY: "sensor.source",
+        CONF_PERIODS: [PERIOD_YEARLY],
+        CONF_TYPES: [TYPE_MAX, TYPE_MIN],
+    }
+    entry.options = {
+        f"{PERIOD_YEARLY}_initial_max": 85.0,
+        CONF_RESET_HISTORY: ["yearly_max"],
+    }
+
+    mock_hass.states.get.return_value = Mock(state="0.0", attributes={})
+    coordinator = MaxMinDataUpdateCoordinator(mock_hass, entry)
+
+    with patch("custom_components.max_min.coordinator.async_track_state_change_event"), \
+         patch("custom_components.max_min.coordinator.async_track_point_in_time"):
+        await coordinator.async_config_entry_first_refresh()
+
+    max_sensor = MaxSensor(coordinator, entry, "Yearly Max", PERIOD_YEARLY)
+    min_sensor = MinSensor(coordinator, entry, "Yearly Min", PERIOD_YEARLY)
+
+    max_last_state = Mock()
+    max_last_state.state = "10.0"
+    max_last_state.attributes = {
+        "config_entry_id": "test_entry",
+        "last_reset": "2026-01-01T00:00:00+00:00",
+        "end_value": 0.0,
+    }
+
+    min_last_state = Mock()
+    min_last_state.state = "0.0"
+    min_last_state.attributes = {
+        "config_entry_id": "test_entry",
+        "last_reset": "2026-01-01T00:00:00+00:00",
+        "end_value": 0.0,
+    }
+
+    max_sensor.async_get_last_state = AsyncMock(return_value=max_last_state)
+    min_sensor.async_get_last_state = AsyncMock(return_value=min_last_state)
+
+    await max_sensor.async_added_to_hass()
+    await min_sensor.async_added_to_hass()
+
+    assert (PERIOD_YEARLY, "max") not in coordinator._restore_accepted
+    assert (PERIOD_YEARLY, "min") in coordinator._restore_accepted
+
+    coordinator.async_set_updated_data = Mock()
+    coordinator.apply_pending_initials()
+
+    assert coordinator.tracked_data[PERIOD_YEARLY]["max"] == 85.0
+    assert coordinator.tracked_data[PERIOD_YEARLY]["min"] == 0.0

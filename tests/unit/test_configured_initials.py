@@ -66,7 +66,7 @@ def _make_config_entry(periods=None, initial_max=None, initial_min=None, period_
 
 
 def test_restore_max_below_configured_initial(hass):
-    """On restart, restore is accepted and apply_pending_initials skips (period restored)."""
+    """On restart, restore is accepted and apply_pending_initials skips that type."""
     config_entry = _make_config_entry(
         periods=[PERIOD_YEARLY],
         period_initials={PERIOD_YEARLY: {"max": 45.0}},
@@ -84,11 +84,11 @@ def test_restore_max_below_configured_initial(hass):
         last_reset=datetime(2026, 1, 1, 0, 0, 0, tzinfo=timezone.utc),
     )
 
-    # Restore accepted → period marked
-    assert PERIOD_YEARLY in coordinator._restore_accepted
+    # Restore accepted → type marked
+    assert (PERIOD_YEARLY, "max") in coordinator._restore_accepted
     assert coordinator.tracked_data[PERIOD_YEARLY]["max"] == 13.107
 
-    # apply_pending_initials skips restored periods → max stays 13.107
+    # apply_pending_initials skips restored max → max stays 13.107
     coordinator.apply_pending_initials()
     assert coordinator.tracked_data[PERIOD_YEARLY]["max"] == 13.107
 
@@ -574,7 +574,7 @@ async def test_apply_pending_initials_overrides_restored_delta(hass):
 
 @pytest.mark.asyncio
 async def test_apply_pending_initials_skips_when_restore_accepted(hass):
-    """apply_pending_initials does NOT apply initials when valid restore ran."""
+    """apply_pending_initials does NOT apply initials for types with valid restore."""
     config_entry = _make_config_entry(
         periods=[PERIOD_DAILY],
         period_initials={PERIOD_DAILY: {"max": 100.0, "min": -50.0}},
@@ -600,7 +600,7 @@ async def test_apply_pending_initials_skips_when_restore_accepted(hass):
         last_reset=datetime.now(timezone.utc),
     )
 
-    # apply_pending_initials skips because period was restored
+    # apply_pending_initials skips because both types were restored
     coordinator.apply_pending_initials()
 
     # Restored values win — initials NOT applied
@@ -773,10 +773,48 @@ def test_regression_surgery_blocks_restore_enables_initial(hass):
     coordinator.update_restored_data(PERIOD_YEARLY, "max", 10.0)  # blocked by surgery
 
     # Daily restored, yearly blocked
-    assert PERIOD_DAILY in coordinator._restore_accepted
-    assert PERIOD_YEARLY not in coordinator._restore_accepted
+    assert (PERIOD_DAILY, "max") in coordinator._restore_accepted
+    assert (PERIOD_YEARLY, "max") not in coordinator._restore_accepted
 
     coordinator.apply_pending_initials()
 
     assert coordinator.tracked_data[PERIOD_DAILY]["max"] == 10.0   # restored
     assert coordinator.tracked_data[PERIOD_YEARLY]["max"] == 45.0  # initial (surgery blocked restore)
+
+
+@pytest.mark.asyncio
+async def test_regression_surgery_on_max_still_applies_initial_when_min_restores(hass):
+    """Surgical max reset must not be canceled by a valid min restore in the same period."""
+    config_entry = _make_config_entry(
+        periods=[PERIOD_YEARLY],
+        types=[TYPE_MAX, TYPE_MIN],
+        period_initials={PERIOD_YEARLY: {"max": 85.0}},
+    )
+    config_entry.options["reset_history"] = ["yearly_max"]
+
+    hass.states.get.return_value = Mock(
+        state="0.0", attributes={"friendly_name": "Test Sensor"}
+    )
+
+    coordinator = MaxMinDataUpdateCoordinator(hass, config_entry)
+
+    with patch("custom_components.max_min.coordinator.async_track_state_change_event"), \
+         patch("custom_components.max_min.coordinator.async_track_point_in_time"):
+        await coordinator.async_config_entry_first_refresh()
+
+    coordinator.update_restored_data(
+        PERIOD_YEARLY, "max", 10.0,
+        last_reset=datetime(2026, 1, 1, 0, 0, 0, tzinfo=timezone.utc),
+    )
+    coordinator.update_restored_data(
+        PERIOD_YEARLY, "min", 0.0,
+        last_reset=datetime(2026, 1, 1, 0, 0, 0, tzinfo=timezone.utc),
+    )
+
+    assert (PERIOD_YEARLY, "max") not in coordinator._restore_accepted
+    assert (PERIOD_YEARLY, "min") in coordinator._restore_accepted
+
+    coordinator.apply_pending_initials()
+
+    assert coordinator.tracked_data[PERIOD_YEARLY]["max"] == 85.0
+    assert coordinator.tracked_data[PERIOD_YEARLY]["min"] == 0.0
