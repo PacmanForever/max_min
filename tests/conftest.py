@@ -1,6 +1,14 @@
 """Test configuration."""
 
 import pytest
+from homeassistant.components import http
+
+
+if not hasattr(http, "start_http_server_and_save_config"):
+    async def start_http_server_and_save_config(*args, **kwargs):
+        """Compatibility shim for newer Home Assistant test environments."""
+
+    http.start_http_server_and_save_config = start_http_server_and_save_config
 
 
 @pytest.fixture(autouse=True)
