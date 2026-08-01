@@ -159,6 +159,10 @@ class MaxMinDataUpdateCoordinator(DataUpdateCoordinator):
         # the entity numeric, but the first fresh source update must replace it
         # instead of treating it as a real extreme for the new period.
         self._pending_extrema_reanchor: set[str] = set()
+        # Periods seeded from a cumulative source value that was reported before
+        # the new period. The first source update belongs to the new counter
+        # cycle and must replace that stale seed, even when it is lower.
+        self._pending_cumulative_reanchor: set[str] = set()
         # Period/type pairs that received valid restored data from RestoreEntity.
         # Used by apply_pending_initials to skip initial enforcement only for
         # the restored sensor type, so a surgical reset of yearly_max does not
@@ -719,6 +723,17 @@ class MaxMinDataUpdateCoordinator(DataUpdateCoordinator):
                             # After reset, data has been re-initialised – refresh ref
                             data = self.tracked_data[period]
 
+                    if period in self._pending_cumulative_reanchor:
+                        data["max"] = value
+                        data["min"] = value
+                        data["start"] = value
+                        data["end"] = value
+                        self._pending_cumulative_reanchor.discard(period)
+                        self._pending_start_reanchor.discard(period)
+                        self._pending_extrema_reanchor.discard(period)
+                        updated = True
+                        continue
+
                     handled, changed = self._handle_offset_deadzone(period, data, value, now)
                     if handled:
                         if changed:
@@ -818,6 +833,15 @@ class MaxMinDataUpdateCoordinator(DataUpdateCoordinator):
                     and not source_available
                     and reset_seed is not None
                 )
+                state_timestamp = self._get_state_timestamp(
+                    state, self._get_period_start(now, period).tzinfo
+                )
+                cumulative_seed_is_stale = (
+                    self._source_is_cumulative
+                    and source_available
+                    and state_timestamp is not None
+                    and state_timestamp < self._get_period_start(now, period)
+                )
                 if not source_available and reset_seed is not None:
                     _LOGGER.debug(
                         "Reset fallback for %s: source unavailable, using last end value %s",
@@ -845,6 +869,10 @@ class MaxMinDataUpdateCoordinator(DataUpdateCoordinator):
                     self._pending_extrema_reanchor.add(period)
                 else:
                     self._pending_extrema_reanchor.discard(period)
+                if cumulative_seed_is_stale:
+                    self._pending_cumulative_reanchor.add(period)
+                else:
+                    self._pending_cumulative_reanchor.discard(period)
                 # Use seed so delta=0 immediately (never unavailable), but the
                 # reanchor mark ensures the first real sensor update will
                 # overwrite start/end with the truly current value.  This avoids

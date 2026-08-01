@@ -3,6 +3,7 @@
 import pytest
 from unittest.mock import Mock, patch
 from datetime import datetime, timezone
+from freezegun import freeze_time
 from custom_components.max_min.coordinator import MaxMinDataUpdateCoordinator
 from custom_components.max_min.const import (
     CONF_SENSOR_ENTITY,
@@ -115,4 +116,45 @@ async def test_reset_with_unavailable_source_uses_last_end_fallback(hass, config
     assert coordinator.tracked_data[PERIOD_DAILY]["min"] == 0.0
     assert coordinator.tracked_data[PERIOD_DAILY]["start"] == 0.0
     assert coordinator.tracked_data[PERIOD_DAILY]["end"] == 0.0
+
+
+@pytest.mark.asyncio
+async def test_stale_cumulative_seed_is_replaced_by_first_new_period_value(hass, config_entry):
+    """A delayed daily counter reset must not preserve yesterday's maximum."""
+    coordinator = MaxMinDataUpdateCoordinator(hass, config_entry)
+    coordinator._source_is_cumulative = True
+
+    stale_state = Mock(
+        state="26.6",
+        attributes={"state_class": "total_increasing"},
+        last_updated=datetime(2023, 1, 1, 23, 59, 0, tzinfo=timezone.utc),
+    )
+    hass.states.get.return_value = stale_state
+    coordinator.tracked_data[PERIOD_DAILY] = {
+        "max": 26.6,
+        "min": 0.0,
+        "start": 0.0,
+        "end": 26.6,
+        "last_reset": datetime(2023, 1, 1, 0, 0, 0, tzinfo=timezone.utc),
+    }
+
+    with patch("custom_components.max_min.coordinator.async_track_point_in_time"):
+        coordinator._perform_reset(
+            datetime(2023, 1, 2, 0, 0, 0, tzinfo=timezone.utc), PERIOD_DAILY
+        )
+
+    assert coordinator.tracked_data[PERIOD_DAILY]["max"] == 26.6
+
+    event = Mock()
+    event.data = {
+        "new_state": Mock(state="0.0", attributes={"state_class": "total_increasing"})
+    }
+    with freeze_time("2023-01-02 00:01:00"):
+        coordinator._handle_sensor_change(event)
+
+    data = coordinator.tracked_data[PERIOD_DAILY]
+    assert data["max"] == 0.0
+    assert data["min"] == 0.0
+    assert data["start"] == 0.0
+    assert data["end"] == 0.0
 

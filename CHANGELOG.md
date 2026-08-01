@@ -1,3 +1,7 @@
+# 0.3.60 - 2026-08-01
+## Fixed
+- **Delayed daily cumulative-source reset**: When a cumulative source still reported its previous-period value at the reset boundary (for example daily rain showing `26.6 mm` at midnight), that stale seed is now provisional. The first source update in the new period replaces Max, Min, and Delta boundaries, so a subsequent reset to `0` no longer preserves yesterday's value as today's maximum.
+
 # 0.3.59 - 2026-06-08
 ## Fixed
 - **Surgical initial-value reload regression**: Changing only one initial value (for example `yearly_max` or `all_time_max`) no longer gets canceled when another sensor type from the same period restores successfully during the same reload. Restore acceptance is now tracked per `(period, type)`, so the edited Max/Min initial is applied correctly instead of being re-seeded from the current source value such as `0`.
