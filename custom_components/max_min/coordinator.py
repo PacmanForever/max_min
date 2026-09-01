@@ -42,6 +42,7 @@ from .const import (
     CONF_INITIAL_MIN,
     CONF_INITIAL_DELTA,
     CONF_OFFSET,
+    CONF_RESET_TO_ZERO,
     CONF_RESET_HISTORY,
     CONF_PERIODS,
     CONF_SENSOR_ENTITY,
@@ -91,6 +92,9 @@ class MaxMinDataUpdateCoordinator(DataUpdateCoordinator):
             
         self.types = config_entry.options.get(CONF_TYPES, config_entry.data.get(CONF_TYPES, [TYPE_MAX, TYPE_MIN]))
         self.offset = config_entry.options.get(CONF_OFFSET, config_entry.data.get(CONF_OFFSET, 0))
+        self.reset_to_zero = config_entry.options.get(
+            CONF_RESET_TO_ZERO, config_entry.data.get(CONF_RESET_TO_ZERO, False)
+        )
         
         # Surgical reset list: list of "period_type" to ignore during restore
         self.reset_history = config_entry.options.get(CONF_RESET_HISTORY, [])
@@ -355,6 +359,9 @@ class MaxMinDataUpdateCoordinator(DataUpdateCoordinator):
         and the HA history graph shows a clean break at the period
         boundary instead of a flat line of the previous maximum.
         """
+        if self.reset_to_zero and period != PERIOD_ALL_TIME:
+            return 0.0
+
         state = self.hass.states.get(self.sensor_entity)
         value = self._get_source_float()
         fallback_end = self.tracked_data.get(period, {}).get("end")
@@ -872,7 +879,7 @@ class MaxMinDataUpdateCoordinator(DataUpdateCoordinator):
                     self._pending_extrema_reanchor.add(period)
                 else:
                     self._pending_extrema_reanchor.discard(period)
-                if cumulative_seed_is_stale:
+                if cumulative_seed_is_stale and not self.reset_to_zero:
                     self._pending_cumulative_reanchor.add(period)
                 else:
                     self._pending_cumulative_reanchor.discard(period)

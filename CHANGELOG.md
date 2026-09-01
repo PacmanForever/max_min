@@ -1,3 +1,10 @@
+
+# 0.3.61 - 2026-09-01
+## Fixed
+- **Repeated cumulative reports after midnight**: A source that republishes yesterday's unchanged value after the period boundary is no longer treated as a fresh reading.
+## Added
+- **Optional reset to zero**: Entries can now reset tracked values to `0` at each daily, weekly, monthly, or yearly boundary when the source does not publish a new-period zero value.
+
 # 0.3.60 - 2026-08-01
 ## Fixed
 - **Delayed daily cumulative-source reset**: When a cumulative source still reported its previous-period value at the reset boundary (for example daily rain showing `26.6 mm` at midnight), that stale seed is now provisional. The first source update in the new period replaces Max, Min, and Delta boundaries, so a subsequent reset to `0` no longer preserves yesterday's value as today's maximum.

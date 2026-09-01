@@ -14,6 +14,7 @@ from custom_components.max_min.config_flow import (
 )
 from custom_components.max_min.const import (
     CONF_PERIODS,
+    CONF_RESET_TO_ZERO,
     CONF_SENSOR_ENTITY,
     CONF_TYPES,
     CONF_INITIAL_MAX,
@@ -126,9 +127,13 @@ async def test_config_flow_user_form_uses_default_values(hass):
     schema = result["data_schema"].schema
     periods_key = next(key for key in schema if isinstance(key, vol.Marker) and key.schema == CONF_PERIODS)
     types_key = next(key for key in schema if isinstance(key, vol.Marker) and key.schema == CONF_TYPES)
+    reset_to_zero_key = next(
+        key for key in schema if isinstance(key, vol.Marker) and key.schema == CONF_RESET_TO_ZERO
+    )
 
     assert periods_key.default() == [PERIOD_DAILY]
     assert types_key.default() == [TYPE_MAX, TYPE_MIN]
+    assert reset_to_zero_key.default() is False
 
 
 @pytest.mark.asyncio

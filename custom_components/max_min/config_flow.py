@@ -13,6 +13,7 @@ from .const import (
     CONF_INITIAL_MAX,
     CONF_INITIAL_MIN,
     CONF_OFFSET,
+    CONF_RESET_TO_ZERO,
     CONF_RESET_HISTORY,
     CONF_PERIODS,
     CONF_SENSOR_ENTITY,
@@ -140,6 +141,7 @@ class MaxMinConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         default_periods = user_input.get(CONF_PERIODS, [PERIOD_DAILY]) if user_input else [PERIOD_DAILY]
         default_types = user_input.get(CONF_TYPES, [TYPE_MAX, TYPE_MIN]) if user_input else [TYPE_MAX, TYPE_MIN]
         default_offset = user_input.get(CONF_OFFSET, 0) if user_input else 0
+        default_reset_to_zero = user_input.get(CONF_RESET_TO_ZERO, False) if user_input else False
 
         return self.async_show_form(
             step_id="user",
@@ -180,6 +182,7 @@ class MaxMinConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                         unit_of_measurement="seconds",
                     )
                 ),
+                vol.Optional(CONF_RESET_TO_ZERO, default=default_reset_to_zero): selector.BooleanSelector(),
             }),
             errors=errors,
         )
@@ -248,6 +251,9 @@ class MaxMinOptionsFlow(config_entries.OptionsFlow):
         default_periods = self._config_entry.options.get(CONF_PERIODS, self._config_entry.data.get(CONF_PERIODS, [PERIOD_DAILY]))
         default_device = self._config_entry.options.get(CONF_DEVICE_ID, self._config_entry.data.get(CONF_DEVICE_ID))
         default_offset = self._config_entry.options.get(CONF_OFFSET, self._config_entry.data.get(CONF_OFFSET, 0))
+        default_reset_to_zero = self._config_entry.options.get(
+            CONF_RESET_TO_ZERO, self._config_entry.data.get(CONF_RESET_TO_ZERO, False)
+        )
 
         return self.async_show_form(
             step_id="init",
@@ -294,6 +300,10 @@ class MaxMinOptionsFlow(config_entries.OptionsFlow):
                         unit_of_measurement="seconds",
                     )
                 ),
+                vol.Optional(
+                    CONF_RESET_TO_ZERO,
+                    default=default_reset_to_zero,
+                ): selector.BooleanSelector(),
             }),
             errors=errors,
         )

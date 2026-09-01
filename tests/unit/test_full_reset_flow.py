@@ -8,6 +8,7 @@ from custom_components.max_min.coordinator import MaxMinDataUpdateCoordinator
 from custom_components.max_min.const import (
     CONF_SENSOR_ENTITY,
     CONF_PERIODS,
+    CONF_RESET_TO_ZERO,
     CONF_TYPES,
     PERIOD_DAILY,
     TYPE_MAX,
@@ -186,4 +187,29 @@ async def test_repeated_cumulative_value_after_midnight_remains_provisional(hass
         )
 
     assert PERIOD_DAILY in coordinator._pending_cumulative_reanchor
+
+
+@pytest.mark.asyncio
+async def test_reset_to_zero_keeps_zero_when_cumulative_source_is_stale(hass, config_entry):
+    """Configured zero reset must not be overwritten by a stale source value."""
+    config_entry.options = {CONF_RESET_TO_ZERO: True}
+    coordinator = MaxMinDataUpdateCoordinator(hass, config_entry)
+    coordinator._source_is_cumulative = True
+    hass.states.get.return_value = Mock(
+        state="6.5",
+        attributes={"state_class": "total_increasing"},
+        last_changed=datetime(2023, 1, 1, 18, 30, 0, tzinfo=timezone.utc),
+    )
+
+    with patch("custom_components.max_min.coordinator.async_track_point_in_time"):
+        coordinator._perform_reset(
+            datetime(2023, 1, 2, 0, 5, 0, tzinfo=timezone.utc), PERIOD_DAILY
+        )
+
+    data = coordinator.tracked_data[PERIOD_DAILY]
+    assert data["max"] == 0.0
+    assert data["min"] == 0.0
+    assert data["start"] == 0.0
+    assert data["end"] == 0.0
+    assert PERIOD_DAILY not in coordinator._pending_cumulative_reanchor
 

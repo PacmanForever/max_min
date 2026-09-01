@@ -9,7 +9,8 @@
           "periods": "Periods",
           "types": "Sensors",
           "device_id": "Device to link",
-          "offset": "Offset/Margin (seconds)"
+          "offset": "Offset/Margin (seconds)",
+          "reset_to_zero": "Reset tracked values to zero at each period boundary"
         }
       },
       "optional_settings": {
@@ -54,7 +55,8 @@
           "periods": "Periods",
           "types": "Sensors",
           "device_id": "Device to link",
-          "offset": "Offset/Margin (seconds)"
+          "offset": "Offset/Margin (seconds)",
+          "reset_to_zero": "Reset tracked values to zero at each period boundary"
         }
       },
       "optional_settings": {
