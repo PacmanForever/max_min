@@ -21,3 +21,9 @@ def auto_enable_custom_integrations(enable_custom_integrations):
 def enable_event_loop_debug():
     """Override plugin fixture to keep setup compatible with sync tests."""
     yield
+
+
+@pytest.fixture(autouse=True)
+def configure_event_loop():
+    """Override plugin fixture to keep setup compatible with sync tests."""
+    yield

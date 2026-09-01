@@ -237,8 +237,11 @@ class MaxMinDataUpdateCoordinator(DataUpdateCoordinator):
 
     @staticmethod
     def _get_state_timestamp(state, reference_tz):
-        """Return the best available state timestamp normalized to reference_tz."""
-        for attr_name in ("last_reported", "last_updated", "last_changed"):
+        """Return the value-change timestamp normalized to reference_tz."""
+        # A state can be reported again after a period boundary without its
+        # numeric value changing. Prefer last_changed so a repeated value from
+        # the previous period is not treated as a fresh reset seed.
+        for attr_name in ("last_changed", "last_updated", "last_reported"):
             timestamp = getattr(state, attr_name, None)
             if timestamp is not None:
                 normalized = MaxMinDataUpdateCoordinator._normalize_last_reset(timestamp, reference_tz)

@@ -158,3 +158,32 @@ async def test_stale_cumulative_seed_is_replaced_by_first_new_period_value(hass,
     assert data["start"] == 0.0
     assert data["end"] == 0.0
 
+
+@pytest.mark.asyncio
+async def test_repeated_cumulative_value_after_midnight_remains_provisional(hass, config_entry):
+    """A post-midnight report must not make yesterday's value look fresh."""
+    coordinator = MaxMinDataUpdateCoordinator(hass, config_entry)
+    coordinator._source_is_cumulative = True
+
+    hass.states.get.return_value = Mock(
+        state="6.5",
+        attributes={"state_class": "total_increasing"},
+        last_changed=datetime(2023, 1, 1, 18, 30, 0, tzinfo=timezone.utc),
+        last_updated=datetime(2023, 1, 2, 0, 1, 0, tzinfo=timezone.utc),
+        last_reported=datetime(2023, 1, 2, 0, 5, 0, tzinfo=timezone.utc),
+    )
+    coordinator.tracked_data[PERIOD_DAILY] = {
+        "max": 6.5,
+        "min": 0.0,
+        "start": 0.0,
+        "end": 6.5,
+        "last_reset": datetime(2023, 1, 1, 0, 0, 0, tzinfo=timezone.utc),
+    }
+
+    with patch("custom_components.max_min.coordinator.async_track_point_in_time"):
+        coordinator._perform_reset(
+            datetime(2023, 1, 2, 0, 5, 0, tzinfo=timezone.utc), PERIOD_DAILY
+        )
+
+    assert PERIOD_DAILY in coordinator._pending_cumulative_reanchor
+
