@@ -1,4 +1,9 @@
 
+# 0.3.62 - 2026-09-22
+## Changed
+- **HACS readiness**: Removed pre-release wording from the repository documentation and aligned compatibility guidance with stable and development Home Assistant builds.
+- **Daily compatibility CI**: The scheduled compatibility workflow now tests only stable and development Home Assistant builds.
+
 # 0.3.61 - 2026-09-01
 ## Fixed
 - **Repeated cumulative reports after midnight**: A source that republishes yesterday's unchanged value after the period boundary is no longer treated as a fresh reading.
@@ -276,7 +281,7 @@
 - **Translations Validation**: Fixed strings.json and en.json missing required step descriptions, resolving HACS validation errors.
 
 ## Fixed
-- **Daily Compatibility CI**: Updated GitHub workflows to use Python 3.13, resolving failures in the nightly compatibility checks with Home Assistant beta.
+- **Daily Compatibility CI**: Updated GitHub workflows to use Python 3.13, resolving failures in the nightly compatibility checks with Home Assistant preview builds.
 - **Test Suite Modernization**: All 151 unit and component tests updated to support the `runtime_data` architecture.
 
 # 0.3.14 - 2026-02-09

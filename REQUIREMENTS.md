@@ -147,7 +147,7 @@ This document outlines the specific requirements for the Max Min Home Assistant 
 - **Changelog**: Keep a Changelog format
 - **Git Tags**: v0.1.0, etc.
 - **Breaking Changes**: Notified in CHANGELOG
-- **Pre-releases**: For beta versions
+- **Pre-releases**: Optional when validating upcoming Home Assistant changes
 
 ### CI/CD
 - **GitHub Actions**:
@@ -158,7 +158,7 @@ This document outlines the specific requirements for the Max Min Home Assistant 
   - Coverage reporting
 - **Triggers**: Push/PR to main, manual dispatch
 - **Python Versions**: Test with 3.11 and 3.12
-- **HA Versions**: Test with stable and beta (optional)
+  - **HA Versions**: Test with stable and development builds (optional)
 
 ## Maintenance Requirements
 
@@ -170,7 +170,7 @@ This document outlines the specific requirements for the Max Min Home Assistant 
 
 ### Updates
 - **API Changes**: Not applicable (no external APIs)
-- **HA Compatibility**: Test with new HA versions (beta releases)
+- **HA Compatibility**: Test with upcoming Home Assistant releases when needed
 - **Dependency Updates**: Minimal (HA core only)
 - **Security Updates**: Monitor HA vulnerabilities
 

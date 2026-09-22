@@ -12,7 +12,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        ha-version: ["stable", "beta", "dev"]
+        ha-version: ["stable", "dev"]
         python-version: ["auto"]
     steps:
       - uses: actions/checkout@v4
@@ -39,8 +39,6 @@ jobs:
         run: |
           if [ "${{ matrix.ha-version }}" == "dev" ]; then
             pip install --upgrade "homeassistant @ git+https://github.com/home-assistant/core.git@dev"
-          elif [ "${{ matrix.ha-version }}" == "beta" ]; then
-            pip install --pre --upgrade homeassistant
           else
             pip install --upgrade homeassistant
           fi
