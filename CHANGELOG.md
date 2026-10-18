@@ -1,4 +1,8 @@
 
+# 0.3.63 - 2026-10-18
+## Changed
+- Added the integration brand icon required for HACS default inclusion.
+
 # 0.3.62 - 2026-09-22
 ## Changed
 - **HACS readiness**: Removed pre-release wording from the repository documentation and aligned compatibility guidance with stable and development Home Assistant builds.
