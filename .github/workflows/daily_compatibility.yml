@@ -47,7 +47,7 @@ jobs:
       - name: Run tests
         run: |
           if [ "${{ matrix.ha-version }}" = "dev" ]; then
-            python -c "import homeassistant; import pytest; raise SystemExit(pytest.main(['tests/', '-v', '--tb=short']))"
+            python -c "import homeassistant.components.logger as logger; from homeassistant.components.logger.helpers import _clear_logger_overwrites; logger._clear_logger_overwrites = _clear_logger_overwrites; import pytest; raise SystemExit(pytest.main(['tests/', '-v', '--tb=short']))"
           else
             python -m pytest tests/ -v --tb=short
           fi
