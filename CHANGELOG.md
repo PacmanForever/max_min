@@ -1,4 +1,8 @@
 
+# 0.3.64 - 2026-10-21
+## Changed
+- Clarified the HACS installation steps and added a custom repository fallback.
+
 # 0.3.63 - 2026-10-18
 ## Changed
 - Added the integration brand icon required for HACS default inclusion.
