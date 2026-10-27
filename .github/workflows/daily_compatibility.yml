@@ -25,7 +25,7 @@ jobs:
             echo "Detected HA dev Python requirement: $raw_spec -> $python_version"
             echo "python_version=$python_version" >> $GITHUB_OUTPUT
           else
-            echo "python_version=3.13" >> $GITHUB_OUTPUT
+            echo "python_version=3.14" >> $GITHUB_OUTPUT
           fi
       - uses: actions/setup-python@v5
         with:
@@ -40,7 +40,7 @@ jobs:
           if [ "${{ matrix.ha-version }}" == "dev" ]; then
             pip install --upgrade "homeassistant @ git+https://github.com/home-assistant/core.git@dev"
           else
-            pip install --upgrade homeassistant
+            pip install --upgrade homeassistant pytest-homeassistant-custom-component
           fi
       - name: Show installed HA version
         run: pip show homeassistant | grep Version
@@ -51,6 +51,15 @@ jobs:
           else
             python -m pytest tests/ -v --tb=short
           fi
+      - name: Capture tested stable Home Assistant version
+        if: matrix.ha-version == 'stable'
+        run: python -c "from importlib.metadata import version; print(version('homeassistant'))" > tested-version.txt
+      - name: Upload tested stable Home Assistant version
+        if: matrix.ha-version == 'stable'
+        uses: actions/upload-artifact@v4
+        with:
+          name: tested-ha-version
+          path: tested-version.txt
       - name: Create issue on failure
         if: failure() && github.event_name == 'schedule'
         uses: actions/github-script@v7
@@ -74,3 +83,29 @@ jobs:
                 labels: ['compatibility', 'bug']
               });
             }
+
+  publish-tested-version:
+    if: github.ref == 'refs/heads/master'
+    needs: compatibility
+    permissions:
+      contents: write
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: master
+      - uses: actions/download-artifact@v4
+        with:
+          name: tested-ha-version
+      - name: Update tested version badge data
+        run: |
+          python -c "import json; from pathlib import Path; version = Path('tested-version.txt').read_text().strip(); Path('docs/home_assistant_compatibility.json').write_text(json.dumps({'tested_version': version}, indent=2) + '\\n')"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add docs/home_assistant_compatibility.json
+          if git diff --cached --quiet; then
+            exit 0
+          fi
+          git commit -m "chore: update tested Home Assistant version"
+          git pull --rebase origin master
+          git push origin master
