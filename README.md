@@ -9,7 +9,6 @@
 [![Validate Hassfest](https://github.com/PacmanForever/max_min/actions/workflows/validate_hassfest.yml/badge.svg)](https://github.com/PacmanForever/max_min/actions/workflows/validate_hassfest.yml)
 [![Home Assistant tested](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fraw.githubusercontent.com%2FPacmanForever%2Fmax_min%2Fmaster%2Fdocs%2Fhome_assistant_compatibility.json&query=%24.tested_version&suffix=%20tested&label=home%20assistant&color=blue)](https://github.com/PacmanForever/max_min/actions/workflows/daily_compatibility.yml)
 [![Daily HA compatibility](https://github.com/PacmanForever/max_min/actions/workflows/daily_compatibility.yml/badge.svg?branch=master)](https://github.com/PacmanForever/max_min/actions/workflows/daily_compatibility.yml)
-[![Home Assistant](https://img.shields.io/badge/home%20assistant-2024.4.0+-blue)](https://www.home-assistant.io)
 
 A custom Home Assistant integration that creates max and min sensors based on a selected numeric sensor, with support for different time periods.
 
