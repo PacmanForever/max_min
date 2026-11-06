@@ -1,4 +1,8 @@
 
+# 0.3.65 - 2026-11-06
+## Changed
+- Updated installation instructions for the Home Assistant Marketplace.
+
 # 0.3.64 - 2026-10-21
 ## Changed
 - Clarified the HACS installation steps and added a custom repository fallback.

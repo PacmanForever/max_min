@@ -22,19 +22,13 @@ A custom Home Assistant integration that creates max and min sensors based on a 
 
 ## Installation
 
-### HACS (recommended)
+### Marketplace (formerly HACS)
 
-1. Open HACS in your Home Assistant instance.
-2. Go to "Integrations".
-3. Search for "Max Min" and install it.
+1. In Home Assistant, go to **Settings** > **Marketplace**.
+2. Search for **Max Min** and select **Install**.
+3. Complete the setup flow that opens. If you close it, go to **Settings** > **Devices & services** > **Add integration** and search for **Max Min**.
 
-If "Max Min" is not listed in HACS, add it as a custom repository:
-
-1. In HACS Integrations, click the three dots in the top right corner and select "Custom repositories".
-2. Add `https://github.com/PacmanForever/max_min` as a custom repository with category "Integration".
-3. Search for "Max Min" and install it.
-
-After installing through HACS, restart Home Assistant and add the integration through the UI.
+On Home Assistant 2026.10 and older, search for **Max Min** in HACS instead.
 
 ### Manual
 

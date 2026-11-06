@@ -134,9 +134,9 @@ Create `hacs.json` at the repository root:
 }
 ```
 
-- **name**: Visible name in HACS.
+- **name**: Visible name in the Marketplace (formerly HACS).
 - **content_in_root**: false (content is in custom_components/).
-- **render_readme**: true to display README in HACS.
+- **render_readme**: true to display the README in the Marketplace and legacy HACS.
 - **homeassistant**: Minimum required version.
 
 ### HACS Validation
@@ -303,7 +303,7 @@ subprocess.run(['git', 'push', 'origin', 'v1.0.0'])
 ### README.md
 Create a comprehensive README.md that includes:
 - Project title and description
-- Installation instructions (HACS and manual)
+- Installation instructions (Marketplace for Home Assistant 2026.11+, HACS for 2026.10 and older, and manual)
 - Main features and capabilities
 - Status badges (tests, coverage, HACS validation)
 - Configuration examples
