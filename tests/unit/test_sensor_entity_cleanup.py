@@ -70,10 +70,10 @@ async def test_sensor_cleanup_on_options_update(hass, mock_registry_entry):
     # Also need to patch dr.async_get because it's called in the device cleanup block
     
     mock_dr = Mock()
-    mock_dr.devices = {}  # Empty devices for this test
     
     with patch("custom_components.max_min.sensor.er.async_get", return_value=mock_er), \
          patch("custom_components.max_min.sensor.er.async_entries_for_config_entry", return_value=[entry_max, entry_min]), \
+         patch("custom_components.max_min.sensor.dr.async_entries_for_config_entry", return_value=[]), \
          patch("custom_components.max_min.sensor.dr.async_get", return_value=mock_dr):
         
         # Configure hass mock states for source entity
@@ -120,10 +120,10 @@ async def test_sensor_cleanup_on_period_change(hass, mock_registry_entry):
     entry_daily.device_id = None
     
     mock_dr = Mock()
-    mock_dr.devices = {}
     
     with patch("custom_components.max_min.sensor.er.async_get", return_value=mock_er), \
          patch("custom_components.max_min.sensor.er.async_entries_for_config_entry", return_value=[entry_daily]), \
+         patch("custom_components.max_min.sensor.dr.async_entries_for_config_entry", return_value=[]), \
          patch("custom_components.max_min.sensor.dr.async_get", return_value=mock_dr):
         
         hass.states.get.return_value = Mock(name="Source")

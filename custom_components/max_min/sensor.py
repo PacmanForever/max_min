@@ -59,12 +59,11 @@ async def async_setup_entry(
         
         # Unlink config entry from device
         dev_reg = dr.async_get(hass)
-        devices_to_unlink = [
-            dev.id for dev in dev_reg.devices.values() 
-            if config_entry.entry_id in dev.config_entries
-        ]
-        for dev_id in devices_to_unlink:
-            dev_reg.async_update_device(dev_id, remove_config_entry_id=config_entry.entry_id)
+        devices = dr.async_entries_for_config_entry(dev_reg, config_entry.entry_id)
+        for device in devices:
+            dev_reg.async_update_device(
+                device.id, remove_config_entry_id=config_entry.entry_id
+            )
 
     # Identify and remove stale entities
     expected_unique_ids = set()

@@ -51,6 +51,7 @@ async def test_sensor_setup(hass, config_entry):
 
     with patch("homeassistant.helpers.entity_registry.async_get") as mock_er_get, \
             patch("homeassistant.helpers.device_registry.async_get") as mock_dr_get, \
+            patch("homeassistant.helpers.device_registry.async_entries_for_config_entry", return_value=[]), \
             patch("homeassistant.helpers.entity_registry.async_entries_for_config_entry", return_value=[]):
         mock_registry = Mock()
         mock_registry.async_get_entity_id.return_value = None  # Use return_value to mock a method call
@@ -99,10 +100,14 @@ async def test_device_cleanup(hass, config_entry):
     # Mock device registry having a device linked to this config entry
     mock_device = Mock()
     mock_device.id = "old_device_id"
-    mock_device.config_entries = {config_entry.entry_id}
+    mock_device.config_entry_id = config_entry.entry_id
 
     with patch("homeassistant.helpers.entity_registry.async_get") as mock_er_get, \
          patch("homeassistant.helpers.device_registry.async_get") as mock_dr_get, \
+         patch(
+             "homeassistant.helpers.device_registry.async_entries_for_config_entry",
+             return_value=[mock_device],
+         ) as mock_devices_for_entry, \
          patch("homeassistant.helpers.entity_registry.async_entries_for_config_entry", return_value=[mock_entity_entry]):
          
         mock_registry = Mock()
@@ -110,11 +115,11 @@ async def test_device_cleanup(hass, config_entry):
         mock_er_get.return_value = mock_registry
         
         mock_dev_reg = Mock()
-        mock_dev_reg.devices = {"old_device_id": mock_device}
         mock_dr_get.return_value = mock_dev_reg
         
         await async_setup_entry(hass, config_entry, async_add_entities)
         
+        mock_devices_for_entry.assert_called_once_with(mock_dev_reg, config_entry.entry_id)
         # Verify entity was updated to remove device_id
         mock_registry.async_update_entity.assert_called_with("sensor.test_daily_max", device_id=None)
         
@@ -138,13 +143,13 @@ async def test_sensor_setup_periods_string(hass, config_entry):
 
     with patch("homeassistant.helpers.entity_registry.async_get") as mock_er_get, \
          patch("homeassistant.helpers.device_registry.async_get") as mock_dr_get, \
+         patch("homeassistant.helpers.device_registry.async_entries_for_config_entry", return_value=[]), \
          patch("homeassistant.helpers.entity_registry.async_entries_for_config_entry", return_value=[]):
         mock_registry = Mock()
         mock_registry.async_get.return_value = Mock(name="Temp", original_name="Temp Orig")
         mock_er_get.return_value = mock_registry
 
         mock_dev_reg = Mock()
-        mock_dev_reg.devices = {}
         mock_dr_get.return_value = mock_dev_reg
 
         await async_setup_entry(hass, config_entry, async_add_entities)
@@ -172,13 +177,13 @@ async def test_sensor_setup_friendly_name_fallback(hass, config_entry):
 
     with patch("homeassistant.helpers.entity_registry.async_get") as mock_er_get, \
          patch("homeassistant.helpers.device_registry.async_get") as mock_dr_get, \
+         patch("homeassistant.helpers.device_registry.async_entries_for_config_entry", return_value=[]), \
          patch("homeassistant.helpers.entity_registry.async_entries_for_config_entry", return_value=[]):
         mock_registry = Mock()
         mock_registry.async_get.return_value = None
         mock_er_get.return_value = mock_registry
 
         mock_dev_reg = Mock()
-        mock_dev_reg.devices = {}
         mock_dr_get.return_value = mock_dev_reg
 
         await async_setup_entry(hass, config_entry, async_add_entities)
@@ -202,13 +207,13 @@ async def test_sensor_setup_creates_delta_entity(hass, config_entry):
 
     with patch("homeassistant.helpers.entity_registry.async_get") as mock_er_get, \
          patch("homeassistant.helpers.device_registry.async_get") as mock_dr_get, \
+         patch("homeassistant.helpers.device_registry.async_entries_for_config_entry", return_value=[]), \
          patch("homeassistant.helpers.entity_registry.async_entries_for_config_entry", return_value=[]):
         mock_registry = Mock()
         mock_registry.async_get.return_value = Mock(name="Temp", original_name="Temp Orig")
         mock_er_get.return_value = mock_registry
 
         mock_dev_reg = Mock()
-        mock_dev_reg.devices = {}
         mock_dr_get.return_value = mock_dev_reg
 
         await async_setup_entry(hass, config_entry, async_add_entities)

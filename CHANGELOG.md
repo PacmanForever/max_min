@@ -1,4 +1,8 @@
 
+# 0.3.66 - 2026-11-24
+## Fixed
+- Replaced deprecated device registry mapping and config-entry access with the supported config-entry lookup helper.
+
 # 0.3.65 - 2026-11-06
 ## Changed
 - Updated installation instructions for the Home Assistant Marketplace.
